@@ -1,189 +1,169 @@
 import streamlit as st
-from database import get_products, checkout_sale_rpc
+from database import get_products
 
-# =========================
-# PAGE CONFIG
-# =========================
 st.title("🛒 POS v3 Ultra (Enterprise Grade)")
 
 # =========================
-# SESSION INIT
+# INIT CART
 # =========================
-def init():
-    if "cart" not in st.session_state:
-        st.session_state.cart = []
+if "cart" not in st.session_state:
+    st.session_state.cart = []
 
-    if "discount" not in st.session_state:
-        st.session_state.discount = 0
-
-init()
+# =========================
+# SETTINGS (ERP CONFIG)
+# =========================
+TAX_RATE = 0.05   # 5% Commercial Tax (change anytime)
 
 # =========================
 # LOAD PRODUCTS
 # =========================
-resp = get_products()
-products = resp.data or [] if resp else []
+products_resp = get_products()
+products = products_resp.data if products_resp and products_resp.data else []
 
 # =========================
-# FAST SEARCH / BARCODE INPUT
+# SEARCH / BARCODE
 # =========================
-barcode = st.text_input("🔎 Scan / Enter Barcode or Search")
+search = st.text_input("🔎 Scan / Enter Barcode or Search")
 
-def find_product(query):
-    query = query.lower()
-
-    for p in products:
-        if str(p.get("barcode","")) == query:
-            return p
-        if p.get("name") and query in p["name"].lower():
-            return p
-    return None
+filtered = [
+    p for p in products
+    if search.lower() in (p.get("name", "") + str(p.get("barcode", ""))).lower()
+] if search else products
 
 # =========================
-# ADD TO CART (SMART ENGINE)
+# ADD TO CART (FLOATING PRICE SUPPORT)
 # =========================
-def add(product):
-    if not product:
-        return
-
+def add_to_cart(p):
     for item in st.session_state.cart:
-        if item["id"] == product["id"]:
+        if item["id"] == p["id"]:
             item["qty"] += 1
             return
 
     st.session_state.cart.append({
-        "id": product["id"],
-        "name": product.get("name"),
-        "price": float(product.get("selling_price") or 0),
-        "qty": 1
+        "id": p["id"],
+        "name": p["name"],
+        "qty": 1,
+
+        # 🔥 FLOATING PRICE SUPPORT
+        "price": float(p.get("selling_price") or 0),
+
+        # optional override
+        "custom_price": None
     })
 
-# Auto add from barcode/search
-if barcode:
-    p = find_product(barcode)
-    if p:
-        add(p)
-        st.success(f"Added: {p['name']}")
-        st.rerun()
+# =========================
+# PRODUCT LIST
+# =========================
+st.subheader("📦 Products")
+
+for p in filtered:
+    col1, col2, col3 = st.columns([5, 2, 1])
+
+    with col1:
+        st.write(f"🛒 {p['name']}")
+
+    with col2:
+        st.write(f"{p.get('selling_price',0)} MMK")
+
+    with col3:
+        if st.button("➕", key=f"add_{p['id']}"):
+            add_to_cart(p)
+            st.rerun()
+
+st.divider()
 
 # =========================
-# CART ENGINE
+# CART
 # =========================
 st.subheader("🧾 Cart")
 
 subtotal = 0
 
-for item in st.session_state.cart:
+for i, item in enumerate(st.session_state.cart):
 
-    c1, c2, c3, c4 = st.columns([4,1,1,1])
+    col1, col2, col3, col4 = st.columns([4, 2, 2, 1])
 
-    with c1:
+    with col1:
         st.write(item["name"])
 
-    with c2:
-        st.write(item["price"])
+    # =========================
+    # FLOATING PRICE EDIT
+    # =========================
+    with col2:
+        price = st.number_input(
+            "Price",
+            value=item["price"],
+            key=f"price_{i}"
+        )
+        item["price"] = price
 
-    with c3:
+    with col3:
         qty = st.number_input(
             "Qty",
-            min_value=1,
             value=item["qty"],
-            key=f"qty_{item['id']}"
+            min_value=1,
+            key=f"qty_{i}"
         )
         item["qty"] = qty
 
-    with c4:
-        if st.button("❌", key=f"rm_{item['id']}"):
-            st.session_state.cart.remove(item)
+    with col4:
+        if st.button("❌", key=f"del_{i}"):
+            st.session_state.cart.pop(i)
             st.rerun()
 
     subtotal += item["price"] * item["qty"]
 
 # =========================
-# DISCOUNT ENGINE
+# DISCOUNT (GLOBAL)
 # =========================
 st.divider()
-st.subheader("💰 Pricing")
 
-col1, col2 = st.columns(2)
+discount_pct = st.number_input("Discount (%)", min_value=0.0, max_value=100.0, value=0.0)
 
-with col1:
-    st.session_state.discount = st.number_input(
-        "Discount (%)",
-        min_value=0,
-        max_value=100,
-        value=st.session_state.discount
-    )
+discount_amount = subtotal * (discount_pct / 100)
 
-discount_amount = (subtotal * st.session_state.discount) / 100
-total = subtotal - discount_amount
-
-col2.metric("Subtotal", f"{subtotal:,.0f}")
-col2.metric("Discount", f"{discount_amount:,.0f}")
-col2.metric("Total", f"{total:,.0f}")
+after_discount = subtotal - discount_amount
 
 # =========================
-# CHECKOUT SECTION
+# TAX (COMMERCIAL TAX)
 # =========================
-st.divider()
-st.subheader("💳 Checkout")
-
-paid = st.number_input("Paid Amount", min_value=0.0, step=100.0)
-
-col1, col2, col3 = st.columns(3)
-
-checkout = col1.button("🚀 Pay (F2)")
-clear = col2.button("🧹 Clear Cart")
-hold = col3.button("⏸ Hold Sale")
+tax = after_discount * TAX_RATE
 
 # =========================
-# CLEAR CART
+# FINAL TOTAL
 # =========================
-if clear:
-    st.session_state.cart = []
-    st.success("Cart Cleared")
-    st.rerun()
+total = after_discount + tax
 
 # =========================
-# HOLD SALE (future feature)
+# SUMMARY
 # =========================
-if hold:
-    st.info("Sale saved to HOLD (feature placeholder)")
+st.write("## 💰 Summary")
+
+st.write("Subtotal:", subtotal)
+st.write("Discount:", discount_amount)
+st.write("After Discount:", after_discount)
+st.write("Tax (5%):", tax)
+
+st.write("## 🧾 TOTAL:", total)
 
 # =========================
-# CHECKOUT ENGINE (ULTRA SAFE)
+# CHECKOUT PLACEHOLDER
 # =========================
-if checkout:
+paid = st.number_input("Paid Amount", min_value=0.0)
+
+if st.button("Pay & Print"):
 
     if not st.session_state.cart:
-        st.warning("Cart is empty")
-        st.stop()
+        st.error("Cart empty")
 
-    if paid < total:
+    elif paid < total:
         st.error("Insufficient payment")
-        st.stop()
 
-    with st.spinner("Processing Ultra Checkout..."):
+    else:
+        change = paid - total
 
-        result = checkout_sale_rpc(
-            st.session_state.cart,
-            paid_amount=paid
-        )
+        st.success("Payment Successful 🚀")
+        st.info(f"Change: {change}")
 
-    if not result or result.get("error"):
-        st.error(result.get("error", "Checkout failed"))
-        st.stop()
-
-    st.success(f"Sale Completed: {result['sale_id']}")
-    st.info(f"Receipt: {result['receipt_no']}")
-
-    # reset
-    st.session_state.cart = []
-    st.session_state.discount = 0
-
-    st.rerun()
-
-# =========================
-# SHORTCUT HELP
-# =========================
-st.caption("Tip: Use barcode scanner or F2 to speed checkout 🚀")
+        st.session_state.cart = []
+        st.rerun()
