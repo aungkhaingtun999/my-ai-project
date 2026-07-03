@@ -1,7 +1,7 @@
 import streamlit as st
 
 # ==========================================
-# MENU CONFIG (ERP LEVEL)
+# MENU CONFIG (ROLE BASED ERP)
 # ==========================================
 
 MENU = {
@@ -26,20 +26,44 @@ MENU = {
 }
 
 # ==========================================
-# INIT STATE
+# SAFE INIT STATE
 # ==========================================
 
 def init_sidebar_state():
+    defaults = {
+        "role": "Cashier",
+        "language": "English",
+        "active_page": "pages/1_POS.py"
+    }
 
-    if "role" not in st.session_state:
-        st.session_state.role = "Cashier"
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
-    if "language" not in st.session_state:
-        st.session_state.language = "English"
+# ==========================================
+# SAFE USER HANDLER
+# ==========================================
 
-    if "active_page" not in st.session_state:
-        st.session_state.active_page = None
+def get_user():
+    user = st.session_state.get("user")
 
+    if isinstance(user, dict):
+        return user.get("name", "Guest")
+    elif isinstance(user, str):
+        return user
+    return "Guest"
+
+# ==========================================
+# ROLE VALIDATION (ANTI HACK)
+# ==========================================
+
+def safe_role():
+    role = st.session_state.get("role", "Cashier")
+
+    if role not in MENU:
+        return "Cashier"
+
+    return role
 
 # ==========================================
 # SIDEBAR UI
@@ -52,23 +76,23 @@ def show_sidebar():
     with st.sidebar:
 
         st.title("🛒 ERP SYSTEM")
+        st.caption("Ultra v3 Controller")
 
         st.divider()
 
         # =========================
-        # USER INFO
+        # USER INFO PANEL
         # =========================
-        user = st.session_state.get("user", {})
-        username = user.get("name", "Guest")
-        role = st.session_state.get("role", "Cashier")
+        username = get_user()
+        role = safe_role()
 
-        st.write(f"👤 **{username}**")
-        st.write(f"🔑 Role: {role}")
+        st.markdown(f"👤 **{username}**")
+        st.markdown(f"🔐 Role: `{role}`")
 
         st.divider()
 
         # =========================
-        # LANGUAGE SWITCH
+        # LANGUAGE
         # =========================
         st.session_state.language = st.selectbox(
             "Language",
@@ -83,18 +107,18 @@ def show_sidebar():
         # =========================
         st.subheader("📂 Navigation")
 
-        menu = MENU.get(role, [])
+        menu = MENU.get(role, MENU["Cashier"])
 
         for icon, title, page in menu:
 
             is_active = (st.session_state.active_page == page)
 
-            label = f"{icon} {title}"
-
             if is_active:
-                label = f"👉 {label}"
+                label = f"👉 {icon} {title}"
+            else:
+                label = f"{icon} {title}"
 
-            if st.button(label, use_container_width=True, key=page):
+            if st.button(label, key=f"nav_{role}_{page}"):
 
                 st.session_state.active_page = page
                 st.switch_page(page)
@@ -102,17 +126,22 @@ def show_sidebar():
         st.divider()
 
         # =========================
-        # LOGOUT SAFE
+        # SYSTEM STATUS
+        # =========================
+        st.success("🟢 System Online")
+
+        # =========================
+        # LOGOUT (HARD RESET)
         # =========================
         if st.button("🚪 Logout", use_container_width=True):
 
-            keep_keys = ["language"]
+            # keep only language
+            lang = st.session_state.get("language", "English")
 
-            for k in list(st.session_state.keys()):
-                if k not in keep_keys:
-                    del st.session_state[k]
+            st.session_state.clear()
 
-            st.session_state.role = "Cashier"
-            st.session_state.active_page = None
+            st.session_state["language"] = lang
+            st.session_state["role"] = "Cashier"
+            st.session_state["active_page"] = "pages/1_POS.py"
 
             st.switch_page("app.py")
