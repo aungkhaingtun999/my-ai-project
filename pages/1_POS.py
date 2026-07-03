@@ -1,7 +1,6 @@
 import streamlit as st
-from database import get_products
 
-st.title("🛒 POS v3 Ultra (Enterprise Grade)")
+st.title("🛒 POS v3 Ultra (FIXED ENGINE)")
 
 # =========================
 # INIT CART
@@ -10,70 +9,50 @@ if "cart" not in st.session_state:
     st.session_state.cart = []
 
 # =========================
-# SETTINGS (ERP CONFIG)
+# ADD TEST PRODUCTS (if needed)
 # =========================
-TAX_RATE = 0.05   # 5% Commercial Tax (change anytime)
+products = [
+    {"id": 1, "name": "Cake", "price": 5000},
+    {"id": 2, "name": "Coffee", "price": 2500},
+    {"id": 3, "name": "Tea", "price": 1500},
+]
 
 # =========================
-# LOAD PRODUCTS
+# ADD TO CART
 # =========================
-products_resp = get_products()
-products = products_resp.data if products_resp and products_resp.data else []
-
-# =========================
-# SEARCH / BARCODE
-# =========================
-search = st.text_input("🔎 Scan / Enter Barcode or Search")
-
-filtered = [
-    p for p in products
-    if search.lower() in (p.get("name", "") + str(p.get("barcode", ""))).lower()
-] if search else products
-
-# =========================
-# ADD TO CART (FLOATING PRICE SUPPORT)
-# =========================
-def add_to_cart(p):
-    for item in st.session_state.cart:
-        if item["id"] == p["id"]:
-            item["qty"] += 1
+def add(p):
+    for i in st.session_state.cart:
+        if i["id"] == p["id"]:
+            i["qty"] += 1
             return
 
     st.session_state.cart.append({
         "id": p["id"],
         "name": p["name"],
-        "qty": 1,
-
-        # 🔥 FLOATING PRICE SUPPORT
-        "price": float(p.get("selling_price") or 0),
-
-        # optional override
-        "custom_price": None
+        "price": float(p["price"]),
+        "qty": 1
     })
 
 # =========================
-# PRODUCT LIST
+# PRODUCTS UI
 # =========================
 st.subheader("📦 Products")
 
-for p in filtered:
-    col1, col2, col3 = st.columns([5, 2, 1])
+for p in products:
+    col1, col2 = st.columns([3,1])
 
     with col1:
-        st.write(f"🛒 {p['name']}")
+        st.write(f"🛒 {p['name']} - {p['price']} MMK")
 
     with col2:
-        st.write(f"{p.get('selling_price',0)} MMK")
-
-    with col3:
-        if st.button("➕", key=f"add_{p['id']}"):
-            add_to_cart(p)
+        if st.button("Add", key=f"add_{p['id']}"):
+            add(p)
             st.rerun()
 
 st.divider()
 
 # =========================
-# CART
+# CART CALCULATION (FIXED)
 # =========================
 st.subheader("🧾 Cart")
 
@@ -81,88 +60,63 @@ subtotal = 0
 
 for i, item in enumerate(st.session_state.cart):
 
-    col1, col2, col3, col4 = st.columns([4, 2, 2, 1])
+    col1, col2, col3 = st.columns([4,2,1])
 
     with col1:
         st.write(item["name"])
 
-    # =========================
-    # FLOATING PRICE EDIT
-    # =========================
     with col2:
-        price = st.number_input(
-            "Price",
-            value=item["price"],
-            key=f"price_{i}"
-        )
-        item["price"] = price
-
-    with col3:
-        qty = st.number_input(
-            "Qty",
-            value=item["qty"],
-            min_value=1,
-            key=f"qty_{i}"
-        )
+        qty = st.number_input("Qty", min_value=1, value=item["qty"], key=f"q_{i}")
         item["qty"] = qty
 
-    with col4:
-        if st.button("❌", key=f"del_{i}"):
+    with col3:
+        if st.button("❌", key=f"rm_{i}"):
             st.session_state.cart.pop(i)
             st.rerun()
 
-    subtotal += item["price"] * item["qty"]
+    subtotal += float(item["price"]) * int(item["qty"])
 
 # =========================
-# DISCOUNT (GLOBAL)
+# DISCOUNT + TAX
 # =========================
-st.divider()
+discount_pct = st.number_input("Discount (%)", min_value=0.0, value=0.0)
 
-discount_pct = st.number_input("Discount (%)", min_value=0.0, max_value=100.0, value=0.0)
+discount = subtotal * (discount_pct / 100)
+after_discount = subtotal - discount
 
-discount_amount = subtotal * (discount_pct / 100)
-
-after_discount = subtotal - discount_amount
-
-# =========================
-# TAX (COMMERCIAL TAX)
-# =========================
-tax = after_discount * TAX_RATE
-
-# =========================
-# FINAL TOTAL
-# =========================
+tax = after_discount * 0.05
 total = after_discount + tax
 
 # =========================
-# SUMMARY
+# SUMMARY (DEBUG SAFE)
 # =========================
-st.write("## 💰 Summary")
-
 st.write("Subtotal:", subtotal)
-st.write("Discount:", discount_amount)
+st.write("Discount:", discount)
 st.write("After Discount:", after_discount)
-st.write("Tax (5%):", tax)
+st.write("Tax:", tax)
 
 st.write("## 🧾 TOTAL:", total)
 
 # =========================
-# CHECKOUT PLACEHOLDER
+# CHECKOUT FIX
 # =========================
 paid = st.number_input("Paid Amount", min_value=0.0)
 
-if st.button("Pay & Print"):
+if st.button("💳 Pay & Print"):
 
-    if not st.session_state.cart:
-        st.error("Cart empty")
+    if len(st.session_state.cart) == 0:
+        st.error("Cart empty ❌")
+
+    elif total <= 0:
+        st.error("Total is 0 → calculation bug")
 
     elif paid < total:
-        st.error("Insufficient payment")
+        st.error("Insufficient payment ❌")
 
     else:
         change = paid - total
 
-        st.success("Payment Successful 🚀")
+        st.success("Payment Success 🚀")
         st.info(f"Change: {change}")
 
         st.session_state.cart = []
