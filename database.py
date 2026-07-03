@@ -1,8 +1,12 @@
+# ==========================================
+# database.py (PRODUCTION ERP POS)
+# ==========================================
+
 from supabase import create_client, Client
 import streamlit as st
 
 # ==========================
-# Supabase Connection
+# CONNECTION
 # ==========================
 
 @st.cache_resource
@@ -14,8 +18,9 @@ def get_supabase() -> Client:
 
 supabase = get_supabase()
 
+
 # ==========================
-# Helper
+# SAFE EXECUTOR
 # ==========================
 
 def safe_execute(query):
@@ -25,9 +30,10 @@ def safe_execute(query):
         print("Database Error:", e)
         return None
 
-# ==========================
+
+# ======================================================
 # PRODUCTS
-# ==========================
+# ======================================================
 
 def get_products(active_only=True):
     query = supabase.table("products").select("""
@@ -58,35 +64,28 @@ def get_product(product_id: int):
         .single()
     )
 
-# ==========================
+
+# ======================================================
 # INVENTORY
-# ==========================
+# ======================================================
 
 def add_inventory_log(data: dict):
     return safe_execute(
         supabase.table("inventory_logs").insert(data)
     )
 
-# ==========================
-# RECEIPT
-# ==========================
 
-def create_receipt(sale_id, total, paid_amount):
+# ======================================================
+# RECEIPTS
+# ======================================================
 
-    receipt_no = f"RCP-{sale_id}"
-
+def create_receipt(data: dict):
     return safe_execute(
-        supabase.table("receipts").insert({
-            "sale_id": sale_id,
-            "receipt_no": receipt_no,
-            "total": total,
-            "paid_amount": paid_amount,
-            "change_amount": paid_amount - total
-        })
+        supabase.table("receipts").insert(data)
     )
 
 
-def get_receipt(receipt_no):
+def get_receipt(receipt_no: str):
     return safe_execute(
         supabase.table("receipts")
         .select("*")
@@ -94,77 +93,116 @@ def get_receipt(receipt_no):
         .single()
     )
 
-# ==========================
-# THERMAL PRINTER HOOK (OPTIONAL)
-# ==========================
 
-def print_receipt_if_needed(receipt, cart):
-    """
-    This function is SAFE hook.
-    If printer module exists → print
-    If not → ignore (no crash)
-    """
+# ======================================================
+# PRINTER HOOK (SAFE)
+# ======================================================
 
+def print_receipt_if_available(receipt, items):
     try:
         from utils.thermal_receipt import print_receipt
-        print_receipt(receipt, cart)
+        print_receipt(receipt, items)
     except Exception as e:
-        print("Printer not available:", e)
+        print("Printer skipped:", e)
 
-# ==========================
-# RPC CHECKOUT (MAIN SYSTEM)
-# ==========================
+
+# ======================================================
+# STOCK VALIDATION (SEPARATE LAYER)
+# ======================================================
+
+def validate_stock(cart):
+    for item in cart:
+
+        product = supabase.table("products") \
+            .select("id, stock, name") \
+            .eq("id", item["id"]) \
+            .single() \
+            .execute()
+
+        if not product.data:
+            return False, f"Product not found: {item['name']}"
+
+        if product.data["stock"] < item["qty"]:
+            return False, f"Not enough stock: {item['name']}"
+
+    return True, "OK"
+
+
+# ======================================================
+# CHECKOUT ENGINE (ERP SAFE FLOW)
+# ======================================================
 
 def checkout_sale_rpc(cart, paid_amount, cashier_id=None):
 
+    # --------------------------
+    # VALIDATION
+    # --------------------------
     if not cart:
         return {"error": "Cart is empty"}
 
-    payload = [
-        {
-            "id": item["id"],
-            "qty": item["qty"],
-            "selling_price": item["selling_price"]
-        }
-        for item in cart
-    ]
+    total = sum(i["selling_price"] * i["qty"] for i in cart)
 
+    if paid_amount < total:
+        return {"error": "Insufficient payment"}
+
+    # --------------------------
+    # STOCK CHECK (CLEAN)
+    # --------------------------
+    ok, msg = validate_stock(cart)
+    if not ok:
+        return {"error": msg}
+
+    # --------------------------
+    # RPC CALL
+    # --------------------------
     result = supabase.rpc("checkout_sale_rpc", {
-        "p_cart": payload,
+        "p_cart": [
+            {
+                "id": i["id"],
+                "qty": i["qty"],
+                "selling_price": i["selling_price"]
+            }
+            for i in cart
+        ],
         "p_paid_amount": paid_amount,
         "p_cashier_id": cashier_id
     }).execute()
 
     if not result.data:
-        return {"error": "Checkout failed"}
+        return {"error": "Checkout failed (RPC error)"}
 
     sale = result.data[0]
 
-    # ==========================
-    # RECEIPT CREATE
-    # ==========================
+    sale_id = sale.get("sale_id")
+    total = sale.get("total")
+
+    if not sale_id:
+        return {"error": "Invalid sale response"}
+
+    # --------------------------
+    # RECEIPT
+    # --------------------------
     receipt = {
-        "receipt_no": f"RCP-{sale['sale_id']}",
-        "created_at": "NOW",
-        "total": sale["total"],
+        "receipt_no": f"RCP-{sale_id}",
+        "sale_id": sale_id,
+        "total": total,
         "paid_amount": paid_amount,
-        "change_amount": paid_amount - sale["total"]
+        "change_amount": paid_amount - total
     }
 
-    create_receipt(
-        sale["sale_id"],
-        sale["total"],
-        paid_amount
-    )
+    create_receipt(receipt)
 
-    # ==========================
-    # THERMAL PRINT (AUTO HOOK)
-    # ==========================
-    print_receipt_if_needed(receipt, cart)
+    # --------------------------
+    # PRINT
+    # --------------------------
+    print_receipt_if_available(receipt, cart)
 
+    # --------------------------
+    # RESPONSE
+    # --------------------------
     return {
         "success": True,
-        "sale_id": sale["sale_id"],
-        "total": sale["total"],
+        "sale_id": sale_id,
+        "total": total,
         "receipt_no": receipt["receipt_no"]
     }
