@@ -195,7 +195,7 @@ with left:
     st.subheader("📈 Sales Trend")
 
     trend = [{"day": k, "sales": v} for k, v in sorted(daily.items())]
-    st.line_chart(trend, x="day", y="sales")
+    st.line_chart([v for v in trend["sales"]])
 
 with right:
     st.subheader("🏆 Top Products")
