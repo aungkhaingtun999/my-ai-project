@@ -2,9 +2,9 @@ import streamlit as st
 from auth import login_page
 from sidebar import show_sidebar
 
-# =========================
+# ==========================================
 # PAGE CONFIG
-# =========================
+# ==========================================
 st.set_page_config(
     page_title="ERP POS System",
     page_icon="🛒",
@@ -12,76 +12,83 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# =========================
-# SAFE SESSION INIT
-# =========================
-def init_session():
+# ==========================================
+# STATE INIT (STRICT)
+# ==========================================
+def init_state():
     defaults = {
         "user": None,
-        "role": "Cashier",
-        "active_page": "dashboard"
+        "role": None,
+        "active_page": None
     }
 
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
-init_session()
+init_state()
 
-# =========================
-# AUTH CHECK
-# =========================
-def is_authenticated():
+# ==========================================
+# AUTH VALIDATION (CLEAN)
+# ==========================================
+def is_authenticated() -> bool:
     user = st.session_state.get("user")
 
-    if not user:
+    if user is None:
         return False
 
-    # support dict user
     if isinstance(user, dict):
-        return "id" in user
+        return bool(user.get("id"))
 
-    # support string user (legacy login)
+    # if string login legacy
     if isinstance(user, str):
-        return True
+        return len(user.strip()) > 0
 
     return False
 
-# =========================
-# LOGOUT SAFE RESET
-# =========================
-def safe_logout():
-    keep = {"role": "Cashier"}
+# ==========================================
+# LOGOUT (SAFE RESET)
+# ==========================================
+def logout():
+    preserve = {
+        "user": None,
+        "role": None,
+        "active_page": None
+    }
 
-    st.session_state.clear()
+    for k in list(st.session_state.keys()):
+        del st.session_state[k]
 
-    for k, v in keep.items():
+    for k, v in preserve.items():
         st.session_state[k] = v
 
-# =========================
-# MAIN CONTROLLER
-# =========================
+    st.rerun()
+
+# ==========================================
+# MAIN APP CONTROLLER
+# ==========================================
 def main():
 
-    # -------------------------
-    # LOGIN FLOW
-    # -------------------------
+    # --------------------------
+    # LOGIN GATE (HARD BLOCK)
+    # --------------------------
     if not is_authenticated():
         login_page()
         return
 
     user = st.session_state.user
 
-    # role sync
+    # normalize user
     if isinstance(user, dict):
-        st.session_state.role = user.get("role", "Cashier")
         username = user.get("name", "User")
+        st.session_state.role = user.get("role", "Cashier")
     else:
         username = str(user)
+        st.session_state.role = "Cashier"
 
-    # -------------------------
-    # SIDEBAR
-    # -------------------------
+    # --------------------------
+    # SIDEBAR (ONLY IF LOGGED IN)
+    # --------------------------
     show_sidebar()
 
     # =========================
@@ -91,29 +98,32 @@ def main():
     st.subheader(f"Welcome back, {username} 🚀")
 
     # =========================
-    # QUICK KPIs
+    # KPI SECTION
     # =========================
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("Status", "Active 🟢")
-    col2.metric("Role", st.session_state.role)
-    col3.metric("System", "Online ⚡")
+    col1.metric("System Status", "Active 🟢")
+    col2.metric("User Role", st.session_state.role)
+    col3.metric("Backend", "Supabase ⚡")
 
     st.divider()
 
     # =========================
-    # SYSTEM INFO PANEL
+    # INFO PANEL
     # =========================
-    st.info("✔ ERP Controller Active | Checkout RPC v2 Ready | Supabase Connected")
+    st.info(
+        "✔ ERP Controller Active\n"
+        "✔ Checkout RPC v2 Ready\n"
+        "✔ Secure Session Mode ON"
+    )
 
     # =========================
-    # LOGOUT BUTTON
+    # LOGOUT (GLOBAL SAFE BUTTON)
     # =========================
-    if st.sidebar.button("🚪 Logout"):
-        safe_logout()
-        st.rerun()
+    if st.button("🚪 Logout", use_container_width=True):
+        logout()
 
-# =========================
+# ==========================================
 # RUN
-# =========================
+# ==========================================
 main()
