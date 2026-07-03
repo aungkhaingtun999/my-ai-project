@@ -1,35 +1,33 @@
 import streamlit as st
-from database import get_supabase
 from collections import defaultdict
+from database import get_supabase
 
 supabase = get_supabase()
 
-st.title("📊 Admin Dashboard (ERP Level)")
+st.title("📊 Admin Dashboard (ERP Level Analytics)")
 
 # =========================
 # DATA LOAD
 # =========================
-sales_resp = supabase.table("sales").select("*").execute()
-products_resp = supabase.table("products").select("*").execute()
-items_resp = supabase.table("sale_items").select("*").execute()
-
-sales = sales_resp.data or []
-products = products_resp.data or []
-sale_items = items_resp.data or []
+sales = supabase.table("sales").select("*").execute().data or []
+products = supabase.table("products").select("*").execute().data or []
+sale_items = supabase.table("sale_items").select("*").execute().data or []
 
 # =========================
-# KPI METRICS
+# INDEX PRODUCTS (FAST LOOKUP)
+# =========================
+product_map = {p["id"]: p for p in products}
+
+# =========================
+# KPI CALCULATIONS
 # =========================
 total_sales = sum(s.get("total", 0) for s in sales)
 total_orders = len(sales)
 
-# =========================
-# REAL PROFIT CALCULATION
-# =========================
 total_profit = 0
 
 for item in sale_items:
-    product = next((p for p in products if p["id"] == item.get("product_id")), None)
+    product = product_map.get(item.get("product_id"))
     if not product:
         continue
 
@@ -58,20 +56,22 @@ st.subheader("📈 Daily Profit Trend")
 daily_profit = defaultdict(float)
 
 for item in sale_items:
-    product = next((p for p in products if p["id"] == item.get("product_id")), None)
-    sale = next((s for s in sales if s["id"] == item.get("sale_id")), None)
-
-    if not product or not sale:
+    product = product_map.get(item.get("product_id"))
+    if not product:
         continue
 
-    date = str(sale.get("created_at", "Unknown"))[:10]
+    sale = next((s for s in sales if s["id"] == item.get("sale_id")), None)
+    if not sale:
+        continue
+
+    date = str(sale.get("created_at", ""))[:10]
 
     profit = (item.get("unit_price", 0) - product.get("purchase_price", 0)) * item.get("quantity", 0)
     daily_profit[date] += profit
 
 chart_data = [
-    {"date": k, "profit": v}
-    for k, v in sorted(daily_profit.items())
+    {"date": d, "profit": p}
+    for d, p in sorted(daily_profit.items())
 ]
 
 if chart_data:
@@ -86,18 +86,16 @@ st.divider()
 # =========================
 st.subheader("🔥 Top Selling Products")
 
-product_qty = {}
+product_qty = defaultdict(int)
 
 for item in sale_items:
     pid = item.get("product_id")
-    qty = item.get("quantity", 0)
-
-    product_qty[pid] = product_qty.get(pid, 0) + qty
+    product_qty[pid] += item.get("quantity", 0)
 
 top_products = sorted(product_qty.items(), key=lambda x: x[1], reverse=True)[:5]
 
 for pid, qty in top_products:
-    product = next((p for p in products if p["id"] == pid), None)
+    product = product_map.get(pid)
     if product:
         st.write(f"✔ {product.get('name','Unknown')} — {qty} sold")
 

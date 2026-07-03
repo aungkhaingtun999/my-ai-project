@@ -1,7 +1,7 @@
 import streamlit as st
 from database import get_products, checkout_sale_rpc
 
-st.title("🛒 POS System (Production Ready)")
+st.title("🛒 POS System (Smart Search Upgrade)")
 
 # =====================
 # INIT CART
@@ -10,23 +10,36 @@ if "cart" not in st.session_state:
     st.session_state.cart = []
 
 # =====================
-# LOAD PRODUCTS (SAFE)
+# LOAD PRODUCTS
 # =====================
 products_resp = get_products()
 products = products_resp.data if products_resp and products_resp.data else []
 
 # =====================
+# SEARCH BOX (FLOATING FILTER)
+# =====================
+search = st.text_input("🔍 Search Products")
+
+filtered_products = []
+
+if search:
+    filtered_products = [
+        p for p in products
+        if search.lower() in p["name"].lower()
+    ]
+else:
+    filtered_products = products
+
+# =====================
 # ADD TO CART
 # =====================
 def add_to_cart(product):
-    cart = st.session_state.cart
-
-    for item in cart:
+    for item in st.session_state.cart:
         if item["id"] == product["id"]:
             item["qty"] += 1
             return
 
-    cart.append({
+    st.session_state.cart.append({
         "id": product["id"],
         "name": product["name"],
         "selling_price": product.get("selling_price", 0),
@@ -43,20 +56,27 @@ def remove_item(product_id):
     ]
 
 # =====================
-# PRODUCTS UI
+# FLOATING PRODUCT LIST UI
 # =====================
 st.subheader("Products")
 
-for p in products:
-    col1, col2 = st.columns([3, 1])
+for p in filtered_products:
 
-    with col1:
-        st.write(f"{p.get('name')} - {p.get('selling_price',0)} MMK (Stock: {p.get('stock',0)})")
+    with st.container():
+        col1, col2, col3 = st.columns([4, 2, 1])
 
-    with col2:
-        if st.button("Add", key=f"add_{p['id']}"):
-            add_to_cart(p)
-            st.rerun()
+        with col1:
+            st.write(f"🛒 {p['name']}")
+
+        with col2:
+            st.write(f"{p.get('selling_price',0)} MMK")
+
+        with col3:
+            if st.button("➕", key=f"add_{p['id']}"):
+                add_to_cart(p)
+                st.rerun()
+
+        st.markdown("---")
 
 # =====================
 # CART
@@ -64,10 +84,7 @@ for p in products:
 st.divider()
 st.subheader("🧾 Cart")
 
-total = 0
-
-if not st.session_state.cart:
-    st.info("Cart is empty")
+subtotal = 0
 
 for item in st.session_state.cart:
 
@@ -87,9 +104,9 @@ for item in st.session_state.cart:
             remove_item(item["id"])
             st.rerun()
 
-    total += item["selling_price"] * item["qty"]
+    subtotal += item["selling_price"] * item["qty"]
 
-st.write("## Total:", total, "MMK")
+st.write("## Total:", subtotal, "MMK")
 
 # =====================
 # CHECKOUT
@@ -104,7 +121,7 @@ if st.button("Pay & Generate Receipt"):
     if not st.session_state.cart:
         st.warning("Cart is empty")
 
-    elif paid < total:
+    elif paid < subtotal:
         st.error("Insufficient payment")
 
     else:
@@ -113,12 +130,13 @@ if st.button("Pay & Generate Receipt"):
             paid_amount=paid
         )
 
-        if not result:
-            st.error("Checkout failed")
+        if not result or "error" in result:
+            st.error(result.get("error", "Checkout failed"))
 
         else:
             st.success(f"Sale Completed! ID: {result['sale_id']}")
 
-            # CLEAR CART
+            st.info(f"Receipt: {result['receipt_no']}")
+
             st.session_state.cart = []
             st.rerun()
