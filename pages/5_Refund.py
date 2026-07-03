@@ -1,155 +1,130 @@
 import streamlit as st
-from database import get_supabase
-
-supabase = get_supabase()
+from supabase_client import supabase
 
 st.set_page_config(page_title="Refund System", layout="wide")
 
-st.title("🔄 Refund Management System (ERP Level)")
-st.caption("Handle returns safely with audit tracking")
+st.title("↩️ Refund System (ERP Mode)")
+
+# =========================
+# SESSION INIT
+# =========================
+if "selected_sale" not in st.session_state:
+    st.session_state.selected_sale = None
+
+if "refund_cart" not in st.session_state:
+    st.session_state.refund_cart = []
 
 # =========================
 # SEARCH SALE
 # =========================
-st.subheader("🔍 Find Sale for Refund")
+sale_id = st.text_input("🔍 Enter Sale ID")
 
-sale_id = st.text_input("Enter Sale ID / Invoice ID")
+if st.button("Search Sale"):
 
-sale_data = None
-items_data = []
+    if not sale_id:
+        st.warning("Please enter sale ID")
+    else:
+        sale = supabase.table("sales") \
+            .select("*") \
+            .eq("id", sale_id) \
+            .single() \
+            .execute()
 
-if sale_id:
-    sale_resp = supabase.table("sales").select("*").eq("id", sale_id).execute()
-    sale_data = sale_resp.data[0] if sale_resp.data else None
+        if sale.data:
+            st.session_state.selected_sale = sale.data
 
-    items_resp = supabase.table("sale_items").select("*").eq("sale_id", sale_id).execute()
-    items_data = items_resp.data or []
+            items = supabase.table("sale_items") \
+                .select("*") \
+                .eq("sale_id", sale_id) \
+                .execute()
+
+            st.session_state.selected_sale["items"] = items.data or []
+
+            st.success("Sale loaded successfully")
+        else:
+            st.error("Sale not found")
 
 # =========================
-# SHOW SALE INFO
+# DISPLAY SALE
 # =========================
-if sale_data:
+sale = st.session_state.selected_sale
 
-    st.success(f"Sale Found: {sale_id}")
+if sale:
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Amount", sale_data.get("total_amount", 0))
-    col2.metric("Paid Amount", sale_data.get("paid_amount", 0))
-    col3.metric("Status", sale_data.get("status", "completed"))
+    st.subheader(f"Sale ID: {sale['id']}")
+
+    st.write("Total:", sale["total"])
 
     st.divider()
 
-    st.subheader("🧾 Items in Sale")
+    st.subheader("Items")
 
-    refund_items = []
+    # reset refund cart
+    if st.button("Reset Selection"):
+        st.session_state.refund_cart = []
 
-    for item in items_data:
+    for item in sale["items"]:
 
-        col1, col2, col3 = st.columns([4, 2, 2])
+        col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
 
         with col1:
-            st.write(f"📦 Product ID: {item['product_id']}")
+            st.write(f"Product ID: {item['product_id']}")
 
         with col2:
             st.write(f"Qty: {item['quantity']}")
 
         with col3:
-            refund_qty = st.number_input(
-                "Refund Qty",
+            st.write(f"Price: {item['unit_price']}")
+
+        with col4:
+            qty = st.number_input(
+                f"Refund Qty {item['id']}",
                 min_value=0,
-                max_value=int(item["quantity"]),
-                value=0,
-                key=f"refund_{item['id']}"
+                max_value=item["quantity"],
+                key=f"qty_{item['id']}"
             )
 
-        if refund_qty > 0:
-            refund_items.append({
-                "sale_item_id": item["id"],
-                "product_id": item["product_id"],
-                "qty": refund_qty,
-                "price": item.get("price", 0)
-            })
+            if qty > 0:
+                st.session_state.refund_cart.append({
+                    "sale_item_id": item["id"],
+                    "qty": int(qty)
+                })
 
+        st.markdown("---")
+
+    # =========================
+    # REFUND SECTION
+    # =========================
     st.divider()
 
-    # =========================
-    # REFUND SUMMARY
-    # =========================
-    st.subheader("💰 Refund Summary")
+    reason = st.text_input("Refund Reason (optional)")
 
-    refund_total = sum(i["qty"] * i["price"] for i in refund_items)
+    cashier_id = st.text_input("Cashier ID (optional)")
 
-    st.write(f"Total Refund Amount: **{refund_total} MMK**")
+    if st.button("Process Refund"):
 
-    reason = st.text_area("Reason for Refund")
-
-    # =========================
-    # PROCESS REFUND
-    # =========================
-    if st.button("✅ Process Refund"):
-
-        if not refund_items:
-            st.warning("No items selected for refund")
-
-        elif not reason:
-            st.error("Please provide refund reason")
+        if not st.session_state.refund_cart:
+            st.error("No items selected for refund")
 
         else:
-            result = supabase.table("refunds").insert({
-                "sale_id": sale_id,
-                "reason": reason,
-                "total_refund": refund_total
-            }).execute()
+            result = supabase.rpc(
+                "refund_sale_rpc",
+                {
+                    "p_sale_id": int(sale["id"]),
+                    "p_items": st.session_state.refund_cart,
+                    "p_reason": reason,
+                    "p_cashier_id": int(cashier_id) if cashier_id else None
+                }
+            ).execute()
 
-            if result.data:
+            if result.data and result.data.get("success"):
+                st.success("Refund Completed Successfully 🎉")
 
-                refund_id = result.data[0]["id"]
+                st.json(result.data)
 
-                # insert refund items
-                for r in refund_items:
-                    supabase.table("refund_items").insert({
-                        "refund_id": refund_id,
-                        "product_id": r["product_id"],
-                        "quantity": r["qty"],
-                        "price": r["price"]
-                    }).execute()
+                # reset
+                st.session_state.refund_cart = []
+                st.session_state.selected_sale = None
 
-                # OPTIONAL: update sale status
-                supabase.table("sales").update({
-                    "status": "refunded"
-                }).eq("id", sale_id).execute()
-
-                st.success("Refund processed successfully")
-                st.info(f"Refund ID: {refund_id}")
-
-                st.rerun()
-
-else:
-    if sale_id:
-        st.error("Sale not found")
-
-# =========================
-# REFUND HISTORY
-# =========================
-st.divider()
-st.subheader("📜 Refund History")
-
-refunds = supabase.table("refunds").select("*").execute().data or []
-
-if refunds:
-
-    for r in refunds:
-
-        col1, col2, col3 = st.columns([3, 3, 3])
-
-        with col1:
-            st.write(f"Refund ID: {r['id']}")
-
-        with col2:
-            st.write(f"Sale ID: {r['sale_id']}")
-
-        with col3:
-            st.write(f"Amount: {r['total_refund']} MMK")
-
-else:
-    st.info("No refund records found")
+            else:
+                st.error(result.data.get("error", "Refund failed"))

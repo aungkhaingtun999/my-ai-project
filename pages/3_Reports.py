@@ -1,83 +1,240 @@
 import streamlit as st
-import pandas as pd
-from database import get_supabase
+from supabase_client import supabase
+from datetime import date, timedelta
 
-supabase = get_supabase()
+st.set_page_config(page_title="ERP Dashboard", layout="wide")
 
-st.set_page_config(page_title="Reports", layout="wide")
-st.title("📊 POS Reports (Synced with Checkout RPC)")
-
-# =========================
-# LOAD DATA (SOURCE OF TRUTH)
-# =========================
-sales = supabase.table("sales").select("*").execute().data or []
-items = supabase.table("sale_items").select("*").execute().data or []
-products = supabase.table("products").select("*").execute().data or []
-
-sales_df = pd.DataFrame(sales)
-items_df = pd.DataFrame(items)
-products_df = pd.DataFrame(products)
-
-if sales_df.empty:
-    st.warning("No sales found")
-    st.stop()
+st.title("📊 ERP Executive Dashboard")
 
 # =========================
-# DATE HANDLING
+# DATE FILTER
 # =========================
-sales_df["created_at"] = pd.to_datetime(sales_df["created_at"])
+col1, col2, col3 = st.columns([2,2,6])
+
+start_date = col1.date_input("Start Date", value=date.today())
+end_date = col2.date_input("End Date", value=date.today())
+
+start_iso = start_date.isoformat()
+end_iso = end_date.isoformat()
 
 # =========================
-# FILTER
+# DATA FETCH (ONCE ONLY)
 # =========================
-st.sidebar.header("Filters")
+sales = supabase.table("sales") \
+    .select("*") \
+    .gte("created_at", start_iso) \
+    .lte("created_at", end_iso) \
+    .execute().data or []
 
-start = st.sidebar.date_input("Start", sales_df["created_at"].min().date())
-end = st.sidebar.date_input("End", sales_df["created_at"].max().date())
+refunds = supabase.table("refunds") \
+    .select("*") \
+    .gte("created_at", start_iso) \
+    .lte("created_at", end_iso) \
+    .execute().data or []
 
-sales_df = sales_df[
-    (sales_df["created_at"].dt.date >= start) &
-    (sales_df["created_at"].dt.date <= end)
+products = supabase.table("products") \
+    .select("*") \
+    .execute().data or []
+
+sale_items = supabase.table("sale_items") \
+    .select("*") \
+    .execute().data or []
+
+# =========================
+# PRE-CALCULATIONS
+# =========================
+total_sales = sum(s["total"] for s in sales)
+total_refund = sum(r["refund_amount"] for r in refunds)
+net_profit = total_sales - total_refund
+
+low_stock_items = [
+    p for p in products
+    if p["stock"] <= p["minimum_stock"]
 ]
 
 # =========================
-# KPI (BASED ON SALES TABLE ONLY)
+# KPI CARDS
 # =========================
-total_sales = sales_df["total_amount"].sum()
-total_orders = sales_df["id"].nunique()
-avg_sale = total_sales / total_orders if total_orders else 0
+st.markdown("## 📌 Key Performance Indicators")
 
-col1, col2, col3 = st.columns(3)
-col1.metric("💰 Total Sales", f"{total_sales:,.0f}")
-col2.metric("🧾 Orders", f"{total_orders}")
-col3.metric("📊 Avg Order", f"{avg_sale:,.0f}")
+k1, k2, k3, k4 = st.columns(4)
+
+k1.metric("💰 Revenue", f"{total_sales:,.0f}")
+k2.metric("↩️ Refunds", f"{total_refund:,.0f}")
+k3.metric("📦 Low Stock", len(low_stock_items))
+k4.metric("📊 Net Profit", f"{net_profit:,.0f}")
 
 st.divider()
 
-# =========================
-# DAILY SALES TREND
-# =========================
-daily = sales_df.groupby(sales_df["created_at"].dt.date)["total_amount"].sum()
-st.subheader("📈 Daily Sales")
-st.line_chart(daily)
+# ======================================================
+# AI INSIGHTS ENGINE (CLEAN)
+# ======================================================
+st.subheader("🧠 AI Insights Engine")
 
-# =========================
-# TOP PRODUCTS (FROM sale_items ONLY)
-# =========================
-st.subheader("🏆 Top Products")
+avg_sales = total_sales / len(sales) if sales else 0
 
-if not items_df.empty:
-    top = items_df.groupby("product_id")["qty"].sum().sort_values(ascending=False).head(10)
-    st.bar_chart(top)
-else:
-    st.info("No item data")
+last_3_days = date.today() - timedelta(days=3)
 
-# =========================
-# RECEIPT VIEW
-# =========================
-st.subheader("🧾 Recent Transactions")
+recent_sales = [
+    s for s in sales
+    if s["created_at"][:10] >= last_3_days.isoformat()
+]
 
-st.dataframe(
-    sales_df.sort_values("created_at", ascending=False),
-    use_container_width=True
+recent_avg = (
+    sum(s["total"] for s in recent_sales) / len(recent_sales)
+    if recent_sales else 0
 )
+
+# --- Sales Behavior ---
+if sales:
+    if recent_avg < avg_sales * 0.7:
+        st.error("📉 Sales Drop Alert")
+    elif recent_avg > avg_sales * 1.1:
+        st.success("🚀 Growth Detected")
+    else:
+        st.info("📊 Stable Sales")
+
+# --- Stock Risk ---
+critical_stock = [
+    p for p in products
+    if p["stock"] <= (p["minimum_stock"] * 1.5)
+]
+
+if critical_stock:
+    st.warning(f"⚠️ {len(critical_stock)} products at risk")
+else:
+    st.success("📦 Stock Healthy")
+
+# --- Top Products (SAFE) ---
+product_sales = {}
+
+for i in sale_items:
+    product_sales[i["product_id"]] = product_sales.get(i["product_id"], 0) + i["quantity"]
+
+top_list = sorted(product_sales.items(), key=lambda x: x[1], reverse=True)
+
+if top_list:
+    st.info(f"🏆 Top Product ID {top_list[0][0]} ({top_list[0][1]} units)")
+else:
+    st.info("No product data")
+
+# --- Profit Health ---
+profit_margin = (net_profit / total_sales * 100) if total_sales else 0
+
+if total_sales:
+    if profit_margin < 10:
+        st.error(f"💰 Low Profit Margin: {profit_margin:.2f}%")
+    elif profit_margin < 30:
+        st.warning(f"💰 Medium Profit Margin: {profit_margin:.2f}%")
+    else:
+        st.success(f"💰 Healthy Profit Margin: {profit_margin:.2f}%")
+
+st.divider()
+
+# ======================================================
+# FORECAST AI (CLEAN MODEL)
+# ======================================================
+st.subheader("🔮 Forecast AI (Next 7 Days)")
+
+today = date.today()
+start_7 = today - timedelta(days=7)
+
+sales_7 = [
+    s for s in sales
+    if s["created_at"][:10] >= start_7.isoformat()
+]
+
+daily = {}
+
+for s in sales_7:
+    day = s["created_at"][:10]
+    daily[day] = daily.get(day, 0) + s["total"]
+
+values = list(daily.values())
+
+if values:
+
+    avg = sum(values) / len(values)
+
+    growth = 0
+    if len(values) > 1 and values[0] != 0:
+        growth = (values[-1] - values[0]) / values[0]
+
+    forecast = []
+
+    for i in range(1, 8):
+        predicted = avg * (1 + growth * (i / 7))
+        forecast.append({
+            "day": f"Day +{i}",
+            "sales": round(predicted, 2)
+        })
+
+    st.line_chart(forecast, x="day", y="sales")
+
+    future_total = sum(f["sales"] for f in forecast)
+    st.metric("📈 Forecast Revenue (7 Days)", f"{future_total:,.0f}")
+
+    if growth < -0.1:
+        st.error("⚠️ Downward Trend Expected")
+    elif growth > 0.1:
+        st.success("🚀 Growth Expected")
+    else:
+        st.info("📊 Stable Market")
+
+else:
+    st.info("Not enough data for forecast")
+
+st.divider()
+
+# ======================================================
+# CHARTS
+# ======================================================
+left, right = st.columns(2)
+
+with left:
+    st.subheader("📈 Sales Trend")
+
+    trend = [{"day": k, "sales": v} for k, v in sorted(daily.items())]
+    st.line_chart(trend, x="day", y="sales")
+
+with right:
+    st.subheader("🏆 Top Products")
+
+    top_data = [
+        {"product": str(k), "qty": v}
+        for k, v in top_list[:5]
+    ]
+
+    st.bar_chart(top_data, x="product", y="qty")
+
+st.divider()
+
+# ======================================================
+# TABLES
+# ======================================================
+t1, t2 = st.columns(2)
+
+with t1:
+    st.subheader("💰 Recent Sales")
+    st.dataframe(sales[-10:], use_container_width=True)
+
+with t2:
+    st.subheader("↩️ Recent Refunds")
+    st.dataframe(refunds[-10:], use_container_width=True)
+
+st.divider()
+
+# ======================================================
+# INVENTORY
+# ======================================================
+st.subheader("📦 Inventory Health")
+
+col1, col2 = st.columns(2)
+
+col1.metric("Total Products", len(products))
+col2.metric("Low Stock Alerts", len(low_stock_items))
+
+st.warning("⚠️ Low Stock Items")
+st.dataframe(low_stock_items, use_container_width=True)
+
+st.success("Dashboard Fully Loaded 🚀")
