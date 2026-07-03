@@ -12,88 +12,56 @@ MENU = {
         ("👥", "Users", "pages/4_Users.py"),
         ("↩️", "Refund", "pages/5_Refund.py"),
     ],
-
     "Manager": [
         ("🛒", "POS", "pages/1_POS.py"),
         ("📦", "Inventory", "pages/2_Inventory.py"),
         ("🧾", "Reports", "pages/3_Reports.py"),
     ],
-
     "Cashier": [
         ("🛒", "POS", "pages/1_POS.py"),
     ]
 }
 
 # ==========================================
-# INIT STATE SAFE (NO AUTO ROLE HACK)
-# ==========================================
-def init_sidebar_state():
-
-    if "role" not in st.session_state:
-        st.session_state.role = None
-
-    if "language" not in st.session_state:
-        st.session_state.language = "English"
-
-    if "active_page" not in st.session_state:
-        st.session_state.active_page = "pages/1_POS.py"
-
-
-# ==========================================
-# AUTH GUARD (IMPORTANT FIX)
+# AUTH CHECK (STRICT)
 # ==========================================
 def is_logged_in():
     user = st.session_state.get("user")
 
-    if not user:
-        return False
-
-    if isinstance(user, dict) and user.get("id"):
-        return True
-
-    if isinstance(user, str):
-        return True
-
-    return False
+    return isinstance(user, dict) and user.get("id") is not None
 
 
 # ==========================================
-# USER NAME SAFE
+# SAFE USER
 # ==========================================
 def get_username():
     user = st.session_state.get("user")
-
     if isinstance(user, dict):
         return user.get("name", "Guest")
-
-    if isinstance(user, str):
-        return user
-
     return "Guest"
 
 
 # ==========================================
-# ROLE SAFE
+# SAFE ROLE (NO SPOOF)
 # ==========================================
 def get_role():
-    role = st.session_state.get("role")
+    user = st.session_state.get("user")
 
-    if role in MENU:
-        return role
+    if isinstance(user, dict):
+        role = user.get("role", "Cashier")
+        return role if role in MENU else "Cashier"
 
     return "Cashier"
 
 
 # ==========================================
-# SIDEBAR UI
+# SIDEBAR
 # ==========================================
 def show_sidebar():
 
-    # ❌ IMPORTANT: BLOCK IF NOT LOGGED IN
+    # ❗ IMPORTANT: BLOCK BEFORE RENDER
     if not is_logged_in():
         return
-
-    init_sidebar_state()
 
     with st.sidebar:
 
@@ -102,9 +70,6 @@ def show_sidebar():
 
         st.divider()
 
-        # =========================
-        # USER INFO
-        # =========================
         username = get_username()
         role = get_role()
 
@@ -116,11 +81,12 @@ def show_sidebar():
         # =========================
         # LANGUAGE
         # =========================
-        st.session_state.language = st.selectbox(
+        lang = st.selectbox(
             "Language",
             ["English", "မြန်မာ"],
-            index=0 if st.session_state.language == "English" else 1
+            index=0 if st.session_state.get("language", "English") == "English" else 1
         )
+        st.session_state.language = lang
 
         st.divider()
 
@@ -129,22 +95,13 @@ def show_sidebar():
         # =========================
         st.subheader("📂 Navigation")
 
-        menu = MENU.get(role, MENU["Cashier"])
+        for icon, title, page in MENU.get(role, MENU["Cashier"]):
 
-        for icon, title, page in menu:
-
-            is_active = (st.session_state.active_page == page)
-
-            label = f"👉 {icon} {title}" if is_active else f"{icon} {title}"
+            label = f"{icon} {title}"
 
             if st.button(label, key=f"nav_{role}_{page}"):
-
                 st.session_state.active_page = page
-
-                try:
-                    st.switch_page(page)
-                except Exception:
-                    st.warning("Navigation failed - check Streamlit multipage setup")
+                st.switch_page(page)
 
         st.divider()
 
@@ -154,12 +111,13 @@ def show_sidebar():
         st.success("🟢 System Online")
 
         # =========================
-        # LOGOUT SAFE RESET
+        # LOGOUT (CLEAN RESET)
         # =========================
         if st.button("🚪 Logout", use_container_width=True):
 
             st.session_state.clear()
 
+            # safe re-init only essentials
             st.session_state.update({
                 "user": None,
                 "role": None,
