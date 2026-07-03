@@ -171,7 +171,7 @@ def checkout_sale_rpc(cart, paid_amount, cashier_id=None):
     if not result.data:
         return {"error": "Checkout failed (RPC error)"}
 
-    sale = result.data[0]
+    sale = result.data
 
     sale_id = sale.get("sale_id")
     total = sale.get("total")
