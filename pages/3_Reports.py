@@ -9,7 +9,7 @@ st.title("📊 ERP Executive Dashboard")
 # =========================
 # DATE FILTER
 # =========================
-col1, col2, col3 = st.columns([2,2,6])
+col1, col2, col3 = st.columns([2, 2, 6])
 
 start_date = col1.date_input("Start Date", value=date.today())
 end_date = col2.date_input("End Date", value=date.today())
@@ -18,7 +18,7 @@ start_iso = start_date.isoformat()
 end_iso = end_date.isoformat()
 
 # =========================
-# DATA FETCH (ONCE ONLY)
+# DATA FETCH
 # =========================
 sales = supabase.table("sales") \
     .select("*") \
@@ -32,28 +32,20 @@ refunds = supabase.table("refunds") \
     .lte("created_at", end_iso) \
     .execute().data or []
 
-products = supabase.table("products") \
-    .select("*") \
-    .execute().data or []
-
-sale_items = supabase.table("sale_items") \
-    .select("*") \
-    .execute().data or []
+products = supabase.table("products").select("*").execute().data or []
+sale_items = supabase.table("sale_items").select("*").execute().data or []
 
 # =========================
-# PRE-CALCULATIONS
+# PRE-CALC
 # =========================
 total_sales = sum(s["total"] for s in sales)
 total_refund = sum(r["refund_amount"] for r in refunds)
 net_profit = total_sales - total_refund
 
-low_stock_items = [
-    p for p in products
-    if p["stock"] <= p["minimum_stock"]
-]
+low_stock_items = [p for p in products if p["stock"] <= p["minimum_stock"]]
 
 # =========================
-# KPI CARDS
+# KPI
 # =========================
 st.markdown("## 📌 Key Performance Indicators")
 
@@ -66,9 +58,9 @@ k4.metric("📊 Net Profit", f"{net_profit:,.0f}")
 
 st.divider()
 
-# ======================================================
-# AI INSIGHTS ENGINE (CLEAN)
-# ======================================================
+# =========================
+# AI INSIGHTS
+# =========================
 st.subheader("🧠 AI Insights Engine")
 
 avg_sales = total_sales / len(sales) if sales else 0
@@ -85,7 +77,6 @@ recent_avg = (
     if recent_sales else 0
 )
 
-# --- Sales Behavior ---
 if sales:
     if recent_avg < avg_sales * 0.7:
         st.error("📉 Sales Drop Alert")
@@ -94,7 +85,6 @@ if sales:
     else:
         st.info("📊 Stable Sales")
 
-# --- Stock Risk ---
 critical_stock = [
     p for p in products
     if p["stock"] <= (p["minimum_stock"] * 1.5)
@@ -105,9 +95,7 @@ if critical_stock:
 else:
     st.success("📦 Stock Healthy")
 
-# --- Top Products (SAFE) ---
 product_sales = {}
-
 for i in sale_items:
     product_sales[i["product_id"]] = product_sales.get(i["product_id"], 0) + i["quantity"]
 
@@ -115,10 +103,7 @@ top_list = sorted(product_sales.items(), key=lambda x: x[1], reverse=True)
 
 if top_list:
     st.info(f"🏆 Top Product ID {top_list[0][0]} ({top_list[0][1]} units)")
-else:
-    st.info("No product data")
 
-# --- Profit Health ---
 profit_margin = (net_profit / total_sales * 100) if total_sales else 0
 
 if total_sales:
@@ -131,10 +116,10 @@ if total_sales:
 
 st.divider()
 
-# ======================================================
-# FORECAST AI (CLEAN MODEL)
-# ======================================================
-st.subheader("🔮 Forecast AI (Next 7 Days)")
+# =========================
+# FORECAST
+# =========================
+st.subheader("🔮 Forecast AI")
 
 today = date.today()
 start_7 = today - timedelta(days=7)
@@ -150,10 +135,14 @@ for s in sales_7:
     day = s["created_at"][:10]
     daily[day] = daily.get(day, 0) + s["total"]
 
+trend = [
+    {"day": k, "sales": v}
+    for k, v in sorted(daily.items())
+]
+
 values = list(daily.values())
 
 if values:
-
     avg = sum(values) / len(values)
 
     growth = 0
@@ -161,41 +150,31 @@ if values:
         growth = (values[-1] - values[0]) / values[0]
 
     forecast = []
-
     for i in range(1, 8):
-        predicted = avg * (1 + growth * (i / 7))
         forecast.append({
             "day": f"Day +{i}",
-            "sales": round(predicted, 2)
+            "sales": round(avg * (1 + growth * i / 7), 2)
         })
 
     st.line_chart(forecast, x="day", y="sales")
 
-    future_total = sum(f["sales"] for f in forecast)
-    st.metric("📈 Forecast Revenue (7 Days)", f"{future_total:,.0f}")
-
-    if growth < -0.1:
-        st.error("⚠️ Downward Trend Expected")
-    elif growth > 0.1:
-        st.success("🚀 Growth Expected")
-    else:
-        st.info("📊 Stable Market")
-
-else:
-    st.info("Not enough data for forecast")
+    st.metric("📈 Forecast Revenue (7 Days)", f"{sum(f['sales'] for f in forecast):,.0f}")
 
 st.divider()
 
-# ======================================================
-# CHARTS
-# ======================================================
+# =========================
+# CHARTS (FIXED)
+# =========================
 left, right = st.columns(2)
 
 with left:
     st.subheader("📈 Sales Trend")
 
-    trend = [{"day": k, "sales": v} for k, v in sorted(daily.items())]
-    st.line_chart([v for v in trend["sales"]])
+    # ✅ FIXED HERE (main bug)
+    if trend:
+        st.line_chart(trend, x="day", y="sales")
+    else:
+        st.info("No data")
 
 with right:
     st.subheader("🏆 Top Products")
@@ -209,9 +188,9 @@ with right:
 
 st.divider()
 
-# ======================================================
+# =========================
 # TABLES
-# ======================================================
+# =========================
 t1, t2 = st.columns(2)
 
 with t1:
@@ -224,9 +203,9 @@ with t2:
 
 st.divider()
 
-# ======================================================
+# =========================
 # INVENTORY
-# ======================================================
+# =========================
 st.subheader("📦 Inventory Health")
 
 col1, col2 = st.columns(2)
