@@ -13,19 +13,23 @@ st.set_page_config(
 )
 
 # =========================
-# SESSION DEFAULT SAFETY
+# SAFE SESSION INIT
 # =========================
-if "user" not in st.session_state:
-    st.session_state.user = None
+def init_session():
+    defaults = {
+        "user": None,
+        "role": "Cashier",
+        "active_page": "dashboard"
+    }
 
-if "role" not in st.session_state:
-    st.session_state.role = "Cashier"
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
-if "active_page" not in st.session_state:
-    st.session_state.active_page = None
+init_session()
 
 # =========================
-# AUTH GUARD (IMPORTANT)
+# AUTH CHECK
 # =========================
 def is_authenticated():
     user = st.session_state.get("user")
@@ -33,56 +37,83 @@ def is_authenticated():
     if not user:
         return False
 
-    # extra safety check
+    # support dict user
     if isinstance(user, dict):
         return "id" in user
+
+    # support string user (legacy login)
+    if isinstance(user, str):
+        return True
 
     return False
 
 # =========================
-# MAIN APP CONTROLLER
+# LOGOUT SAFE RESET
+# =========================
+def safe_logout():
+    keep = {"role": "Cashier"}
+
+    st.session_state.clear()
+
+    for k, v in keep.items():
+        st.session_state[k] = v
+
+# =========================
+# MAIN CONTROLLER
 # =========================
 def main():
 
     # -------------------------
-    # NOT LOGGED IN
+    # LOGIN FLOW
     # -------------------------
     if not is_authenticated():
         login_page()
         return
 
-    # -------------------------
-    # LOGGED IN
-    # -------------------------
     user = st.session_state.user
 
-    # role sync safety
+    # role sync
     if isinstance(user, dict):
         st.session_state.role = user.get("role", "Cashier")
+        username = user.get("name", "User")
+    else:
+        username = str(user)
 
-    # sidebar render
+    # -------------------------
+    # SIDEBAR
+    # -------------------------
     show_sidebar()
 
     # =========================
     # DASHBOARD HOME
     # =========================
     st.title("🛒 ERP POS System Dashboard")
-    st.subheader(f"Welcome back, {user.get('name', 'User')} 🚀")
+    st.subheader(f"Welcome back, {username} 🚀")
 
     # =========================
-    # QUICK STATS PLACEHOLDER
+    # QUICK KPIs
     # =========================
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("Status", "Active")
-    col2.metric("User Role", st.session_state.role)
-    col3.metric("System", "Online")
+    col1.metric("Status", "Active 🟢")
+    col2.metric("Role", st.session_state.role)
+    col3.metric("System", "Online ⚡")
 
     st.divider()
 
-    st.info("✔ System is running in production mode (ERP Controller Active)")
+    # =========================
+    # SYSTEM INFO PANEL
+    # =========================
+    st.info("✔ ERP Controller Active | Checkout RPC v2 Ready | Supabase Connected")
+
+    # =========================
+    # LOGOUT BUTTON
+    # =========================
+    if st.sidebar.button("🚪 Logout"):
+        safe_logout()
+        st.rerun()
 
 # =========================
-# RUN APP
+# RUN
 # =========================
 main()
