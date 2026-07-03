@@ -3,7 +3,6 @@ import streamlit as st
 # ==========================================
 # MENU CONFIG (ROLE BASED ERP)
 # ==========================================
-
 MENU = {
     "Admin": [
         ("🏠", "Dashboard", "pages/3_Admin_Dashboard.py"),
@@ -26,50 +25,73 @@ MENU = {
 }
 
 # ==========================================
-# SAFE INIT STATE
+# INIT STATE SAFE (NO AUTO ROLE HACK)
 # ==========================================
-
 def init_sidebar_state():
-    defaults = {
-        "role": "Cashier",
-        "language": "English",
-        "active_page": "pages/1_POS.py"
-    }
 
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+    if "role" not in st.session_state:
+        st.session_state.role = None
+
+    if "language" not in st.session_state:
+        st.session_state.language = "English"
+
+    if "active_page" not in st.session_state:
+        st.session_state.active_page = "pages/1_POS.py"
+
 
 # ==========================================
-# SAFE USER HANDLER
+# AUTH GUARD (IMPORTANT FIX)
 # ==========================================
+def is_logged_in():
+    user = st.session_state.get("user")
 
-def get_user():
+    if not user:
+        return False
+
+    if isinstance(user, dict) and user.get("id"):
+        return True
+
+    if isinstance(user, str):
+        return True
+
+    return False
+
+
+# ==========================================
+# USER NAME SAFE
+# ==========================================
+def get_username():
     user = st.session_state.get("user")
 
     if isinstance(user, dict):
         return user.get("name", "Guest")
-    elif isinstance(user, str):
+
+    if isinstance(user, str):
         return user
+
     return "Guest"
 
+
 # ==========================================
-# ROLE VALIDATION (ANTI HACK)
+# ROLE SAFE
 # ==========================================
+def get_role():
+    role = st.session_state.get("role")
 
-def safe_role():
-    role = st.session_state.get("role", "Cashier")
+    if role in MENU:
+        return role
 
-    if role not in MENU:
-        return "Cashier"
+    return "Cashier"
 
-    return role
 
 # ==========================================
 # SIDEBAR UI
 # ==========================================
-
 def show_sidebar():
+
+    # ❌ IMPORTANT: BLOCK IF NOT LOGGED IN
+    if not is_logged_in():
+        return
 
     init_sidebar_state()
 
@@ -81,10 +103,10 @@ def show_sidebar():
         st.divider()
 
         # =========================
-        # USER INFO PANEL
+        # USER INFO
         # =========================
-        username = get_user()
-        role = safe_role()
+        username = get_username()
+        role = get_role()
 
         st.markdown(f"👤 **{username}**")
         st.markdown(f"🔐 Role: `{role}`")
@@ -113,15 +135,16 @@ def show_sidebar():
 
             is_active = (st.session_state.active_page == page)
 
-            if is_active:
-                label = f"👉 {icon} {title}"
-            else:
-                label = f"{icon} {title}"
+            label = f"👉 {icon} {title}" if is_active else f"{icon} {title}"
 
             if st.button(label, key=f"nav_{role}_{page}"):
 
                 st.session_state.active_page = page
-                st.switch_page(page)
+
+                try:
+                    st.switch_page(page)
+                except Exception:
+                    st.warning("Navigation failed - check Streamlit multipage setup")
 
         st.divider()
 
@@ -131,17 +154,17 @@ def show_sidebar():
         st.success("🟢 System Online")
 
         # =========================
-        # LOGOUT (HARD RESET)
+        # LOGOUT SAFE RESET
         # =========================
         if st.button("🚪 Logout", use_container_width=True):
 
-            # keep only language
-            lang = st.session_state.get("language", "English")
-
             st.session_state.clear()
 
-            st.session_state["language"] = lang
-            st.session_state["role"] = "Cashier"
-            st.session_state["active_page"] = "pages/1_POS.py"
+            st.session_state.update({
+                "user": None,
+                "role": None,
+                "language": "English",
+                "active_page": "pages/1_POS.py"
+            })
 
             st.switch_page("app.py")
