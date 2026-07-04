@@ -17,14 +17,93 @@ st.title("🛒 POS v8 Smart POS")
 
 # --- 2. SEARCH & ADD TO CART ---
 c1, c2 = st.columns(2)
-product_options = {f"{p['name']} | {safe_float(p.get('selling_price')):,.0f} MMK": p for p in products}
+# ==========================================
+# PRODUCT SEARCH INDEX
+# ==========================================
+
+def normalize(text):
+    return str(text or "").lower().strip()
+
+
+def search_products(keyword):
+    keyword = normalize(keyword)
+
+    if not keyword:
+        return []
+
+    scored = []
+
+    for p in products:
+
+        name = normalize(p.get("name"))
+        barcode = normalize(p.get("barcode"))
+        sku = normalize(p.get("sku"))
+
+        score = 0
+
+        # exact
+        if keyword == name:
+            score += 1000
+
+        if keyword == barcode:
+            score += 950
+
+        if keyword == sku:
+            score += 900
+
+        # prefix
+        if name.startswith(keyword):
+            score += 500
+
+        if barcode.startswith(keyword):
+            score += 450
+
+        if sku.startswith(keyword):
+            score += 400
+
+        # contains
+        if keyword in name:
+            score += 300
+
+        if keyword in barcode:
+            score += 250
+
+        if keyword in sku:
+            score += 200
+
+        if score:
+            scored.append((score, p))
+
+    scored.sort(reverse=True, key=lambda x: x[0])
+
+    return [x[1] for x in scored]
 
 with c1:
-    selected_label = st.selectbox("🔍 Search by Name", options=[""] + list(product_options.keys()), index=0)
+    search_name = st.text_input(
+    "🔍 Product Name",
+    placeholder="Coffee..."
+)
+
+matches = search_products(search_name)", options=[""] + list(product_options.keys()), index=0)
 with c2:
     code_input = st.text_input("📟 Barcode / SKU Scan", key="barcode_scan")
 
 selected_product = None
+
+if matches:
+
+    labels = [
+        f"{p['name']} ({safe_float(p['selling_price']):,.0f})"
+        for p in matches[:20]
+    ]
+
+    choice = st.selectbox(
+        "",
+        labels,
+        label_visibility="collapsed"
+    )
+
+    selected_product = matches[labels.index(choice)]
 if selected_label:
     selected_product = product_options[selected_label]
 elif code_input:
