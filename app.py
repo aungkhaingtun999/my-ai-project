@@ -1,11 +1,11 @@
 # ==========================================
-# app.py (ERP ENTERPRISE CONTROLLER v4)
+# app.py (ERP ENTERPRISE CONTROLLER v5)
 # ==========================================
 
 import streamlit as st
 from auth import login_page, is_authenticated
 from sidebar import show_sidebar
-from guards import require_login, get_current_user
+from guards import get_current_user
 
 # ==========================================
 # PAGE CONFIG (MUST BE FIRST)
@@ -15,33 +15,32 @@ st.set_page_config(
     page_title="Myanmar ERP Enterprise",
     page_icon="🏭",
     layout="wide",
-    initial_sidebar_state="collapsed"  # 🔥 IMPORTANT: no leak before login
+    initial_sidebar_state="collapsed"
 )
 
 # ==========================================
-# SESSION INIT (GLOBAL SAFE STATE)
+# SESSION INIT (SAFE STATE ENGINE)
 # ==========================================
 
 def init_state():
     defaults = {
         "user": None,
-        "role": None,
+        "role": "Cashier",
         "active_page": "dashboard",
         "cart": [],
         "language": "English",
-        "theme": "light"
+        "theme": "light",
+        "auth_checked": False   # 🔥 NEW: prevent rerun loop bug
     }
 
     for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+        st.session_state.setdefault(k, v)
 
 
 init_state()
 
-
 # ==========================================
-# ROLE SYNC (TRUST SERVER ONLY)
+# ROLE SYNC (SECURE SERVER TRUTH)
 # ==========================================
 
 def sync_role():
@@ -51,6 +50,27 @@ def sync_role():
         st.session_state.role = user.get("role", "Cashier")
     else:
         st.session_state.role = "Cashier"
+
+
+# ==========================================
+# GLOBAL SAFETY CHECK
+# ==========================================
+
+def ensure_user_object():
+    """
+    🔥 FIX: prevent sidebar / page crash if user structure breaks
+    """
+    user = st.session_state.get("user")
+
+    if not isinstance(user, dict):
+        st.session_state.user = None
+        return False
+
+    if not user.get("id"):
+        st.session_state.user = None
+        return False
+
+    return True
 
 
 # ==========================================
@@ -86,7 +106,6 @@ def page_router():
             "✔ DB Layer Connected"
         )
 
-    # ================= MODULES =================
     elif page == "sales":
         st.title("🛒 Sales Module")
 
@@ -116,43 +135,51 @@ def page_router():
 
 
 # ==========================================
-# MAIN APP CONTROLLER
+# MAIN CONTROLLER
 # ==========================================
 
 def main():
 
-    # 🔐 HARD LOGIN GATE (NO LEAK)
+    # 🔐 HARD LOGIN GATE (NO LEAK, NO SIDEBAR)
     if not is_authenticated():
         login_page()
+        st.stop()
 
-        # 🔥 IMPORTANT: STOP EVERYTHING HERE
+    # 🔥 VALIDATE USER OBJECT
+    if not ensure_user_object():
+        st.error("Invalid session. Please login again.")
         st.stop()
 
     # =========================
-    # AUTHORIZED FLOW ONLY
+    # AUTH FLOW
     # =========================
 
     sync_role()
 
-    # sidebar ONLY after login
-    show_sidebar()
+    # =========================
+    # SAFE SIDEBAR LOAD
+    # =========================
+    try:
+        show_sidebar()
+    except Exception as e:
+        st.error("Sidebar error")
+        st.caption(str(e))
 
-    # main page
+    # =========================
+    # MAIN PAGE
+    # =========================
     page_router()
 
-    # logout
+    # =========================
+    # GLOBAL LOGOUT
+    # =========================
     st.divider()
 
     if st.button("🚪 Logout", use_container_width=True):
         st.session_state.clear()
 
-        st.session_state.update({
-            "user": None,
-            "role": None,
-            "active_page": "dashboard",
-            "cart": [],
-            "language": "English"
-        })
+        # safe reset
+        init_state()
 
         st.rerun()
 
