@@ -3,26 +3,43 @@ from database import get_products, checkout_sale_rpc
 
 st.set_page_config(page_title="POS v5 Smart ERP", layout="wide")
 st.title("🛒 POS v5 Smart Search ERP Engine")
+
+# ======================================================
+# SAFE FLOAT (MONEY ENGINE)
+# ======================================================
 def safe_float(v):
     try:
         return float(v) if v is not None else 0.0
     except:
         return 0.0
+
+
+# ======================================================
+# CART INIT
+# ======================================================
 if "cart" not in st.session_state:
     st.session_state.cart = []
-products_resp = get_products()
 
-products = []
-if products_resp and hasattr(products_resp, "data"):
-    products = products_resp.data or []
+
+# ======================================================
+# LOAD PRODUCTS
+# ======================================================
+products_resp = get_products()
+products = products_resp.data or [] if products_resp else []
+
+
+# ======================================================
+# SEARCH ENGINE (FAST + SAFE)
+# ======================================================
 search = st.text_input("🔍 Search by Name / Barcode / SKU").strip().lower()
 
 def normalize(v):
     return str(v or "").lower().replace(" ", "")
 
+
 def score_product(p, q):
     if not q:
-        return 1
+        return 1  # show all
 
     q = normalize(q)
 
@@ -32,25 +49,29 @@ def score_product(p, q):
 
     score = 0
 
+    # exact match
     if q == name or q == barcode or q == sku:
         score += 120
 
+    # strong match
     if name.startswith(q):
         score += 90
-
     if barcode.startswith(q) or sku.startswith(q):
         score += 80
 
+    # partial match
     if q in name:
         score += 60
-
     if q in barcode or q in sku:
         score += 50
 
+    # fuzzy fallback
     if any(c in name for c in q):
         score += 10
 
     return score
+
+
 filtered_products = [
     p for p in products
     if score_product(p, search) > 0
@@ -60,6 +81,11 @@ filtered_products.sort(
     key=lambda x: score_product(x, search),
     reverse=True
 )
+
+
+# ======================================================
+# CART ENGINE (SAFE)
+# ======================================================
 def add_to_cart(p):
     if not p:
         return
@@ -81,6 +107,11 @@ def add_to_cart(p):
         "selling_price": price,
         "qty": 1
     })
+
+
+# ======================================================
+# PRODUCT UI (ERP CARD STYLE)
+# ======================================================
 st.subheader("📦 Products")
 
 if not filtered_products:
@@ -103,16 +134,21 @@ Barcode: `{p.get('barcode')}` | SKU: `{p.get('sku')}` | Unit: `{p.get('unit','pc
                 """)
 
                 if stock <= min_stock:
-                    st.warning(f"⚠ Low Stock: {stock}")
+                    st.warning(f"⚠ Low Stock Alert: {stock}")
 
             col2.markdown(f"## 💰 {safe_float(p.get('selling_price')):,.0f} MMK")
 
-            if col3.button("➕", key=f"add_{p['id']}"):
+            if col3.button("➕", key=f"add_{pid}"):
                 if stock <= 0:
                     st.error("Out of stock")
                 else:
                     add_to_cart(p)
                     st.rerun()
+
+
+# ======================================================
+# CART SECTION
+# ======================================================
 st.divider()
 st.subheader("🧾 Cart")
 
@@ -131,8 +167,14 @@ for item in st.session_state.cart:
     c1.write(f"{item['name']} ({item.get('unit','pcs')})")
     c2.write(f"{qty} x {price:,.0f}")
     c3.write(f"{line:,.0f}")
+
+
 st.write("## Subtotal:", f"{subtotal:,.0f} MMK")
 
+
+# ======================================================
+# DISCOUNT / TAX ENGINE
+# ======================================================
 c1, c2 = st.columns(2)
 
 discount = c1.number_input("Discount (%)", 0.0, 100.0, 0.0)
@@ -142,6 +184,11 @@ after_discount = subtotal - (subtotal * discount / 100)
 total = after_discount + (after_discount * tax / 100)
 
 st.markdown(f"## 🧾 TOTAL: {total:,.0f} MMK")
+
+
+# ======================================================
+# PAYMENT ENGINE (PRODUCTION SAFE)
+# ======================================================
 paid = st.number_input("Paid Amount", min_value=0.0, value=0.0)
 
 if st.button("💳 Pay & Print"):
