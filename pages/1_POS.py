@@ -20,17 +20,26 @@ if "cart" not in st.session_state:
 products = get_products() or []
 product_map = {f"{p['name']} ({p.get('sku', '')})": p for p in products}
 
-# Helper: Clear All
+# Callback Functions
+def add_to_cart():
+    # ခြင်းတောင်းထဲ ပစ္စည်းထည့်ခြင်း
+    if st.session_state.selected_prod:
+        p = st.session_state.selected_prod
+        new_item = {**p, "qty": st.session_state.qty_in, "unique_id": f"{p['id']}_{time.time_ns()}"}
+        st.session_state.cart.append(new_item)
+
+def delete_item(uid):
+    st.session_state.cart = [item for item in st.session_state.cart if item["unique_id"] != uid]
+
 def clear_cart():
     st.session_state.cart = []
-    st.rerun()
 
 st.subheader("🛒 Professional POS")
 
 # --- SEARCH & ADD ---
 c1, c2 = st.columns([1, 1])
-barcode = c1.text_input("📟 Scan Barcode/SKU", key="bc_input")
-name = c2.selectbox("🔍 Search Name", [""] + list(product_map.keys()))
+barcode = c1.text_input("📟 Scan Barcode/SKU")
+name = c2.selectbox("🔍 Search Name", [""] + list(product_map.keys()), key="name_in")
 
 selected = None
 if barcode:
@@ -39,19 +48,13 @@ elif name:
     selected = product_map[name]
 
 if selected:
-    qty = st.number_input("Qty", 1, 99, 1, key="add_qty_main")
-    if st.button("➕ Add to Cart", type="primary"):
-        new_item = {**selected, "qty": qty, "unique_id": f"{selected['id']}_{time.time_ns()}"}
-        st.session_state.cart.append(new_item)
-        st.rerun()
+    st.session_state.selected_prod = selected
+    st.number_input("Qty", 1, 99, 1, key="qty_in")
+    st.button("➕ Add to Cart", type="primary", on_click=add_to_cart)
 
 # --- CART DISPLAY ---
 if st.session_state.cart:
     st.divider()
-    
-    def delete_item(uid):
-        st.session_state.cart = [item for item in st.session_state.cart if item["unique_id"] != uid]
-
     subtotal = 0
     cols = st.columns([2, 1, 1, 0.5])
     cols[0].write("**Item**"); cols[1].write("**Price**"); cols[2].write("**Qty**")
@@ -66,7 +69,6 @@ if st.session_state.cart:
         subtotal += float(item['selling_price']) * item['qty']
 
     st.divider()
-    # Tax & Discount Controls
     col1, col2 = st.columns(2)
     tax_rate = col1.number_input("Tax %", 0.0, 100.0, 0.0, key="tax_in")
     discount = col2.number_input("Discount (MMK)", 0.0, 100000.0, 0.0, key="disc_in")
@@ -85,18 +87,11 @@ if st.session_state.cart:
             
             st.markdown(f"""
             <div class="receipt-box">
-                <center><b>ENTERPRISE WORLD CLASS</b><br>Tachileik Branch<br>-------------------------------</center>
+                <center><b>ENTERPRISE WORLD CLASS</b><br>Tachileik Branch</center>
                 <pre>{receipt_str}</pre>
                 -------------------------------<br>
-                <b>SUBTOTAL :</b> {subtotal:,.0f}<br>
-                <b>DISCOUNT :</b> {discount:,.0f}<br>
-                <b>TAX ({tax_rate}%) :</b> {final_tax:,.0f}<br>
-                <b>GRAND TOTAL : {final_total:,.0f} MMK</b><br>
-                <center>Thank You!</center>
+                <b>GRAND TOTAL : {final_total:,.0f} MMK</b>
             </div>
             """, unsafe_allow_html=True)
             
-            # Reset Button (Clears everything)
             st.button("New Sale", on_click=clear_cart)
-        else:
-            st.error("Checkout Failed!")
