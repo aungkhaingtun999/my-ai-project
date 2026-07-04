@@ -8,6 +8,24 @@ from typing import List, Dict, Any, Optional, Tuple
 from decimal import Decimal, ROUND_HALF_UP
 import time
 import logging
+import json
+
+# checkout_sale_rpc ထဲမှာ execute မလုပ်ခင် ဒီလိုလုပ်ပါ
+def checkout_sale_rpc(prepared_cart, paid_amount):
+    # Data ထဲမှာ float တစ်ခုမှ မကျန်အောင် အဓိက force လုပ်တာပါ
+    clean_data = []
+    for item in prepared_cart:
+        clean_data.append({
+            "id": int(item["id"]),
+            "qty": int(item["qty"]),
+            "selling_price": float(item["selling_price"])
+        })
+    
+    # postgrest-py မှာ json ပို့တဲ့အခါ ဒီလို သေချာပို့ပေးပါ
+    return supabase.rpc("your_rpc_name", {
+        "cart_items": clean_data, # List of dict ကို တိုက်ရိုက်ပို့ပါ
+        "paid_amount": float(paid_amount)
+    }).execute()
 
 # ======================================================
 # LOGGER (PRODUCTION DEBUG SAFE)
