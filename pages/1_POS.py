@@ -108,12 +108,18 @@ if st.session_state.cart:
         # Schema တွင်ပါသော အဓိကလိုအပ်သည့် column များသာ ထည့်ပါ
         prepared_cart = []
         for item in st.session_state.cart:
-            prepared_cart = []
+            # Database Schema နှင့် ကိုက်ညီအောင် Data သန့်စင်ခြင်း
+        prepared_cart = []
         for item in st.session_state.cart:
+            # qty ကို float(item["qty"]) လုပ်ပြီးမှ int() သို့ ပြောင်းခြင်း
+            # id ကိုလည်း တူညီစွာ ပြုလုပ်ပေးထားပါသည်
+            clean_qty = int(float(item["qty"]))
+            clean_id = int(float(item["id"]))
+            
             prepared_cart.append({
-                "id": int(float(item["id"])),             # id ကို float ကနေ int အရင်ပြောင်း
-                "qty": int(float(item["qty"])),           # [FIX] qty ကို သေချာပေါက် integer ပြောင်း
-                "selling_price": float(item["selling_price"]) # numeric ဖြစ်လို့ float သုံးပါ
+                "id": clean_id,            # bigint
+                "qty": clean_qty,          # integer (6.0 ကို 6 သို့ ပြောင်းပေးသည်)
+                "selling_price": float(item["selling_price"]) # numeric
             })
 
         # API သို့ စနစ်တကျ ပေးပို့ခြင်း
