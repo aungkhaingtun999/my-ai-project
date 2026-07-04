@@ -4,8 +4,9 @@ from database import get_products, checkout_sale_rpc
 st.set_page_config(page_title="POS v5 Smart ERP", layout="wide")
 st.title("🛒 POS v5 Smart Search ERP Engine")
 
+
 # ======================================================
-# SAFE FLOAT (MONEY ENGINE)
+# SAFE FLOAT
 # ======================================================
 def safe_float(v):
     try:
@@ -22,16 +23,16 @@ if "cart" not in st.session_state:
 
 
 # ======================================================
-# LOAD PRODUCTS
+# LOAD PRODUCTS (FIXED ✔ IMPORTANT)
 # ======================================================
-products_resp = get_products()
-products = products_resp.data or [] if products_resp else []
+products = get_products() or []   # ✅ CLEAN FIX (NO .data ANYMORE)
 
 
 # ======================================================
-# SEARCH ENGINE (FAST + SAFE)
+# SEARCH ENGINE
 # ======================================================
 search = st.text_input("🔍 Search by Name / Barcode / SKU").strip().lower()
+
 
 def normalize(v):
     return str(v or "").lower().replace(" ", "")
@@ -39,33 +40,30 @@ def normalize(v):
 
 def score_product(p, q):
     if not q:
-        return 1  # show all
+        return 1
 
     q = normalize(q)
-
     name = normalize(p.get("name"))
     barcode = normalize(p.get("barcode"))
     sku = normalize(p.get("sku"))
 
     score = 0
 
-    # exact match
     if q == name or q == barcode or q == sku:
         score += 120
 
-    # strong match
     if name.startswith(q):
         score += 90
+
     if barcode.startswith(q) or sku.startswith(q):
         score += 80
 
-    # partial match
     if q in name:
         score += 60
+
     if q in barcode or q in sku:
         score += 50
 
-    # fuzzy fallback
     if any(c in name for c in q):
         score += 10
 
@@ -84,7 +82,7 @@ filtered_products.sort(
 
 
 # ======================================================
-# CART ENGINE (SAFE)
+# CART ENGINE
 # ======================================================
 def add_to_cart(p):
     if not p:
@@ -110,17 +108,19 @@ def add_to_cart(p):
 
 
 # ======================================================
-# PRODUCT UI (ERP CARD STYLE)
+# PRODUCTS UI
 # ======================================================
 st.subheader("📦 Products")
 
 if not filtered_products:
     st.warning("No matching products found")
+
 else:
     for p in filtered_products:
 
         stock = safe_float(p.get("stock"))
         min_stock = safe_float(p.get("minimum_stock"))
+        pid = p.get("id")   # ✅ FIXED BUG
 
         with st.container(border=True):
 
@@ -134,7 +134,7 @@ Barcode: `{p.get('barcode')}` | SKU: `{p.get('sku')}` | Unit: `{p.get('unit','pc
                 """)
 
                 if stock <= min_stock:
-                    st.warning(f"⚠ Low Stock Alert: {stock}")
+                    st.warning(f"⚠ Low Stock: {stock}")
 
             col2.markdown(f"## 💰 {safe_float(p.get('selling_price')):,.0f} MMK")
 
@@ -147,7 +147,7 @@ Barcode: `{p.get('barcode')}` | SKU: `{p.get('sku')}` | Unit: `{p.get('unit','pc
 
 
 # ======================================================
-# CART SECTION
+# CART
 # ======================================================
 st.divider()
 st.subheader("🧾 Cart")
@@ -173,7 +173,7 @@ st.write("## Subtotal:", f"{subtotal:,.0f} MMK")
 
 
 # ======================================================
-# DISCOUNT / TAX ENGINE
+# TOTAL ENGINE
 # ======================================================
 c1, c2 = st.columns(2)
 
@@ -187,7 +187,7 @@ st.markdown(f"## 🧾 TOTAL: {total:,.0f} MMK")
 
 
 # ======================================================
-# PAYMENT ENGINE (PRODUCTION SAFE)
+# PAYMENT
 # ======================================================
 paid = st.number_input("Paid Amount", min_value=0.0, value=0.0)
 
@@ -205,10 +205,6 @@ if st.button("💳 Pay & Print"):
         st.session_state.cart,
         paid_amount=paid
     )
-
-    if not result:
-        st.error("Checkout failed")
-        st.stop()
 
     if isinstance(result, dict) and result.get("error"):
         st.error(result["error"])
