@@ -83,7 +83,7 @@ if st.session_state.cart:
     st.markdown(f"### Tax: {total_tax:,.0f} MMK")
     st.markdown(f"## Total: {(subtotal + total_tax):,.0f} MMK")
     
-    if st.button("💳 Pay & Print", type="primary"):
+   if st.button("💳 Pay & Print", type="primary"):
         prepared_cart = []
         for item in st.session_state.cart:
             prepared_cart.append({
@@ -95,9 +95,19 @@ if st.session_state.cart:
             })
 
         try:
+            # function ကို ခေါ်ခြင်း (parameter ၃ ခုလုံး ထည့်ပါ)
+            # database.py ထဲက checkout_sale_rpc ကိုလည်း payload 3 ခုပို့နိုင်အောင် ပြင်ထားဖို့ လိုပါမယ်
             result = checkout_sale_rpc(prepared_cart, float(subtotal + total_tax))
+            
+            # စစ်ဆေးခြင်း
             if result and hasattr(result, 'error') and result.error:
                 st.error(f"DB Error: {result.error}")
+            else:
+                st.success("အရောင်း အောင်မြင်ပါသည်။")
+                st.session_state.cart = []
+                st.rerun()
+        except Exception as e:
+            st.error(f"API Error: {str(e)}")
             else:
                 st.success("အရောင်း အောင်မြင်ပါသည်။")
                 st.session_state.cart = []
