@@ -1,5 +1,4 @@
 import streamlit as st
-("🧾", "Receipt Viewer", "pages/6_Receipt_Viewer.py")
 
 # ==========================================
 # MENU CONFIG (ROLE BASED ERP)
@@ -13,6 +12,7 @@ MENU = {
         ("👥", "Users", "pages/4_Users.py"),
         ("↩️", "Refund", "pages/5_Refund.py"),
         ("⚙️", "Settings", "pages/12_Settings.py"),
+        ("🧾", "Receipt Viewer", "pages/6_Receipt_Viewer.py"),
     ],
     "Manager": [
         ("🛒", "POS", "pages/1_POS.py"),
@@ -25,7 +25,7 @@ MENU = {
 }
 
 # ==========================================
-# SAFE AUTH CHECK
+# AUTH CHECK
 # ==========================================
 def is_logged_in():
     user = st.session_state.get("user")
@@ -33,7 +33,7 @@ def is_logged_in():
 
 
 # ==========================================
-# SAFE ROLE (SERVER-TRUSTED ONLY)
+# ROLE SAFE
 # ==========================================
 def get_role():
     user = st.session_state.get("user")
@@ -43,7 +43,6 @@ def get_role():
 
     role = user.get("role", "Cashier")
 
-    # prevent fake role injection
     if role not in MENU:
         return "Cashier"
 
@@ -51,7 +50,7 @@ def get_role():
 
 
 # ==========================================
-# SAFE USER NAME
+# USER NAME SAFE
 # ==========================================
 def get_username():
     user = st.session_state.get("user")
@@ -63,19 +62,19 @@ def get_username():
 
 
 # ==========================================
-# SIDEBAR (SECURE CORE)
+# SIDEBAR (HARD SECURITY GATE FIXED)
 # ==========================================
 def show_sidebar():
 
+    # 🔥 CRITICAL FIX (THIS WAS MISSING)
+    if not is_logged_in():
+        return   # ⛔ STOP EVERYTHING HERE
+
     user = st.session_state.get("user")
 
-    if not isinstance(user, dict):
-        return   # safe exit only
-
     with st.sidebar:
-        st.title("ERP SYSTEM")
 
-        
+        st.title("🏭 ERP SYSTEM")
         st.caption("Enterprise Control Center")
 
         st.divider()
@@ -89,7 +88,7 @@ def show_sidebar():
         st.divider()
 
         # =========================
-        # LANGUAGE SAFE STORE
+        # LANGUAGE
         # =========================
         if "language" not in st.session_state:
             st.session_state.language = "English"
@@ -104,23 +103,19 @@ def show_sidebar():
         st.divider()
 
         # =========================
-        # NAVIGATION (SAFE SWITCH)
+        # NAVIGATION
         # =========================
         st.subheader("📂 Navigation")
 
         for icon, title, page in MENU.get(role, MENU["Cashier"]):
 
-            if st.button(f"{icon} {title}", key=f"nav_{role}_{page}"):
+            if st.button(f"{icon} {title}", key=f"{role}_{page}"):
 
-                # IMPORTANT: only set state, not direct switch conflict
                 st.session_state.active_page = page
                 st.rerun()
 
         st.divider()
 
-        # =========================
-        # SYSTEM STATUS
-        # =========================
         st.success("🟢 System Online")
 
         # =========================
@@ -128,9 +123,7 @@ def show_sidebar():
         # =========================
         if st.button("🚪 Logout", use_container_width=True):
 
-            # FULL CLEAN RESET (NO DATA LEAK)
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
+            st.session_state.clear()
 
             st.session_state.update({
                 "user": None,
