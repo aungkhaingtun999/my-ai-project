@@ -4,7 +4,7 @@ from database import get_products
 st.set_page_config(page_title="POS v10 Enterprise", layout="wide")
 
 # =========================
-# SESSION
+# SESSION STATE
 # =========================
 if "cart" not in st.session_state:
     st.session_state.cart = []
@@ -16,11 +16,13 @@ products = get_products() or []
 
 st.title("🛒 POS v10 Enterprise")
 
+
 # =========================
 # HELPERS
 # =========================
 def norm(v):
     return str(v or "").lower().strip()
+
 
 def search(keyword):
     keyword = norm(keyword)
@@ -55,23 +57,26 @@ def search(keyword):
     return [p for _, p in results]
 
 
+def money(x):
+    return f"{float(x or 0):,.0f}"
+
+
 # =========================
 # SEARCH INPUT
 # =========================
-search_text = st.text_input("🔍 Search Product (Name / Barcode / SKU)")
+search_text = st.text_input(
+    "🔍 Search Product (Name / Barcode / SKU)",
+    key="search_input"
+)
 
-# =========================
-# FLOATING DROPDOWN CONTAINER
-# =========================
 dropdown = st.empty()
 
 matches = search(search_text)
 
-# =========================
-# FLOAT UI (NO PAGE SHIFT)
-# =========================
-selected = None
 
+# =========================
+# FLOATING DROPDOWN (FIXED UX)
+# =========================
 if search_text and matches:
 
     with dropdown.container():
@@ -82,27 +87,20 @@ if search_text and matches:
             background: white;
             border: 1px solid #ddd;
             border-radius: 10px;
-            max-height: 250px;
+            max-height: 260px;
             overflow-y: auto;
             box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-        }
-        .item {
-            padding: 10px;
-            cursor: pointer;
-        }
-        .item:hover {
-            background: #f0f6ff;
         }
         </style>
         """, unsafe_allow_html=True)
 
         st.markdown('<div class="dropbox">', unsafe_allow_html=True)
 
-        for i, p in enumerate(matches[:10]):
+        for i, p in enumerate(matches[:15]):
 
-            label = f"{p['name']} | {p.get('barcode','')} | {p.get('sku','')}"
+            label = f"{p['name']} | {p.get('barcode','')} | {money(p.get('selling_price'))} MMK"
 
-            if st.button(label, key=f"p_{i}"):
+            if st.button(label, key=f"prod_{i}"):
 
                 st.session_state.selected = p
                 st.rerun()
@@ -111,29 +109,48 @@ if search_text and matches:
 
 
 # =========================
-# SELECTED PRODUCT ONLY
+# SELECTED PRODUCT
 # =========================
 selected = st.session_state.selected
 
 if selected:
 
     st.divider()
-    st.subheader("📦 Selected Product")
+    st.subheader("📦 Product Detail")
 
-    c1, c2, c3 = st.columns([4,1,1])
+    price = float(selected.get("selling_price", 0))
+    tax_rate = float(selected.get("tax_rate", 0))
+    discount_rate = float(selected.get("discount", 0))  # % discount (optional)
+
+    c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
 
     c1.write(selected["name"])
-    c2.write(f"{selected.get('selling_price',0):,.0f} MMK")
+    c2.metric("Price", money(price))
+    c3.metric("Tax %", f"{tax_rate}%")
 
-    qty = c3.number_input("Qty", 1, 999, 1)
+    qty = c4.number_input("Qty", 1, 999, 1)
 
-    if st.button("➕ Add to Cart"):
+    # Discount input
+    discount_input = st.number_input("Discount (%)", 0.0, 100.0, float(discount_rate))
+
+
+    if st.button("➕ Add to Cart", type="primary"):
+
+        base = price * qty
+
+        tax = base * (tax_rate / 100)
+        discount = base * (discount_input / 100)
+
+        final = base + tax - discount
 
         st.session_state.cart.append({
             "id": selected["id"],
             "name": selected["name"],
-            "price": selected.get("selling_price", 0),
-            "qty": qty
+            "price": price,
+            "qty": qty,
+            "tax_rate": tax_rate,
+            "discount": discount_input,
+            "line_total": final
         })
 
         st.session_state.selected = None
@@ -142,21 +159,55 @@ if selected:
 
 
 # =========================
-# CART
+# CART SECTION
 # =========================
 st.divider()
 st.subheader("🧾 Cart")
 
 total = 0
+total_tax = 0
+total_discount = 0
 
 for i, item in enumerate(st.session_state.cart):
 
-    c1, c2, c3 = st.columns([4,1,1])
+    c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
+
+    base = item["price"] * item["qty"]
+    tax = base * (item.get("tax_rate", 0) / 100)
+    discount = base * (item.get("discount", 0) / 100)
+    final = base + tax - discount
 
     c1.write(item["name"])
-    c2.write(f"{item['qty']} x {item['price']}")
-    c3.write(f"{item['qty'] * item['price']:.0f}")
+    c2.write(f"{item['qty']} × {money(item['price'])}")
 
-    total += item["qty"] * item["price"]
+    c3.write(f"Tax: {money(tax)}")
+    c4.write(f"{money(final)}")
 
-st.markdown(f"### TOTAL: {total:,.0f} MMK")
+    total += final
+    total_tax += tax
+    total_discount += discount
+
+
+st.markdown("---")
+st.markdown(f"### 🧾 Total: {money(total)} MMK")
+st.markdown(f"### 🧾 Tax: {money(total_tax)} MMK")
+st.markdown(f"### 🧾 Discount: {money(total_discount)} MMK")
+
+
+# =========================
+# CHECKOUT
+# =========================
+if st.button("💳 Checkout", type="primary"):
+
+    if not st.session_state.cart:
+        st.warning("Cart is empty")
+        st.stop()
+
+    st.success("Sale Completed!")
+
+    # DB call placeholder
+    # checkout_sale_rpc(st.session_state.cart, total)
+
+    st.session_state.cart = []
+    st.session_state.selected = None
+    st.rerun()
