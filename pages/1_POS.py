@@ -17,30 +17,47 @@ if "cart" not in st.session_state: st.session_state.cart = []
 
 products = get_products() or []
 
-st.title("🛒 POS v8 Smart POS")
+st.title("🛒 POS v8 Shopify-Level Smart POS")
 
 # ======================================================
-# SEARCH / SELECT SECTION (Dropdown Style)
+# SEARCH SECTION (Dropdown + Barcode)
 # ======================================================
-# Excel dropdown လိုမျိုး ရွေးချယ်စရာ list ပြုလုပ်ခြင်း
+c1, c2 = st.columns(2)
+
+# 1. Dropdown Search
 product_options = {f"{p['name']} | {safe_float(p.get('selling_price')):,.0f} MMK": p for p in products}
+with c1:
+    selected_label = st.selectbox("🔍 Search by Name", options=[""] + list(product_options.keys()), index=0)
 
-selected_label = st.selectbox("🔍 Select Product", options=[""] + list(product_options.keys()), index=0)
+# 2. Barcode/SKU Scan
+with c2:
+    code_input = st.text_input("📟 Barcode / SKU Scan", key="barcode_scan")
 
+# Logic to handle both search methods
+selected_product = None
 if selected_label:
-    p = product_options[selected_label]
-    col1, col2 = st.columns([3, 1])
-    qty = col1.number_input("Quantity", min_value=1, value=1, key="add_qty")
+    selected_product = product_options[selected_label]
+elif code_input:
+    match = next((p for p in products if code_input in [str(p.get('barcode', '')), str(p.get('sku', ''))]), None)
+    if match:
+        selected_product = match
+        st.success(f"Found: {match['name']}")
+
+# Add to Cart Logic
+if selected_product:
+    st.divider()
+    col_d1, col_d2, col_d3 = st.columns([3, 1, 1])
+    col_d1.write(f"**{selected_product['name']}**")
+    qty = col_d2.number_input("Qty", 1, 100, 1, key="q_input")
     
-    if col2.button("➕ Add to Cart"):
+    if col_d3.button("➕ Add to Cart", type="primary"):
         cart_item = {
-            "id": p["id"],
-            "name": p["name"],
-            "selling_price": safe_float(p.get("selling_price")),
+            "id": selected_product["id"],
+            "name": selected_product["name"],
+            "selling_price": safe_float(selected_product.get("selling_price")),
             "qty": qty
         }
         
-        # Cart ထဲမှာ ရှိပြီးသားဆို qty ပေါင်းပေးခြင်း
         found = False
         for item in st.session_state.cart:
             if item["id"] == cart_item["id"]:
@@ -48,8 +65,6 @@ if selected_label:
                 found = True
         if not found:
             st.session_state.cart.append(cart_item)
-        
-        st.success(f"Added {p['name']} to cart!")
         st.rerun()
 
 # ======================================================
@@ -59,20 +74,18 @@ st.divider()
 st.subheader("🧾 Cart")
 
 if st.session_state.cart:
-    # Cart ကို display လုပ်ခြင်း (ရင်ရွေးထားတာတွေ မပျောက်တော့ပါ)
     for i, item in enumerate(st.session_state.cart):
-        c1, c2, c3, c4 = st.columns([4, 2, 2, 1])
-        c1.write(item["name"])
-        item["qty"] = c2.number_input("Qty", 1, 99, item["qty"], key=f"q_{i}")
-        c3.write(f"{(item['selling_price'] * item['qty']):,.0f} MMK")
-        if c4.button("🗑", key=f"del_{i}"):
+        col_c1, col_c2, col_c3, col_c4 = st.columns([4, 2, 2, 1])
+        col_c1.write(item["name"])
+        item["qty"] = col_c2.number_input("Qty", 1, 99, item["qty"], key=f"q_{i}")
+        col_c3.write(f"{(item['selling_price'] * item['qty']):,.0f} MMK")
+        if col_c4.button("🗑", key=f"del_{i}"):
             st.session_state.cart.pop(i)
             st.rerun()
 
     subtotal = sum(i["selling_price"] * i["qty"] for i in st.session_state.cart)
     st.markdown(f"### Total: {subtotal:,.0f} MMK")
     
-    # PAY & PRINT
     if st.button("💳 Pay & Print", type="primary"):
         prepared_cart = []
         for item in st.session_state.cart:
