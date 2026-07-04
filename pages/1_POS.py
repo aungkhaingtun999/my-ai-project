@@ -1,9 +1,9 @@
 import streamlit as st
 from database import get_products, checkout_sale_rpc
 
-st.set_page_config(page_title="POS v4 ERP Ultra", layout="wide")
+st.set_page_config(page_title="POS v5 Smart ERP", layout="wide")
 
-st.title("🛒 POS v4 Ultra ERP ENGINE (Production Ready)")
+st.title("🛒 POS v5 Smart Search ERP Engine")
 
 # ======================================================
 # SAFE FLOAT
@@ -30,7 +30,7 @@ products = products_resp.data if products_resp and hasattr(products_resp, "data"
 
 
 # ======================================================
-# ADD TO CART (ERP SAFE)
+# ADD TO CART
 # ======================================================
 def add_to_cart(p):
     if not p:
@@ -39,13 +39,13 @@ def add_to_cart(p):
     price = safe_float(p.get("selling_price"))
 
     for item in st.session_state.cart:
-        if item.get("id") == p.get("id"):
-            item["qty"] = safe_float(item.get("qty")) + 1
+        if item["id"] == p["id"]:
+            item["qty"] = safe_float(item["qty"]) + 1
             return
 
     st.session_state.cart.append({
-        "id": p.get("id"),
-        "name": p.get("name", "Unknown"),
+        "id": p["id"],
+        "name": p.get("name"),
         "barcode": p.get("barcode"),
         "sku": p.get("sku"),
         "unit": p.get("unit", "pcs"),
@@ -55,45 +55,61 @@ def add_to_cart(p):
 
 
 # ======================================================
-# PRODUCT LIST (WITH ERP INFO)
+# 🔍 SEARCH BOX (MAIN FEATURE)
+# ======================================================
+search = st.text_input("🔍 Search by Name / Barcode / SKU")
+
+def match(p, q):
+    q = q.lower()
+
+    return (
+        q in str(p.get("name", "")).lower()
+        or q in str(p.get("barcode", "")).lower()
+        or q in str(p.get("sku", "")).lower()
+    )
+
+filtered_products = [
+    p for p in products
+    if not search or match(p, search)
+]
+
+
+# ======================================================
+# PRODUCTS GRID (MODERN CARD UI)
 # ======================================================
 st.subheader("📦 Products")
 
-if products:
-    for p in products:
+if not filtered_products:
+    st.warning("No matching products found")
+else:
+    for p in filtered_products:
 
         stock = safe_float(p.get("stock"))
         min_stock = safe_float(p.get("minimum_stock"))
 
-        col1, col2, col3 = st.columns([5, 2, 1])
+        with st.container(border=True):
 
-        # PRODUCT INFO BLOCK
-        with col1:
-            st.write(f"🛒 **{p.get('name','')}**")
+            col1, col2, col3 = st.columns([5, 2, 1])
 
-            st.caption(
-                f"Barcode: {p.get('barcode','-')} | "
-                f"SKU: {p.get('sku','-')} | "
-                f"Unit: {p.get('unit','pcs')}"
-            )
+            with col1:
+                st.write(f"🛒 **{p.get('name')}**")
+                st.caption(
+                    f"Barcode: {p.get('barcode')} | "
+                    f"SKU: {p.get('sku')} | "
+                    f"Unit: {p.get('unit', 'pcs')}"
+                )
 
-            # LOW STOCK WARNING
-            if stock <= min_stock:
-                st.error(f"⚠ Low Stock: {stock} left")
+                if stock <= min_stock:
+                    st.error(f"⚠ Low Stock: {stock}")
 
-        # PRICE
-        col2.write(f"{safe_float(p.get('selling_price')):,.2f} MMK")
+            col2.write(f"💰 {safe_float(p.get('selling_price')):,.0f} MMK")
 
-        # ADD BUTTON
-        if col3.button("➕", key=f"add_{p.get('id')}"):
-            if stock <= 0:
-                st.error("Out of stock")
-            else:
-                add_to_cart(p)
-                st.rerun()
-
-else:
-    st.warning("No products found")
+            if col3.button("➕", key=f"add_{p['id']}"):
+                if stock <= 0:
+                    st.error("Out of stock")
+                else:
+                    add_to_cart(p)
+                    st.rerun()
 
 
 # ======================================================
@@ -105,56 +121,39 @@ st.subheader("🧾 Cart")
 subtotal = 0.0
 
 for item in st.session_state.cart:
+    price = safe_float(item["selling_price"])
+    qty = safe_float(item["qty"])
 
-    price = safe_float(item.get("selling_price"))
-    qty = safe_float(item.get("qty"))
-    unit = item.get("unit", "pcs")
-
-    line_total = price * qty
-    subtotal += line_total
+    line = price * qty
+    subtotal += line
 
     c1, c2, c3 = st.columns([5, 2, 2])
-
-    c1.write(f"{item.get('name')} ({unit})")
-    c2.write(f"{qty} x {price:,.2f}")
-    c3.write(f"{line_total:,.2f}")
-
-
-st.write("## Subtotal:", f"{subtotal:,.2f} MMK")
+    c1.write(f"{item['name']} ({item.get('unit','pcs')})")
+    c2.write(f"{qty} x {price:,.0f}")
+    c3.write(f"{line:,.0f}")
 
 
-# ======================================================
-# DISCOUNT + TAX
-# ======================================================
-col1, col2 = st.columns(2)
-
-discount_rate = col1.number_input("Discount (%)", 0.0, 100.0, 0.0)
-tax_rate = col2.number_input("Tax (%)", 0.0, 100.0, 5.0)
-
-discount_amount = subtotal * discount_rate / 100
-after_discount = subtotal - discount_amount
-tax_amount = after_discount * tax_rate / 100
-
-total = after_discount + tax_amount
+st.write("## Subtotal:", f"{subtotal:,.0f} MMK")
 
 
 # ======================================================
-# SUMMARY
+# DISCOUNT / TAX
 # ======================================================
-st.markdown("## 💰 Summary")
+c1, c2 = st.columns(2)
 
-st.write("Subtotal:", f"{subtotal:,.2f}")
-st.write("Discount:", f"{discount_amount:,.2f}")
-st.write("After Discount:", f"{after_discount:,.2f}")
-st.write("Tax:", f"{tax_amount:,.2f}")
+discount = c1.number_input("Discount (%)", 0.0, 100.0, 0.0)
+tax = c2.number_input("Tax (%)", 0.0, 100.0, 5.0)
 
-st.markdown(f"## 🧾 TOTAL: {total:,.2f} MMK")
+after_discount = subtotal - (subtotal * discount / 100)
+total = after_discount + (after_discount * tax / 100)
+
+st.markdown(f"## 🧾 TOTAL: {total:,.0f} MMK")
 
 
 # ======================================================
 # PAYMENT
 # ======================================================
-paid = st.number_input("Paid Amount", min_value=0.0, value=0.0)
+paid = st.number_input("Paid Amount", 0.0)
 
 if st.button("💳 Pay & Print"):
 
@@ -171,17 +170,12 @@ if st.button("💳 Pay & Print"):
         paid_amount=paid
     )
 
-    if not result:
-        st.error("Checkout failed")
-        st.stop()
-
     if isinstance(result, dict) and result.get("error"):
         st.error(result["error"])
         st.stop()
 
-    st.success(f"Sale Completed ID: {result.get('sale_id')}")
-    st.info(f"Receipt No: {result.get('receipt_no')}")
+    st.success(f"Sale ID: {result.get('sale_id')}")
+    st.info(f"Receipt: {result.get('receipt_no')}")
 
-    # RESET
     st.session_state.cart = []
     st.rerun()
