@@ -1,5 +1,6 @@
 import streamlit as st
 from auth import login_page
+from guards import require_login
 from sidebar import show_sidebar
 
 # ==========================================
