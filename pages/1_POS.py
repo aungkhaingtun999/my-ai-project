@@ -2,19 +2,20 @@ import streamlit as st
 from database import get_products, checkout_sale_rpc
 
 # =========================
-# CONFIG
+# CONFIG (SMALL UI)
 # =========================
-st.set_page_config(page_title="POS v10 Enterprise", layout="wide")
-st.title("🛒 POS v10 Enterprise")
+st.set_page_config(page_title="POS", layout="centered")
+
+st.markdown("## 🛒 POS System")
 
 # =========================
-# SESSION STATE
+# SESSION
 # =========================
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
-if "selected_product" not in st.session_state:
-    st.session_state.selected_product = None
+if "selected" not in st.session_state:
+    st.session_state.selected = None
 
 # =========================
 # HELPERS
@@ -29,7 +30,7 @@ def norm(v):
     return str(v or "").lower().strip()
 
 # =========================
-# LOAD PRODUCTS
+# PRODUCTS
 # =========================
 products = get_products() or []
 
@@ -41,7 +42,7 @@ def search_products(keyword):
     if not keyword:
         return []
 
-    results = []
+    result = []
 
     for p in products:
         name = norm(p.get("name"))
@@ -50,130 +51,119 @@ def search_products(keyword):
 
         score = 0
 
-        if keyword == name:
+        if keyword == name or keyword == barcode or keyword == sku:
             score += 1000
-        if keyword == barcode:
-            score += 950
-        if keyword == sku:
-            score += 900
 
         if name.startswith(keyword):
             score += 500
+
         if keyword in name:
             score += 300
+
         if keyword in barcode or keyword in sku:
-            score += 250
+            score += 200
 
         if score:
-            results.append((score, p))
+            result.append((score, p))
 
-    results.sort(key=lambda x: x[0], reverse=True)
-    return [p for _, p in results]
+    result.sort(reverse=True, key=lambda x: x[0])
+    return [p for _, p in result]
 
-
-# =========================
-# SEARCH UI (2 BOXES)
-# =========================
-c1, c2 = st.columns(2)
-
-with c1:
-    search_name = st.text_input("🔍 Product Name")
-
-with c2:
-    barcode = st.text_input("📟 Barcode / SKU")
 
 # =========================
-# SELECT PRODUCT
+# FLOAT SEARCH (SMALL DROPDOWN)
 # =========================
+search = st.text_input("🔍 Search Product", placeholder="Type name...")
+
+matches = search_products(search)
+
 selected = None
 
-# barcode priority
-if barcode:
-    for p in products:
-        if barcode == str(p.get("barcode")) or barcode == str(p.get("sku")):
-            selected = p
-            break
+if search and matches:
 
-# name search dropdown
-if selected is None and search_name:
-    matches = search_products(search_name)
+    with st.container():
 
-    if matches:
-        labels = [
-            f"{p['name']} | {safe_float(p.get('selling_price')):,.0f} MMK"
-            for p in matches[:15]
-        ]
+        st.markdown("""
+        <style>
+        .box {
+            border:1px solid #ddd;
+            border-radius:8px;
+            padding:6px;
+            max-height:180px;
+            overflow-y:auto;
+            background:white;
+        }
+        .item {
+            padding:6px;
+            font-size:13px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
-        choice = st.selectbox(
-            "Search Result",
-            labels,
-            key="dropdown_product"
-        )
+        st.markdown('<div class="box">', unsafe_allow_html=True)
 
-        selected = matches[labels.index(choice)]
+        for i, p in enumerate(matches[:8]):
 
-        # keep selection in session (IMPORTANT FIX)
-        st.session_state.selected_product = selected
+            label = f"{p['name']} | {safe_float(p.get('selling_price')):,.0f} MMK"
 
-# restore selection if rerun
-if selected is None:
-    selected = st.session_state.selected_product
+            if st.button(label, key=f"p_{i}"):
+
+                st.session_state.selected = p
+                st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+# restore selected
+selected = st.session_state.selected
 
 
 # =========================
-# PRODUCT SECTION
+# PRODUCT CARD (SMALL FIXED UI)
 # =========================
 if selected:
 
     st.markdown("---")
 
-    col1, col2, col3 = st.columns([4, 1, 1])
+    st.markdown(f"### {selected['name']}")
 
-    with col1:
-        st.write(f"**{selected['name']}**")
-        st.caption(f"Barcode: {selected.get('barcode','')}")
-        st.caption(f"SKU: {selected.get('sku','')}")
+    c1, c2 = st.columns([2, 1])
 
-    with col2:
-        st.metric("Price", f"{safe_float(selected.get('selling_price')):,.0f}")
+    price = safe_float(selected.get("selling_price"))
+    tax = safe_float(selected.get("tax_rate", 0))
+    discount = bool(selected.get("discount_allowed", False))
 
-    with col3:
-        qty = st.number_input("Qty", 1, 999, 1, key="qty_input")
+    c1.write(f"💰 {price:,.0f} MMK")
+    c1.caption(f"Tax: {tax}% | Discount: {'YES' if discount else 'NO'}")
 
-    tax_rate = safe_float(selected.get("tax_rate", 0))
-    discount_allowed = bool(selected.get("discount_allowed", False))
+    qty = c2.number_input("Qty", 1, 99, 1, key="qty")
 
-    st.write(f"Tax: {tax_rate}% | Discount: {'YES' if discount_allowed else 'NO'}")
-
-    if st.button("➕ Add to Cart", type="primary"):
+    if st.button("➕ Add to Cart"):
 
         item = {
             "id": selected["id"],
             "name": selected["name"],
-            "selling_price": safe_float(selected.get("selling_price")),
+            "selling_price": price,
             "qty": qty,
-            "tax_rate": tax_rate,
-            "discount_allowed": discount_allowed
+            "tax_rate": tax,
+            "discount_allowed": discount
         }
 
-        # merge cart
         found = False
         for c in st.session_state.cart:
             if c["id"] == item["id"]:
                 c["qty"] += qty
                 found = True
-                break
 
         if not found:
             st.session_state.cart.append(item)
 
-        st.session_state.selected_product = None
-        st.success("Added to cart")
+        st.session_state.selected = None
         st.rerun()
 
 
 # =========================
-# CART SECTION (FIXED + CLEAN UI)
+# CART (CLEAN SMALL UI)
 # =========================
 st.markdown("## 🧾 Cart")
 
@@ -181,54 +171,44 @@ if len(st.session_state.cart) == 0:
     st.info("Cart is empty")
 
 else:
+
     subtotal = 0
     total_tax = 0
 
     for i, item in enumerate(st.session_state.cart):
 
-        c1, c2, c3, c4, c5 = st.columns([4, 1, 1, 1, 1])
+        c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
 
         price = safe_float(item.get("selling_price"))
         qty = int(item.get("qty", 1))
-        tax_rate = safe_float(item.get("tax_rate", 0))
+        tax = safe_float(item.get("tax_rate", 0))
 
         line = price * qty
-        tax = line * (tax_rate / 100)
-        total = line + tax
+        tax_amt = line * tax / 100
+        total = line + tax_amt
 
-        c1.write(item.get("name", "Unknown"))
+        c1.write(f"{item['name']}")
 
-        new_qty = c2.number_input(
-            "",
-            1,
-            999,
-            qty,
-            key=f"qty_{i}"
-        )
-
+        new_qty = c2.number_input("", 1, 99, qty, key=f"q_{i}")
         item["qty"] = new_qty
 
-        c3.write(f"{tax_rate}%")
+        c3.write(f"{total:,.0f}")
 
-        c4.write(f"{total:,.0f}")
-
-        if c5.button("🗑", key=f"del_{i}"):
+        if c4.button("🗑", key=f"d_{i}"):
             st.session_state.cart.pop(i)
             st.rerun()
 
         subtotal += line
-        total_tax += tax
+        total_tax += tax_amt
 
     st.markdown("---")
-    st.write(f"Subtotal: {subtotal:,.0f}")
-    st.write(f"Tax: {total_tax:,.0f}")
-    st.write(f"### Grand Total: {(subtotal + total_tax):,.0f} MMK")
+    st.markdown(f"### TOTAL: {(subtotal + total_tax):,.0f} MMK")
 
 
 # =========================
-# CHECKOUT (FIXED RECEIPT LOGIC)
+# CHECKOUT SAFE
 # =========================
-if st.button("💳 Pay & Print", type="primary"):
+if st.button("💳 Pay & Print"):
 
     if not st.session_state.cart:
         st.warning("Cart is empty")
@@ -236,31 +216,27 @@ if st.button("💳 Pay & Print", type="primary"):
 
     prepared = [
         {
-            "id": int(i["id"]),
-            "qty": int(i["qty"]),
-            "selling_price": float(i["selling_price"]),
-            "tax_rate": float(i.get("tax_rate", 0)),
-            "discount_allowed": bool(i.get("discount_allowed", False))
+            "id": i["id"],
+            "qty": i["qty"],
+            "selling_price": i["selling_price"],
+            "tax_rate": i.get("tax_rate", 0),
+            "discount_allowed": i.get("discount_allowed", False)
         }
         for i in st.session_state.cart
     ]
 
-    total_amount = sum(
-        (i["selling_price"] * i["qty"]) * (1 + i.get("tax_rate", 0) / 100)
+    total = sum(
+        (i["selling_price"] * i["qty"]) * (1 + i.get("tax_rate", 0)/100)
         for i in st.session_state.cart
     )
 
-    with st.spinner("Processing sale..."):
-        result = checkout_sale_rpc(prepared, float(total_amount), None)
+    result = checkout_sale_rpc(prepared, float(total), None)
 
-    if result and isinstance(result, dict) and result.get("success"):
+    if result and result.get("success"):
+        st.success("Done ✔")
 
-        st.success("Sale completed successfully 🎉")
-
-        # FIX: only clear AFTER success
         st.session_state.cart = []
-        st.session_state.selected_product = None
-
+        st.session_state.selected = None
         st.rerun()
 
     else:
