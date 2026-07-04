@@ -78,11 +78,12 @@ def login_page():
         # SESSION BUILD
         # -------------------------
         st.session_state.user = {
-            "id": user.get("id"),
-            "username": user.get("username"),
-            "full_name": user.get("full_name"),
-            "role_id": user.get("role_id")
-        }
+    "id": user["id"],
+    "username": user["username"],
+    "full_name": user["full_name"],
+    "role_id": user["role_id"],
+    "is_active": user["is_active"]
+}
 
         st.success(f"Welcome {user.get('full_name')} 👋")
         st.rerun()
