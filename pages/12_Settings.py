@@ -1,19 +1,32 @@
 import streamlit as st
 from supabase_client import supabase
 
+st.set_page_config(page_title="ERP Control Center", layout="wide")
+
+# =========================
+# 🔐 SECURITY GUARD (SAFE + REUSABLE)
+# =========================
+def require_admin():
+    user = st.session_state.get("user")
+
+    if not user:
+        st.error("⛔ Please login first")
+        st.stop()
+
+    if user.get("role_id") != 1:
+        st.error("⛔ Access Denied: Admin Only Module")
+        st.stop()
+
+    return user
+
+
+# =========================
+# APPLY GUARD
+# =========================
+user = require_admin()
+
 st.title("⚙️ ERP Control Center (Admin Panel)")
-
-# =========================
-# SECURITY GUARD (ADMIN ONLY)
-# =========================
-user = st.session_state.get("user")
-role = st.session_state.get("role")
-
-if st.session_state.user.get("role_id") != 1:
-    st.error("⛔ Access Denied: Admin Only Module")
-    st.stop()
-
-st.success("🔐 Admin Access Granted")
+st.success(f"🔐 Welcome Admin: {user.get('full_name', 'Admin')}")
 
 # =========================
 # LOAD SETTINGS FROM DB
@@ -23,7 +36,7 @@ settings = supabase.table("erp_settings").select("*").execute().data or []
 settings_map = {s["key"]: s["value"] for s in settings}
 
 # =========================
-# HELPER FUNCTION
+# SAVE FUNCTION (SAFE)
 # =========================
 def save_setting(key, value):
     supabase.table("erp_settings").upsert({
@@ -32,19 +45,32 @@ def save_setting(key, value):
     }).execute()
 
 # =========================
+# HELPER GETTERS (SAFE CAST)
+# =========================
+def get_bool(key, default=False):
+    return str(settings_map.get(key, str(default))).lower() == "true"
+
+def get_float(key, default=0):
+    try:
+        return float(settings_map.get(key, default))
+    except:
+        return default
+
+
+# =========================
 # 🧾 ACCOUNTING & TAX
 # =========================
 st.subheader("🧾 Accounting & Tax")
 
 tax_rate = st.number_input(
     "Default Tax Rate (%)",
-    value=float(settings_map.get("tax_rate", 5))
+    value=get_float("tax_rate", 5)
 )
 
 discount_policy = st.selectbox(
     "Discount Policy",
     ["allowed", "restricted"],
-    index=0 if settings_map.get("discount_policy") != "restricted" else 1
+    index=0 if settings_map.get("discount_policy", "allowed") == "allowed" else 1
 )
 
 if st.button("Save Accounting Settings"):
@@ -62,12 +88,12 @@ st.subheader("🏢 Organization Settings")
 
 branch_mode = st.toggle(
     "Enable Multi-Branch",
-    value=settings_map.get("multi_branch", "false") == "true"
+    value=get_bool("multi_branch", False)
 )
 
 warehouse_mode = st.toggle(
     "Enable Multi-Warehouse",
-    value=settings_map.get("multi_warehouse", "true") == "true"
+    value=get_bool("multi_warehouse", True)
 )
 
 if st.button("Save Organization Settings"):
@@ -85,7 +111,7 @@ st.subheader("👤 Security & Permissions")
 
 rls_enabled = st.toggle(
     "Enable Row Level Security (RLS)",
-    value=settings_map.get("rls", "false") == "true"
+    value=get_bool("rls", False)
 )
 
 if st.button("Save Security Settings"):
@@ -104,12 +130,12 @@ st.subheader("📦 Inventory Rules")
 
 min_stock_alert = st.number_input(
     "Default Minimum Stock Alert",
-    value=float(settings_map.get("min_stock", 10))
+    value=get_float("min_stock", 10)
 )
 
 reorder_auto = st.toggle(
     "Enable Auto Reorder",
-    value=settings_map.get("auto_reorder", "false") == "true"
+    value=get_bool("auto_reorder", False)
 )
 
 if st.button("Save Inventory Rules"):
@@ -146,15 +172,15 @@ if st.button("Save Finance Settings"):
 st.divider()
 
 # =========================
-# SYSTEM STATUS
+# 🧠 SYSTEM STATUS
 # =========================
-st.subheader("🧠 System Status")
+st.subheader("System Status")
 
-st.info("""
+st.success("""
 ✔ ERP Core Active  
 ✔ Warehouse Engine Ready  
 ✔ Sales/Purchase Connected  
 ✔ Settings DB Synced  
 """)
 
-st.success("⚙️ Control Center Fully Operational")
+st.success("⚙️ Control Center Fully Operational 🚀")
