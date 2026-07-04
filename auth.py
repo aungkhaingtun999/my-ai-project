@@ -4,7 +4,7 @@ from database import get_supabase
 supabase = get_supabase()
 
 # =========================
-# SESSION INIT (SAFE)
+# SESSION INIT
 # =========================
 def init_session():
     if "user" not in st.session_state:
@@ -13,14 +13,15 @@ def init_session():
 init_session()
 
 # =========================
-# SAFE LOGIN QUERY WRAPPER
+# SAFE USER FETCH (FIXED)
 # =========================
 def get_user(username: str):
     try:
         response = (
             supabase.table("users")
             .select("*")
-            .or_(f"email.eq.{username},name.eq.{username}")
+            .eq("username", username)
+            .eq("is_active", True)
             .limit(1)
             .execute()
         )
@@ -42,20 +43,20 @@ def login_page():
     st.title("🔐 ERP Secure Login System")
     st.caption("Enterprise Access Control Layer")
 
-    username = st.text_input("Username or Email")
+    username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
 
         # -------------------------
-        # INPUT VALIDATION
+        # VALIDATION
         # -------------------------
         if not username or not password:
             st.error("Please fill all fields")
             st.stop()
 
         # -------------------------
-        # FETCH USER SAFELY
+        # FETCH USER
         # -------------------------
         user = get_user(username)
 
@@ -64,26 +65,26 @@ def login_page():
             st.stop()
 
         # -------------------------
-        # PASSWORD CHECK (TEMP SAFE VERSION)
+        # PASSWORD CHECK
         # -------------------------
-        # ⚠️ Production: replace with bcrypt later
-        stored_password = user.get("password")
+        # ⚠️ TEMP SAFE (replace with bcrypt later)
+        stored_hash = user.get("password_hash")
 
-        if stored_password != password:
+        if stored_hash != password:
             st.error("Invalid credentials")
             st.stop()
 
         # -------------------------
-        # SUCCESS LOGIN
+        # SESSION BUILD
         # -------------------------
         st.session_state.user = {
             "id": user.get("id"),
-            "name": user.get("name"),
-            "email": user.get("email"),
-            "role": user.get("role", "staff")
+            "username": user.get("username"),
+            "full_name": user.get("full_name"),
+            "role_id": user.get("role_id")
         }
 
-        st.success(f"Welcome {user.get('name')} 👋")
+        st.success(f"Welcome {user.get('full_name')} 👋")
         st.rerun()
 
 # =========================
@@ -94,19 +95,19 @@ def logout():
     st.rerun()
 
 # =========================
-# AUTH GUARD (USE IN MAIN APP)
+# AUTH CHECK
 # =========================
 def is_authenticated():
     user = st.session_state.get("user")
-    return user is not None and isinstance(user, dict)
+    return user is not None
 
 # =========================
-# OPTIONAL: LOGIN STATE VIEW
+# SIDEBAR STATUS
 # =========================
 def show_auth_status():
     if is_authenticated():
-        st.sidebar.success(f"👤 {st.session_state.user['name']}")
-        st.sidebar.write(f"Role: {st.session_state.user['role']}")
+        st.sidebar.success(f"👤 {st.session_state.user['full_name']}")
+        st.sidebar.write(f"Role ID: {st.session_state.user['role_id']}")
 
         if st.sidebar.button("🚪 Logout"):
             logout()
@@ -114,12 +115,15 @@ def show_auth_status():
         st.sidebar.info("Not logged in")
 
 # =========================
-# AUTO ROUTING (FOR TEST ONLY)
+# MAIN APP ROUTER (TEST MODE)
 # =========================
 if __name__ == "__main__":
 
     if is_authenticated():
-        st.success(f"Logged in as {st.session_state.user['name']}")
+        st.title("🛒 ERP Dashboard Access")
+
+        st.write("Logged in as:")
+        st.json(st.session_state.user)
 
         show_auth_status()
 
