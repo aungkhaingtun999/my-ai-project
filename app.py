@@ -138,7 +138,7 @@ def main():
     # ONLY AFTER LOGIN
     show_sidebar()
     page_router()
-        return
+      
 
     # sync role safely
     st.session_state.role = get_role()
