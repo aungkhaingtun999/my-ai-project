@@ -1,9 +1,10 @@
 import streamlit as st
 from database import get_products, checkout_sale_rpc
 
-st.set_page_config(page_title="POS v6 Floating Search ERP", layout="wide")
+st.set_page_config(page_title="POS v6 Split Search ERP", layout="wide")
 
-st.title("🛒 POS v6 Shopify-Level Floating Search ERP")
+st.title("🛒 POS v6 Smart Split Search Engine")
+
 
 # ======================================================
 # SAFE FLOAT
@@ -32,149 +33,108 @@ products = get_products() or []
 
 
 # ======================================================
-# NORMALIZE + SCORE ENGINE
+# SEARCH INPUTS (IMPORTANT FIX)
 # ======================================================
+
+name_search = st.text_input("🔍 Search Product Name", "")
+code_search = st.text_input("📟 Barcode / SKU Scanner Input", "")
+
+
+# normalize
 def norm(v):
     return str(v or "").lower().replace(" ", "")
 
 
-def score(p, q):
+# ======================================================
+# FILTER ENGINE 1: NAME SEARCH (FUZZY)
+# ======================================================
+def match_name(p, q):
     if not q:
-        return 0
+        return True
 
     q = norm(q)
     name = norm(p.get("name"))
-    barcode = norm(p.get("barcode"))
-    sku = norm(p.get("sku"))
 
-    s = 0
-
-    if q == name or q == barcode or q == sku:
-        s += 200
-
-    if name.startswith(q):
-        s += 120
-
-    if q in name:
-        s += 90
-
-    if q in barcode or q in sku:
-        s += 80
-
-    return s
+    return q in name
 
 
 # ======================================================
-# SEARCH INPUT
+# FILTER ENGINE 2: CODE SEARCH (EXACT / FAST)
 # ======================================================
-search = st.text_input("🔍 Search product (name / barcode / SKU)", "")
+def match_code(p, q):
+    if not q:
+        return True
 
-
-# ======================================================
-# FLOATING DROPDOWN ENGINE (IMPORTANT PART)
-# ======================================================
-results = []
-
-if search:
-    for p in products:
-        sc = score(p, search)
-        if sc > 0:
-            p["_score"] = sc
-            results.append(p)
-
-    results.sort(key=lambda x: x["_score"], reverse=True)
-
-    # limit like real autocomplete dropdown
-    results = results[:8]
-
-
-# ======================================================
-# FLOAT DROPDOWN UI (CUSTOM OVERLAY STYLE)
-# ======================================================
-if search:
-
-    st.markdown(
-        """
-        <style>
-        .float-box {
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 5px;
-            max-height: 250px;
-            overflow-y: auto;
-            background: white;
-        }
-        .item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-        }
-        .item:hover {
-            background-color: #f2f2f2;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
+    q = norm(q)
+    return (
+        q == norm(p.get("barcode")) or
+        q == norm(p.get("sku"))
     )
 
-    st.markdown("### 🔽 Results")
 
-    if results:
+# ======================================================
+# APPLY FILTER LOGIC (IMPORTANT PART)
+# ======================================================
 
-        for p in results:
-            label = f"{p['name']} | {p.get('barcode')} | {p.get('sku')}"
+filtered = products
 
-            if st.button(label, key=f"sel_{p['id']}"):
-                st.session_state.selected_product = p
-                st.rerun()
+# STEP 1: name filter
+if name_search:
+    filtered = [p for p in filtered if match_name(p, name_search)]
+
+# STEP 2: barcode/sku filter (more strict)
+if code_search:
+    filtered = [p for p in filtered if match_code(p, code_search)]
+
+
+# ======================================================
+# FLOAT LIST UI (NO SELECTBOX)
+# ======================================================
+st.subheader("📦 Products")
+
+if name_search or code_search:
+
+    if not filtered:
+        st.warning("No product found")
 
     else:
-        st.info("No matching product")
+        for p in filtered[:10]:
 
+            pid = p["id"]
+            stock = safe_float(p.get("stock"))
 
-# ======================================================
-# SELECTED PRODUCT DETAIL (ONLY AFTER CLICK)
-# ======================================================
-p = st.session_state.selected_product
+            with st.container(border=True):
 
-if p:
+                col1, col2, col3 = st.columns([5, 2, 1])
 
-    st.divider()
-    st.subheader("🛒 Product Detail")
+                with col1:
+                    st.write(f"🛒 {p.get('name')}")
+                    st.caption(f"{p.get('barcode')} | {p.get('sku')} | {p.get('unit','pcs')}")
 
-    col1, col2 = st.columns([3, 1])
+                col2.write(f"💰 {safe_float(p.get('selling_price')):,.0f}")
 
-    with col1:
-        st.write(p["name"])
-        st.caption(f"{p.get('barcode')} | {p.get('sku')} | {p.get('unit','pcs')}")
+                if col3.button("➕", key=f"add_{pid}"):
 
-    with col2:
-        st.write(f"💰 {safe_float(p.get('selling_price')):,.0f}")
+                    if stock <= 0:
+                        st.error("Out of stock")
+                    else:
+                        for item in st.session_state.cart:
+                            if item["id"] == pid:
+                                item["qty"] += 1
+                                break
+                        else:
+                            st.session_state.cart.append({
+                                "id": pid,
+                                "name": p["name"],
+                                "barcode": p["barcode"],
+                                "sku": p["sku"],
+                                "unit": p.get("unit", "pcs"),
+                                "selling_price": safe_float(p["selling_price"]),
+                                "qty": 1
+                            })
 
-    qty = st.number_input("Qty", 1, 100, 1)
-
-    if st.button("➕ Add to Cart"):
-
-        pid = p["id"]
-
-        for item in st.session_state.cart:
-            if item["id"] == pid:
-                item["qty"] += qty
-                break
-        else:
-            st.session_state.cart.append({
-                "id": pid,
-                "name": p["name"],
-                "barcode": p["barcode"],
-                "sku": p["sku"],
-                "unit": p.get("unit", "pcs"),
-                "selling_price": safe_float(p.get("selling_price")),
-                "qty": qty
-            })
-
-        st.session_state.selected_product = None
-        st.success("Added")
-        st.rerun()
+                        st.success("Added")
+                        st.rerun()
 
 
 # ======================================================
@@ -199,7 +159,7 @@ st.write("## Subtotal:", f"{subtotal:,.0f} MMK")
 
 
 # ======================================================
-# TOTAL
+# TOTAL ENGINE
 # ======================================================
 c1, c2 = st.columns(2)
 
@@ -237,5 +197,4 @@ if st.button("💳 Pay & Print"):
     st.info(f"Receipt: {result.get('receipt_no')}")
 
     st.session_state.cart = []
-    st.session_state.selected_product = None
     st.rerun()
