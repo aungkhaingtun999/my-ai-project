@@ -1,4 +1,5 @@
 import streamlit as st
+import time  # <--- Error မတက်စေရန် အရေးကြီးဆုံး Import ဖြစ်သည်
 from database import get_products, checkout_sale_rpc
 
 st.set_page_config(page_title="Professional POS", layout="centered")
@@ -27,7 +28,7 @@ def clear_cart():
 
 st.subheader("🛒 Professional POS")
 
-# Input
+# Input Section
 col1, col2 = st.columns(2)
 barcode = col1.text_input("📟 Barcode", key="bc_in")
 name = col2.selectbox("🔍 Search Name", [""] + list(product_map.keys()), key="name_in")
@@ -68,7 +69,7 @@ if st.session_state.cart:
     if st.button("💳 Pay & Print", type="primary"):
         res = checkout_sale_rpc(st.session_state.cart, final_total, None)
         if res and res.get("success"):
-            # Generate Receipt with Unit Price
+            # Generate Receipt
             receipt_rows = ""
             for i in st.session_state.cart:
                 u_price = float(i["selling_price"])
@@ -88,7 +89,7 @@ if st.session_state.cart:
                 <div class="receipt-total-row"><span>TAX</span><span>{tax_amount:,.0f}</span></div>
                 <div class="receipt-total-row" style="font-size: 1.2em;"><span>GRAND TOTAL</span><span>{final_total:,.0f}</span></div>
             </div>
-            """, unsafe_allow_html=True)
+            """, unsafe_html=True)
             
             # New Sale button clears cart
             st.button("New Sale", on_click=clear_cart)
