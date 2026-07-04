@@ -177,12 +177,16 @@ def validate_stock(cart: List[Dict[str, Any]]) -> Tuple[bool, str]:
 # CHECKOUT ENGINE (WORLD CLASS CORE FLOW)
 # ======================================================
 
-def checkout_sale_rpc(
-    cart: List[Dict[str, Any]],
-    paid_amount: float,
-    cashier_id: Optional[str] = None
-):
-
+# database.py အတွင်းရှိ function
+def checkout_sale_rpc(cart_data, paid_amount):
+    # data ကို list အဖြစ်ပို့တာထက် dict အဖြစ် ပို့တာ ပိုကောင်းပါတယ်
+    payload = {
+        "cart_items": cart_data,
+        "paid_amount": float(paid_amount)
+    }
+    # .execute() မလုပ်ခင် ဒီ payload ကို print ထုတ်ကြည့်နိုင်ပါတယ်
+    # print(payload) 
+    return supabase.rpc("your_rpc_function_name", payload).execute()
     # --------------------------
     # CART VALIDATION
     # --------------------------
