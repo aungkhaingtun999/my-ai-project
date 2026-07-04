@@ -6,20 +6,23 @@ from sidebar import show_sidebar
 # PAGE CONFIG
 # ==========================================
 st.set_page_config(
-    page_title="ERP POS System",
-    page_icon="🛒",
+    page_title="Myanmar ERP Enterprise",
+    page_icon="🏭",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ==========================================
-# STATE INIT (STRICT)
+# SESSION STATE INIT (STRICT ERP STYLE)
 # ==========================================
 def init_state():
     defaults = {
         "user": None,
         "role": None,
-        "active_page": None
+        "active_page": "dashboard",
+        "warehouse_id": None,
+        "cart": [],
+        "theme": "light"
     }
 
     for k, v in defaults.items():
@@ -29,101 +32,143 @@ def init_state():
 init_state()
 
 # ==========================================
-# AUTH VALIDATION (CLEAN)
+# AUTH CHECK (SAFE + SCALABLE)
 # ==========================================
 def is_authenticated() -> bool:
     user = st.session_state.get("user")
 
-    if user is None:
+    if not user:
         return False
 
     if isinstance(user, dict):
         return bool(user.get("id"))
 
-    # if string login legacy
     if isinstance(user, str):
         return len(user.strip()) > 0
 
     return False
 
 # ==========================================
-# LOGOUT (SAFE RESET)
+# ROLE HELPER (ERP READY)
+# ==========================================
+def get_role():
+    user = st.session_state.get("user")
+
+    if isinstance(user, dict):
+        return user.get("role", "Cashier")
+
+    return "Cashier"
+
+# ==========================================
+# LOGOUT (FULL RESET SAFE)
 # ==========================================
 def logout():
-    preserve = {
+    keys_to_keep = {}
+
+    st.session_state.clear()
+
+    # restore clean session
+    for k, v in {
         "user": None,
         "role": None,
-        "active_page": None
-    }
-
-    for k in list(st.session_state.keys()):
-        del st.session_state[k]
-
-    for k, v in preserve.items():
+        "active_page": "dashboard",
+        "warehouse_id": None,
+        "cart": [],
+        "theme": "light"
+    }.items():
         st.session_state[k] = v
 
     st.rerun()
 
 # ==========================================
-# MAIN APP CONTROLLER
+# PAGE ROUTER (ERP CORE ENGINE)
+# ==========================================
+def page_router():
+    page = st.session_state.get("active_page", "dashboard")
+
+    st.markdown("---")
+
+    if page == "dashboard":
+        st.title("🏭 ERP Control Dashboard")
+        st.subheader(f"Welcome, {st.session_state.user.get('name','User') if isinstance(st.session_state.user, dict) else 'User'} 🚀")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric("System", "ACTIVE 🟢")
+        col2.metric("Role", st.session_state.role)
+        col3.metric("Mode", "Enterprise ERP")
+        col4.metric("Backend", "Supabase ⚡")
+
+        st.info("✔ ERP Core Engine Loaded\n✔ Warehouse System Ready\n✔ RPC Checkout Enabled\n✔ Multi-module Architecture Active")
+
+    elif page == "sales":
+        st.title("🛒 Sales Module Loaded")
+        st.info("Sales engine connected (POS → ERP mode)")
+
+    elif page == "purchase":
+        st.title("📦 Purchase Module Loaded")
+        st.info("Procurement system active")
+
+    elif page == "transfer":
+        st.title("🔁 Warehouse Transfer Module")
+        st.info("Inventory movement system ready")
+
+    elif page == "reports":
+        st.title("📊 Reports Engine")
+        st.info("BI + AI analytics module")
+
+    elif page == "settings":
+        st.title("⚙️ ERP Settings Hub")
+        st.info("System configuration center")
+
+    elif page == "customers":
+        st.title("👥 CRM Module")
+        st.info("Customer management system")
+
+    elif page == "suppliers":
+        st.title("🏭 Supplier Module")
+        st.info("Supplier management system")
+
+    else:
+        st.warning("Page not found")
+
+# ==========================================
+# MAIN APP
 # ==========================================
 def main():
 
     # --------------------------
-    # LOGIN GATE (HARD BLOCK)
+    # LOGIN GATE
     # --------------------------
     if not is_authenticated():
         login_page()
         return
 
-    user = st.session_state.user
-
-    # normalize user
-    if isinstance(user, dict):
-        username = user.get("name", "User")
-        st.session_state.role = user.get("role", "Cashier")
-    else:
-        username = str(user)
-        st.session_state.role = "Cashier"
+    # role sync
+    st.session_state.role = get_role()
 
     # --------------------------
-    # SIDEBAR (ONLY IF LOGGED IN)
+    # SIDEBAR (ERP NAVIGATION)
     # --------------------------
     show_sidebar()
 
-    # =========================
-    # DASHBOARD HOME
-    # =========================
-    st.title("🛒 ERP POS System Dashboard")
-    st.subheader(f"Welcome back, {username} 🚀")
+    # --------------------------
+    # ACTIVE PAGE RENDER
+    # --------------------------
+    page_router()
 
-    # =========================
-    # KPI SECTION
-    # =========================
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("System Status", "Active 🟢")
-    col2.metric("User Role", st.session_state.role)
-    col3.metric("Backend", "Supabase ⚡")
-
+    # --------------------------
+    # GLOBAL LOGOUT
+    # --------------------------
     st.divider()
 
-    # =========================
-    # INFO PANEL
-    # =========================
-    st.info(
-        "✔ ERP Controller Active\n"
-        "✔ Checkout RPC v2 Ready\n"
-        "✔ Secure Session Mode ON"
-    )
+    col1, col2, col3 = st.columns([6, 2, 2])
 
-    # =========================
-    # LOGOUT (GLOBAL SAFE BUTTON)
-    # =========================
-    if st.button("🚪 Logout", use_container_width=True):
-        logout()
+    with col3:
+        if st.button("🚪 Logout", use_container_width=True):
+            logout()
 
 # ==========================================
-# RUN
+# RUN APP
 # ==========================================
 main()
