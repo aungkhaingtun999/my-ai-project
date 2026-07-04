@@ -1,18 +1,30 @@
 import streamlit as st
 
-st.title("⚙️ Settings")
+st.title("⚙️ ERP Control Center")
 
-st.subheader("ERP Configuration Panel")
-
-st.write("Future Modules to Control:")
+st.subheader("System Configuration Hub")
 
 st.markdown("""
-- 🧾 Tax Settings
-- 🏢 Branch Management
-- 👤 User Roles & Permissions
-- 🔐 Row Level Security (RLS)
-- 📦 Inventory Rules
-- 💱 Currency Settings
+### 🧾 Accounting & Tax
+- Tax rules configuration
+- Discount policies
+
+### 🏢 Organization
+- Branch management
+- Warehouse control
+
+### 👤 Security
+- Roles & Permissions
+- Row Level Security (RLS)
+
+### 📦 Inventory Rules
+- Minimum stock alerts
+- Reorder automation
+- Stock valuation method
+
+### 💱 Finance
+- Currency settings
+- Payment methods
 """)
 
-st.info("ဒီ page က ERP control center ဖြစ်လာမယ် (Admin only)")
+st.warning("⚠️ Admin-only module (future RBAC enforcement required)")
