@@ -9,7 +9,7 @@ st.title("⚙️ ERP Control Center (Admin Panel)")
 user = st.session_state.get("user")
 role = st.session_state.get("role")
 
-if role != "Admin":
+if st.session_state.user.get("role_id") != 1:
     st.error("⛔ Access Denied: Admin Only Module")
     st.stop()
 
