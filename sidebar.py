@@ -1,135 +1,197 @@
 import streamlit as st
+from auth import logout
+from guards import (
+    is_logged_in,
+    current_user,
+    get_role_name,
+    ROLE_ADMIN,
+    ROLE_MANAGER,
+    ROLE_CASHIER
+)
 
-# ==========================================
-# MENU CONFIG (ROLE BASED ERP)
-# ==========================================
+# ==========================================================
+# ERP MENU CONFIGURATION
+# ==========================================================
 MENU = {
-    "Admin": [
+
+    ROLE_ADMIN: [
+
         ("🏠", "Dashboard", "pages/3_Admin_Dashboard.py"),
+
         ("🛒", "POS", "pages/1_POS.py"),
+
         ("📦", "Inventory", "pages/2_Inventory.py"),
-        ("🧾", "Reports", "pages/3_Reports.py"),
-        ("👥", "Users", "pages/4_Users.py"),
+
+        ("🛍", "Purchase", "pages/7_Purchase.py"),
+
+        ("🔁", "Transfer", "pages/8_Transfer.py"),
+
+        ("👥", "Customers", "pages/9_Customers.py"),
+
+        ("🏭", "Suppliers", "pages/10_Suppliers.py"),
+
+        ("📊", "Reports", "pages/3_Reports.py"),
+
+        ("🧾", "Receipt Viewer", "pages/6_Receipt_Viewer.py"),
+
+        ("👤", "Users", "pages/4_Users.py"),
+
         ("↩️", "Refund", "pages/5_Refund.py"),
+
         ("⚙️", "Settings", "pages/12_Settings.py"),
+    ],
+
+    ROLE_MANAGER: [
+
+        ("🏠", "Dashboard", "pages/3_Admin_Dashboard.py"),
+
+        ("🛒", "POS", "pages/1_POS.py"),
+
+        ("📦", "Inventory", "pages/2_Inventory.py"),
+
+        ("🛍", "Purchase", "pages/7_Purchase.py"),
+
+        ("🔁", "Transfer", "pages/8_Transfer.py"),
+
+        ("👥", "Customers", "pages/9_Customers.py"),
+
+        ("🏭", "Suppliers", "pages/10_Suppliers.py"),
+
+        ("📊", "Reports", "pages/3_Reports.py"),
+
         ("🧾", "Receipt Viewer", "pages/6_Receipt_Viewer.py"),
     ],
-    "Manager": [
+
+    ROLE_CASHIER: [
+
         ("🛒", "POS", "pages/1_POS.py"),
-        ("📦", "Inventory", "pages/2_Inventory.py"),
-        ("🧾", "Reports", "pages/3_Reports.py"),
-    ],
-    "Cashier": [
-        ("🛒", "POS", "pages/1_POS.py"),
+
+        ("🧾", "Receipt Viewer", "pages/6_Receipt_Viewer.py"),
     ]
+
 }
 
-# ==========================================
-# AUTH CHECK
-# ==========================================
-def is_logged_in():
-    user = st.session_state.get("user")
-    return isinstance(user, dict) and user.get("id") is not None
+# ==========================================================
+# ACTIVE PAGE
+# ==========================================================
+def get_active_page():
+
+    return st.session_state.get(
+        "active_page",
+        "pages/1_POS.py"
+    )
 
 
-# ==========================================
-# ROLE SAFE
-# ==========================================
-def get_role():
-    user = st.session_state.get("user")
-
-    if not isinstance(user, dict):
-        return "Cashier"
-
-    role = user.get("role", "Cashier")
-
-    if role not in MENU:
-        return "Cashier"
-
-    return role
-
-
-# ==========================================
-# USER NAME SAFE
-# ==========================================
-def get_username():
-    user = st.session_state.get("user")
-
-    if isinstance(user, dict):
-        return user.get("name") or user.get("email") or "User"
-
-    return "Guest"
-
-
-# ==========================================
-# SIDEBAR (HARD SECURITY GATE FIXED)
-# ==========================================
+# ==========================================================
+# SIDEBAR
+# ==========================================================
 def show_sidebar():
 
-    # 🔥 CRITICAL FIX (THIS WAS MISSING)
+    # --------------------------------------------------
+    # HARD SECURITY
+    # --------------------------------------------------
     if not is_logged_in():
-        return   # ⛔ STOP EVERYTHING HERE
+        return
 
-    user = st.session_state.get("user")
+    user = current_user()
+
+    role_id = user["role_id"]
 
     with st.sidebar:
 
-        st.title("🏭 ERP SYSTEM")
-        st.caption("Enterprise Control Center")
+        st.title("🏭 Myanmar ERP")
+
+        st.caption("Enterprise Edition")
 
         st.divider()
 
-        username = get_username()
-        role = get_role()
+        # ==================================================
+        # USER CARD
+        # ==================================================
+        st.success(f"👤 {user['full_name']}")
 
-        st.markdown(f"👤 **{username}**")
-        st.markdown(f"🔐 Role: `{role}`")
+        st.caption(f"Username : {user['username']}")
+
+        st.caption(f"Role : {get_role_name()}")
 
         st.divider()
 
-        # =========================
+        # ==================================================
         # LANGUAGE
-        # =========================
+        # ==================================================
         if "language" not in st.session_state:
             st.session_state.language = "English"
 
-        lang = st.radio(
+        st.session_state.language = st.selectbox(
+
             "Language",
-            ["English", "မြန်မာ"],
+
+            [
+
+                "English",
+
+                "မြန်မာ"
+
+            ],
+
             index=0 if st.session_state.language == "English" else 1
+
         )
-        st.session_state.language = lang
 
         st.divider()
 
-        # =========================
+        # ==================================================
         # NAVIGATION
-        # =========================
+        # ==================================================
         st.subheader("📂 Navigation")
 
-        for icon, title, page in MENU.get(role, MENU["Cashier"]):
+        active = get_active_page()
 
-            if st.button(f"{icon} {title}", key=f"{role}_{page}"):
+        for icon, title, page in MENU.get(role_id, []):
+
+            label = f"{icon} {title}"
+
+            if active == page:
+                label = f"✅ {icon} {title}"
+
+            if st.button(
+
+                label,
+
+                key=page,
+
+                use_container_width=True
+
+            ):
 
                 st.session_state.active_page = page
-                st.rerun()
+
+                st.switch_page(page)
 
         st.divider()
 
+        # ==================================================
+        # SYSTEM STATUS
+        # ==================================================
         st.success("🟢 System Online")
 
-        # =========================
-        # LOGOUT (FULL RESET SAFE)
-        # =========================
-        if st.button("🚪 Logout", use_container_width=True):
+        st.caption("Database : Connected")
 
-            st.session_state.clear()
+        st.caption("Session : Active")
 
-            st.session_state.update({
-                "user": None,
-                "role": None,
-                "language": "English",
-                "active_page": "pages/1_POS.py"
-            })
+        st.caption("ERP Version : Enterprise")
 
-            st.rerun()
+        st.divider()
+
+        # ==================================================
+        # LOGOUT
+        # ==================================================
+        if st.button(
+
+            "🚪 Logout",
+
+            use_container_width=True
+
+        ):
+
+            logout()
