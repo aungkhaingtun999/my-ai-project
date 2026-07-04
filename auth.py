@@ -3,130 +3,261 @@ from database import get_supabase
 
 supabase = get_supabase()
 
-# =========================
-# SESSION INIT
-# =========================
-def init_session():
+# ==================================================
+# SESSION INITIALIZER
+# ==================================================
+def init_auth():
     if "user" not in st.session_state:
         st.session_state.user = None
 
-init_session()
 
-# =========================
-# SAFE USER FETCH (FIXED)
-# =========================
+init_auth()
+
+# ==================================================
+# ROLE MAP
+# ==================================================
+ROLE_MAP = {
+    1: "Admin",
+    2: "Manager",
+    3: "Cashier"
+}
+
+# ==================================================
+# SAFE USER FETCH
+# ==================================================
 def get_user(username: str):
+
     try:
+
         response = (
-            supabase.table("users")
+            supabase
+            .table("users")
             .select("*")
-            .eq("username", username)
+            .eq("username", username.strip())
             .eq("is_active", True)
             .limit(1)
             .execute()
         )
 
-        return response.data[0] if response.data else None
+        data = response.data or []
+
+        if len(data) == 0:
+            return None
+
+        return data[0]
 
     except Exception as e:
-        st.error("Database connection error")
-        st.caption(str(e))
+
+        st.error("Database Error")
+        st.exception(e)
         return None
 
-# =========================
+
+# ==================================================
+# PASSWORD VERIFY
+# ==================================================
+def verify_password(user, password):
+
+    stored = str(user.get("password_hash", ""))
+
+    # Future
+    # bcrypt.checkpw(...)
+
+    return stored == password
+
+
+# ==================================================
+# BUILD SESSION
+# ==================================================
+def build_session(user):
+
+    role_id = int(user.get("role_id", 3))
+
+    role_name = ROLE_MAP.get(role_id, "Cashier")
+
+    st.session_state.user = {
+
+        "id": user["id"],
+
+        "username": user["username"],
+
+        "full_name": user.get(
+            "full_name",
+            user["username"]
+        ),
+
+        "role_id": role_id,
+
+        "role": role_name,
+
+        "is_active": bool(user.get("is_active", True))
+    }
+
+
+# ==================================================
 # LOGIN PAGE
-# =========================
+# ==================================================
 def login_page():
 
-    st.set_page_config(page_title="ERP Login", layout="centered")
+    st.title("🔐 ERP Enterprise Login")
 
-    st.title("🔐 ERP Secure Login System")
-    st.caption("Enterprise Access Control Layer")
+    st.caption("Secure Authentication Layer")
 
     username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
 
-    if st.button("Login"):
+    password = st.text_input(
+        "Password",
+        type="password"
+    )
 
-        # -------------------------
-        # VALIDATION
-        # -------------------------
-        if not username or not password:
-            st.error("Please fill all fields")
-            st.stop()
+    login = st.button(
+        "Login",
+        use_container_width=True
+    )
 
-        # -------------------------
-        # FETCH USER
-        # -------------------------
-        user = get_user(username)
+    if not login:
+        return
 
-        if not user:
-            st.error("User not found")
-            st.stop()
+    if username.strip() == "" or password == "":
 
-        # -------------------------
-        # PASSWORD CHECK
-        # -------------------------
-        # ⚠️ TEMP SAFE (replace with bcrypt later)
-        stored_hash = user.get("password_hash")
+        st.warning("Please enter username and password.")
 
-        if stored_hash != password:
-            st.error("Invalid credentials")
-            st.stop()
+        return
 
-        # -------------------------
-        # SESSION BUILD
-        # -------------------------
-        st.session_state.user = {
-    "id": user["id"],
-    "username": user["username"],
-    "full_name": user["full_name"],
-    "role_id": user["role_id"],
-    "is_active": user["is_active"]
-}
+    user = get_user(username)
 
-        st.success(f"Welcome {user.get('full_name')} 👋")
-        st.rerun()
+    if user is None:
 
-# =========================
-# LOGOUT
-# =========================
-def logout():
-    st.session_state.user = None
+        st.error("User not found.")
+
+        return
+
+    if not verify_password(user, password):
+
+        st.error("Invalid password.")
+
+        return
+
+    build_session(user)
+
+    st.success(
+        f"Welcome {st.session_state.user['full_name']}"
+    )
+
     st.rerun()
 
-# =========================
-# AUTH CHECK
-# =========================
+
+# ==================================================
+# LOGOUT
+# ==================================================
+def logout():
+
+    keep = {}
+
+    st.session_state.clear()
+
+    st.session_state.user = None
+
+    st.rerun()
+
+
+# ==================================================
+# LOGIN CHECK
+# ==================================================
 def is_authenticated():
+
     user = st.session_state.get("user")
-    return user is not None
 
-# =========================
-# SIDEBAR STATUS
-# =========================
-def show_auth_status():
-    if is_authenticated():
-        st.sidebar.success(f"👤 {st.session_state.user['full_name']}")
-        st.sidebar.write(f"Role ID: {st.session_state.user['role_id']}")
+    if not isinstance(user, dict):
+        return False
 
-        if st.sidebar.button("🚪 Logout"):
-            logout()
-    else:
-        st.sidebar.info("Not logged in")
+    if not user.get("id"):
+        return False
 
-# =========================
-# MAIN APP ROUTER (TEST MODE)
-# =========================
-if __name__ == "__main__":
+    if not user.get("is_active", False):
+        return False
 
-    if is_authenticated():
-        st.title("🛒 ERP Dashboard Access")
+    return True
 
-        st.write("Logged in as:")
-        st.json(st.session_state.user)
 
-        show_auth_status()
+# ==================================================
+# REQUIRE LOGIN
+# ==================================================
+def require_login():
 
-    else:
+    if not is_authenticated():
+
         login_page()
+
+        st.stop()
+
+    return st.session_state.user
+
+
+# ==================================================
+# REQUIRE ADMIN
+# ==================================================
+def require_admin():
+
+    user = require_login()
+
+    if user["role_id"] != 1:
+
+        st.error("⛔ Admin Only")
+
+        st.stop()
+
+    return user
+
+
+# ==================================================
+# CURRENT USER
+# ==================================================
+def current_user():
+
+    return st.session_state.get("user")
+
+
+# ==================================================
+# CURRENT ROLE
+# ==================================================
+def current_role():
+
+    user = current_user()
+
+    if not user:
+        return "Guest"
+
+    return user["role"]
+
+
+# ==================================================
+# SIDEBAR USER CARD
+# ==================================================
+def auth_sidebar():
+
+    if not is_authenticated():
+        return
+
+    user = current_user()
+
+    with st.sidebar:
+
+        st.success(
+            f"👤 {user['full_name']}"
+        )
+
+        st.caption(
+            f"Role : {user['role']}"
+        )
+
+        st.caption(
+            f"Username : {user['username']}"
+        )
+
+        if st.button(
+            "🚪 Logout",
+            use_container_width=True
+        ):
+
+            logout()
