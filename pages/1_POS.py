@@ -87,11 +87,16 @@ if st.session_state.cart:
     st.markdown(f"### Total: {subtotal:,.0f} MMK")
     
     if st.button("💳 Pay & Print", type="primary"):
+        # [FIX] Data Type ကို integer သို့ သေချာပြောင်းလဲပေးခြင်း
         prepared_cart = []
         for item in st.session_state.cart:
+            # int() သည် "1.0" သို့မဟုတ် 1.0 ကို 1 အဖြစ်သို့ အတိအကျ ပြောင်းပေးပါသည်
+            clean_id = int(item["id"])
+            clean_qty = int(item["qty"]) 
+            
             prepared_cart.append({
-                "id": int(float(item["id"])),
-                "qty": int(float(item["qty"])),
+                "id": clean_id,
+                "qty": clean_qty,
                 "selling_price": float(item["selling_price"])
             })
 
