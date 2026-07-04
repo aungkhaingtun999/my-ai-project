@@ -1,99 +1,246 @@
 import streamlit as st
 from database import get_products, checkout_sale_rpc
 
-st.set_page_config(page_title="POS v8 Smart ERP", layout="wide")
+# =========================
+# PAGE CONFIG (MUST FIRST)
+# =========================
+st.set_page_config(page_title="POS v10 Enterprise", layout="wide")
 
-# --- 1. SESSION STATE INITIALIZATION ---
+st.title("🛒 POS v10 Enterprise")
+
+# =========================
+# SESSION STATE
+# =========================
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
-# Helpers
+if "selected" not in st.session_state:
+    st.session_state.selected = None
+
+# =========================
+# HELPERS
+# =========================
 def safe_float(v):
-    try: return float(v) if v is not None else 0.0
-    except: return 0.0
+    try:
+        return float(v or 0)
+    except:
+        return 0.0
 
+def norm(v):
+    return str(v or "").lower().strip()
+
+# =========================
+# LOAD PRODUCTS
+# =========================
 products = get_products() or []
-st.title("🛒 POS v8 Smart POS")
 
-# --- 2. SEARCH & ADD TO CART ---
-c1, c2 = st.columns(2)
-product_options = {f"{p['name']} | {safe_float(p.get('selling_price')):,.0f} MMK": p for p in products}
+# =========================
+# SEARCH ENGINE
+# =========================
+def search_products(keyword):
+    keyword = norm(keyword)
+    if not keyword:
+        return []
 
-with c1:
-    selected_label = st.selectbox("🔍 Search by Name", options=[""] + list(product_options.keys()), index=0)
-with c2:
-    code_input = st.text_input("📟 Barcode / SKU Scan", key="barcode_scan")
+    results = []
 
-selected_product = None
-if selected_label:
-    selected_product = product_options[selected_label]
-elif code_input:
-    selected_product = next((p for p in products if code_input in [str(p.get('barcode', '')), str(p.get('sku', ''))]), None)
+    for p in products:
+        name = norm(p.get("name"))
+        barcode = norm(p.get("barcode"))
+        sku = norm(p.get("sku"))
 
-if selected_product:
+        score = 0
+
+        if keyword == name:
+            score += 1000
+        if keyword == barcode:
+            score += 950
+        if keyword == sku:
+            score += 900
+
+        if name.startswith(keyword):
+            score += 500
+        if barcode.startswith(keyword):
+            score += 450
+        if sku.startswith(keyword):
+            score += 400
+
+        if keyword in name:
+            score += 300
+        if keyword in barcode:
+            score += 250
+        if keyword in sku:
+            score += 200
+
+        if score:
+            results.append((score, p))
+
+    results.sort(key=lambda x: x[0], reverse=True)
+    return [p for _, p in results]
+
+
+# =========================
+# SEARCH BOXES (2 INPUTS)
+# =========================
+col1, col2 = st.columns(2)
+
+with col1:
+    search_text = st.text_input("🔍 Product Name Search (Floating)")
+
+with col2:
+    barcode = st.text_input("📟 Barcode / SKU Scan")
+
+# =========================
+# BARCODE DIRECT SELECT
+# =========================
+selected = None
+
+if barcode.strip():
+    code = norm(barcode)
+
+    for p in products:
+        if norm(p.get("barcode")) == code or norm(p.get("sku")) == code:
+            selected = p
+            break
+
+# =========================
+# FLOATING DROPDOWN (NAME SEARCH)
+# =========================
+dropdown = st.empty()
+
+if selected is None and search_text.strip():
+
+    matches = search_products(search_text)
+
+    if matches:
+
+        with dropdown.container():
+
+            st.markdown("""
+            <style>
+            .floatbox {
+                border: 1px solid #ddd;
+                border-radius: 12px;
+                max-height: 260px;
+                overflow-y: auto;
+                background: white;
+                box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+                padding: 6px;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+            st.markdown('<div class="floatbox">', unsafe_allow_html=True)
+
+            for i, p in enumerate(matches[:12]):
+
+                label = f"{p['name']} | {safe_float(p.get('selling_price')):,.0f} MMK"
+
+                if st.button(label, key=f"f_{i}"):
+
+                    st.session_state.selected = p
+                    st.rerun()
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+
+# =========================
+# SELECTED PRODUCT
+# =========================
+selected = st.session_state.selected
+
+if selected:
+
     st.divider()
-    col_d1, col_d2, col_d3 = st.columns([3, 1, 1])
-    col_d1.write(f"**{selected_product['name']}**")
-    qty = col_d2.number_input("Qty", min_value=1, value=1, key="q_input")
-    
-    if col_d3.button("➕ Add to Cart", type="primary"):
-        cart_item = {
-            "id": selected_product["id"],
-            "name": selected_product["name"],
-            "selling_price": safe_float(selected_product.get("selling_price")),
-            "tax_rate": safe_float(selected_product.get("tax_rate", 0)),
-            "discount_allowed": bool(selected_product.get("discount_allowed", False)),
+    st.subheader("📦 Selected Product")
+
+    c1, c2, c3 = st.columns([4, 1, 1])
+
+    c1.write(selected["name"])
+
+    qty = c2.number_input("Qty", 1, 999, 1)
+
+    if c3.button("➕ Add to Cart", type="primary"):
+
+        st.session_state.cart.append({
+            "id": selected["id"],
+            "name": selected["name"],
+            "selling_price": safe_float(selected.get("selling_price")),
+            "tax_rate": safe_float(selected.get("tax_rate", 0)),
+            "discount_allowed": bool(selected.get("discount_allowed", False)),
             "qty": qty
-        }
-        
-        found = False
-        for item in st.session_state.cart:
-            if item["id"] == cart_item["id"]:
-                item["qty"] += qty
-                found = True
-        if not found:
-            st.session_state.cart.append(cart_item)
+        })
+
+        st.session_state.selected = None
         st.rerun()
 
-# --- 3. CART DISPLAY & CALCULATION ---
+
+# =========================
+# CART (WITH TAX + DISCOUNT)
+# =========================
 st.divider()
 st.subheader("🧾 Cart")
 
-if st.session_state.cart:
-    total_tax = 0
+if not st.session_state.cart:
+    st.info("Cart is empty")
+
+else:
+
     subtotal = 0
-    
+    total_tax = 0
+
     for i, item in enumerate(st.session_state.cart):
-        col_c1, col_c2, col_c3, col_c4 = st.columns([4, 2, 2, 1])
-        col_c1.write(item["name"])
-        item["qty"] = col_c2.number_input("Qty", 1, 99, item["qty"], key=f"q_{i}")
-        
-        # တွက်ချက်ခြင်း
+
+        c1, c2, c3, c4, c5 = st.columns([3, 1, 1, 1, 1])
+
+        name = item["name"]
+        price = safe_float(item["selling_price"])
+        qty = item["qty"]
+
         tax_rate = safe_float(item.get("tax_rate", 0))
-        line_total = item['selling_price'] * item['qty']
-        tax_amount = line_total * (tax_rate / 100)
-        
-        col_c3.write(f"{(line_total + tax_amount):,.0f} MMK")
-        if col_c4.button("🗑", key=f"del_{i}"):
+        discount_allowed = item.get("discount_allowed", False)
+
+        line_total = price * qty
+        tax = line_total * (tax_rate / 100)
+
+        total_line = line_total + tax
+
+        c1.write(name)
+
+        new_qty = c2.number_input(
+            "Qty",
+            1, 999,
+            qty,
+            key=f"q_{i}"
+        )
+
+        item["qty"] = new_qty
+
+        c3.write(f"{tax_rate}% | { 'DISC' if discount_allowed else 'NO' }")
+
+        c4.write(f"{total_line:,.0f} MMK")
+
+        if c5.button("🗑", key=f"del_{i}"):
             st.session_state.cart.pop(i)
             st.rerun()
-            
+
         subtotal += line_total
-        total_tax += tax_amount
+        total_tax += tax
 
-    st.markdown(f"### Total: {(subtotal + total_tax):,.0f} MMK")
-    
-    # --- 4. PAY & PRINT ---
+    st.markdown("---")
+    st.markdown(f"### Subtotal: {subtotal:,.0f} MMK")
+    st.markdown(f"### Tax: {total_tax:,.0f} MMK")
+    st.markdown(f"## TOTAL: {(subtotal + total_tax):,.0f} MMK")
+
+    # =========================
+    # CHECKOUT
+    # =========================
     if st.button("💳 Pay & Print", type="primary"):
-        # Data စစ်ဆေးခြင်း
-        if not st.session_state.cart:
-            st.warning("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
-            st.stop()
 
-        # Database ပို့ရန် Data ပြင်ဆင်ခြင်း (Tax & Discount ပါဝင်သည်)
-        prepared_cart = []
+        prepared = []
+
         for item in st.session_state.cart:
-            prepared_cart.append({
+            prepared.append({
                 "id": int(item["id"]),
                 "qty": int(item["qty"]),
                 "selling_price": float(item["selling_price"]),
@@ -101,18 +248,21 @@ if st.session_state.cart:
                 "discount_allowed": bool(item.get("discount_allowed", False))
             })
 
-        # Database သို့ ပို့ခြင်း
-        with st.spinner("အရောင်း စာရင်းသွင်းနေသည်..."):
-            result = checkout_sale_rpc(prepared_cart, float(subtotal + total_tax), None)
-        
-        # ရလဒ် စစ်ဆေးခြင်း
+        with st.spinner("Processing sale..."):
+            result = checkout_sale_rpc(
+                prepared,
+                float(subtotal + total_tax),
+                None
+            )
+
         if result and isinstance(result, dict) and result.get("success"):
-            st.success("အရောင်း အောင်မြင်ပါသည်။")
-            st.session_state.cart = [] # အောင်မြင်မှ ခြင်းတောင်းကို ရှင်းခြင်း
-            st.rerun() 
+            st.success("Sale Completed Successfully")
+            st.session_state.cart = []
+            st.session_state.selected = None
+            st.rerun()
+
         elif result and isinstance(result, dict) and "error" in result:
-            st.error(f"DB Error: {result['error']}")
+            st.error(result["error"])
+
         else:
-            st.error("အရောင်း စာရင်းသွင်းရာတွင် အမှားတစ်ခုခု ဖြစ်နေပါသည်။")
-else:
-    st.info("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
+            st.error("Transaction failed")
