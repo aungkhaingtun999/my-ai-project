@@ -47,7 +47,7 @@ with c_code:
             st.rerun()
 
 # ======================================================
-# SELECTED PRODUCT DETAIL (Logic with clean data)
+# SELECTED PRODUCT DETAIL
 # ======================================================
 if st.session_state.selected_product:
     p = st.session_state.selected_product
@@ -59,7 +59,6 @@ if st.session_state.selected_product:
     qty = col_d2.number_input("Qty", 1, 100, 1, key="q_input")
     
     if col_d3.button("➕ Add to Cart", type="primary"):
-        # CLEAN DATA: API Error မတက်စေရန် လိုအပ်သော data သီးသန့်သာ ထည့်ပါ
         cart_item = {
             "id": p["id"],
             "name": p["name"],
@@ -67,7 +66,6 @@ if st.session_state.selected_product:
             "qty": qty
         }
         
-        # Check existing
         found = False
         for item in st.session_state.cart:
             if item["id"] == cart_item["id"]:
@@ -98,31 +96,21 @@ if st.session_state.cart:
     subtotal = sum(i["selling_price"] * i["qty"] for i in st.session_state.cart)
     st.markdown(f"### Total: {subtotal:,.0f} MMK")
     
-    # [FIX] Pay & Print Button Logic အတွက် အစားထိုးရန်
+    # PAY & PRINT
     if st.button("💳 Pay & Print", type="primary"):
         if not st.session_state.cart:
             st.error("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
             st.stop()
 
-        # Database Schema နှင့် ကိုက်ညီသော သန့်စင်ပြီးသား Data ဖွဲ့စည်းပုံ
-        # Schema တွင်ပါသော အဓိကလိုအပ်သည့် column များသာ ထည့်ပါ
         prepared_cart = []
         for item in st.session_state.cart:
-            # Database Schema နှင့် ကိုက်ညီအောင် Data သန့်စင်ခြင်း
-        prepared_cart = []
-        for item in st.session_state.cart:
-            # qty ကို float(item["qty"]) လုပ်ပြီးမှ int() သို့ ပြောင်းခြင်း
-            # id ကိုလည်း တူညီစွာ ပြုလုပ်ပေးထားပါသည်
-            clean_qty = int(float(item["qty"]))
-            clean_id = int(float(item["id"]))
-            
+            # Data Type အမှန်ဖြစ်စေရန် အတင်းအကျပ်ပြောင်းလဲခြင်း
             prepared_cart.append({
-                "id": clean_id,            # bigint
-                "qty": clean_qty,          # integer (6.0 ကို 6 သို့ ပြောင်းပေးသည်)
-                "selling_price": float(item["selling_price"]) # numeric
+                "id": int(float(item["id"])),
+                "qty": int(float(item["qty"])),
+                "selling_price": float(item["selling_price"])
             })
 
-        # API သို့ စနစ်တကျ ပေးပို့ခြင်း
         try:
             result = checkout_sale_rpc(prepared_cart, paid_amount=float(subtotal))
             
@@ -130,7 +118,9 @@ if st.session_state.cart:
                 st.error(f"Error: {result.get('error')}")
             else:
                 st.success("အရောင်း အောင်မြင်ပါသည်။")
-                st.session_state.cart = [] # Cart ရှင်းခြင်း
+                st.session_state.cart = []
                 st.rerun()
         except Exception as e:
             st.error(f"API Connection Error: {str(e)}")
+else:
+    st.info("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
