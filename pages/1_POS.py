@@ -27,7 +27,9 @@ def add_to_cart(p):
     if not p:
         return
 
-    price = float(p.get("selling_price") or 0)
+    price = safe_float(item.get("selling_price"))
+qty = safe_float(item.get("qty"))
+line_total = price * qty
 
     for item in st.session_state.cart:
         if item.get("id") == p.get("id"):
