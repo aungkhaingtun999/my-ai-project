@@ -104,13 +104,17 @@ if st.session_state.cart:
 
         prepared_cart = []
         for item in st.session_state.cart:
-            # Data Type အမှန်ဖြစ်စေရန် အတင်းအကျပ်ပြောင်းလဲခြင်း
+            # Data ကို သန့်စင်ခြင်း
+            # item["qty"] ကို အရင် float ပြောင်း၊ ပြီးမှ int ပြောင်းပြီးမှ dict ထဲထည့်ပါ
+            clean_id = int(float(item["id"]))
+            clean_qty = int(float(item["qty"]))
+            clean_price = float(item["selling_price"])
+            
             prepared_cart.append({
-                "id": int(float(item["id"])),
-                "qty": int(float(item["qty"])),
-                "selling_price": float(item["selling_price"])
+                "id": clean_id,
+                "qty": clean_qty,
+                "selling_price": clean_price
             })
-
         try:
             result = checkout_sale_rpc(prepared_cart, paid_amount=float(subtotal))
             
