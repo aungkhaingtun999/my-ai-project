@@ -32,10 +32,118 @@ products = get_products() or []
 # ======================================================
 # SEARCH BAR (SHOPIFY STYLE)
 # ======================================================
-search = st.text_input(
-    "🔍 Search product (name / barcode / SKU)",
-    placeholder="Type to search instantly..."
-).strip().lower()
+search = st.text_input("🔍 Search product (name / barcode / SKU)", "").strip().lower()
+
+def norm(v):
+    return str(v or "").lower()
+
+
+def score(p, q):
+    if not q:
+        return 0
+
+    q = norm(q).replace(" ", "")
+    name = norm(p.get("name")).replace(" ", "")
+    barcode = norm(p.get("barcode"))
+    sku = norm(p.get("sku"))
+
+    s = 0
+
+    if q == name or q == barcode or q == sku:
+        s += 200
+
+    if name.startswith(q):
+        s += 120
+
+    if q in name:
+        s += 90
+
+    if q in barcode or q in sku:
+        s += 80
+
+    return s
+
+
+# ======================================================
+# FLOAT SEARCH RESULTS (LIMITED)
+# ======================================================
+results = []
+
+if search:
+    for p in products:
+        sc = score(p, search)
+        if sc > 0:
+            p["_score"] = sc
+            results.append(p)
+
+    results.sort(key=lambda x: x["_score"], reverse=True)
+    results = results[:5]   # 🔥 IMPORTANT: FLOAT LIMIT 5 ITEMS
+
+
+# ======================================================
+# FLOAT DROPDOWN (SIMULATED UI)
+# ======================================================
+selected = None
+
+if search:
+    st.markdown("### 🔍 Results")
+
+    options = {
+        f"{p['name']} | {p.get('barcode')} | {p.get('sku')}": p
+        for p in results
+    }
+
+    if options:
+        choice = st.selectbox("Select product", list(options.keys()))
+        selected = options[choice]
+    else:
+        st.info("No match found")
+
+
+# ======================================================
+# SELECTED PRODUCT VIEW (ONLY ONE)
+# ======================================================
+if selected:
+
+    stock = safe_float(selected.get("stock"))
+    pid = selected["id"]
+
+    st.markdown("### 🛒 Selected Product")
+
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        st.write(selected["name"])
+        st.caption(f"Barcode: {selected.get('barcode')} | SKU: {selected.get('sku')}")
+
+    with col2:
+        st.write(f"💰 {safe_float(selected.get('selling_price')):,.0f}")
+
+    qty = st.number_input("Qty", 1, 100, 1)
+
+    if st.button("➕ Add to Cart"):
+
+        if stock <= 0:
+            st.error("Out of stock")
+        else:
+            # add cart
+            for item in st.session_state.cart:
+                if item["id"] == pid:
+                    item["qty"] += qty
+                    break
+            else:
+                st.session_state.cart.append({
+                    "id": pid,
+                    "name": selected["name"],
+                    "barcode": selected["barcode"],
+                    "sku": selected["sku"],
+                    "unit": selected.get("unit", "pcs"),
+                    "selling_price": safe_float(selected.get("selling_price")),
+                    "qty": qty
+                })
+
+            st.success("Added to cart")
+            st.rerun()
 
 
 # ======================================================
