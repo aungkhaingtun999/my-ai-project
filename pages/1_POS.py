@@ -90,14 +90,15 @@ if st.session_state.cart:
         # [FIX] Data Type ကို integer သို့ သေချာပြောင်းလဲပေးခြင်း
         prepared_cart = []
         for item in st.session_state.cart:
-            # int() သည် "1.0" သို့မဟုတ် 1.0 ကို 1 အဖြစ်သို့ အတိအကျ ပြောင်းပေးပါသည်
-            clean_id = int(item["id"])
-            clean_qty = int(item["qty"]) 
+            # round() ကို သုံးပြီး ဒသမကိန်းများကို ဖယ်ထုတ်လိုက်ပါသည်
+            clean_id = int(round(float(item["id"])))
+            clean_qty = int(round(float(item["qty"])))
+            clean_price = float(item["selling_price"])
             
             prepared_cart.append({
                 "id": clean_id,
                 "qty": clean_qty,
-                "selling_price": float(item["selling_price"])
+                "selling_price": clean_price
             })
 
         try:
