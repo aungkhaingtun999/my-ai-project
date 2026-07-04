@@ -66,13 +66,15 @@ def get_username():
 # ==========================================
 def show_sidebar():
 
-    # 🔐 HARD BLOCK (CRITICAL FIX)
-    if not is_logged_in():
-        return   # ❌ NO SIDEBAR BEFORE LOGIN
+    user = st.session_state.get("user")
+
+    if not isinstance(user, dict):
+        return   # safe exit only
 
     with st.sidebar:
+        st.title("ERP SYSTEM")
 
-        st.title("🏭 ERP SYSTEM")
+        
         st.caption("Enterprise Control Center")
 
         st.divider()
