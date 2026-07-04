@@ -9,12 +9,13 @@ def safe_float(v):
     except: return 0.0
 
 # Session State
-if "cart" not in st.session_state: st.session_state.cart = []
+if "cart" not in st.session_state:
+    st.session_state.cart = []
 
 products = get_products() or []
 st.title("🛒 POS v8 Smart POS")
 
-# SEARCH SECTION
+# UI Sections
 c1, c2 = st.columns(2)
 product_options = {f"{p['name']} | {safe_float(p.get('selling_price')):,.0f} MMK": p for p in products}
 
@@ -23,13 +24,13 @@ with c1:
 with c2:
     code_input = st.text_input("📟 Barcode / SKU Scan", key="barcode_scan")
 
+# Cart Addition Logic
 selected_product = None
 if selected_label:
     selected_product = product_options[selected_label]
 elif code_input:
     selected_product = next((p for p in products if code_input in [str(p.get('barcode', '')), str(p.get('sku', ''))]), None)
 
-# Add to Cart
 if selected_product:
     st.divider()
     col_d1, col_d2, col_d3 = st.columns([3, 1, 1])
@@ -42,9 +43,10 @@ if selected_product:
             "name": selected_product["name"],
             "selling_price": safe_float(selected_product.get("selling_price")),
             "tax_rate": safe_float(selected_product.get("tax_rate", 0)),
-            "discount_allowed": selected_product.get("discount_allowed", False),
+            "discount_allowed": bool(selected_product.get("discount_allowed", False)),
             "qty": qty
         }
+        
         found = False
         for item in st.session_state.cart:
             if item["id"] == cart_item["id"]:
@@ -54,7 +56,7 @@ if selected_product:
             st.session_state.cart.append(cart_item)
         st.rerun()
 
-# CART SECTION
+# Cart Display
 st.divider()
 st.subheader("🧾 Cart")
 
@@ -79,11 +81,9 @@ if st.session_state.cart:
         subtotal += line_total
         total_tax += tax_amount
 
-    st.markdown(f"### Subtotal: {subtotal:,.0f} MMK")
-    st.markdown(f"### Tax: {total_tax:,.0f} MMK")
-    st.markdown(f"## Total: {(subtotal + total_tax):,.0f} MMK")
+    st.markdown(f"### Total: {(subtotal + total_tax):,.0f} MMK")
     
-   if st.button("💳 Pay & Print", type="primary"):
+    if st.button("💳 Pay & Print", type="primary"):
         prepared_cart = []
         for item in st.session_state.cart:
             prepared_cart.append({
@@ -94,25 +94,13 @@ if st.session_state.cart:
                 "discount_allowed": bool(item.get("discount_allowed", False))
             })
 
-        try:
-            # function ကို ခေါ်ခြင်း (parameter ၃ ခုလုံး ထည့်ပါ)
-            # database.py ထဲက checkout_sale_rpc ကိုလည်း payload 3 ခုပို့နိုင်အောင် ပြင်ထားဖို့ လိုပါမယ်
-            result = checkout_sale_rpc(prepared_cart, float(subtotal + total_tax))
-            
-            # စစ်ဆေးခြင်း
-            if result and hasattr(result, 'error') and result.error:
-                st.error(f"DB Error: {result.error}")
-            else:
-                st.success("အရောင်း အောင်မြင်ပါသည်။")
-                st.session_state.cart = []
-                st.rerun()
-        except Exception as e:
-            st.error(f"API Error: {str(e)}")
-            else:
-                st.success("အရောင်း အောင်မြင်ပါသည်။")
-                st.session_state.cart = []
-                st.rerun()
-        except Exception as e:
-            st.error(f"API Error: {str(e)}")
+        result = checkout_sale_rpc(prepared_cart, float(subtotal + total_tax), None)
+        
+        if isinstance(result, dict) and "error" in result:
+            st.error(f"DB Error: {result['error']}")
+        else:
+            st.success("အရောင်း အောင်မြင်ပါသည်။")
+            st.session_state.cart = []
+            st.rerun()
 else:
     st.info("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
