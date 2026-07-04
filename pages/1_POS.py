@@ -56,6 +56,7 @@ if selected_product:
         st.rerun()
 
 # --- 3. CART DISPLAY & CALCULATION ---
+# --- 3. CART DISPLAY & CALCULATION ---
 st.divider()
 st.subheader("🧾 Cart")
 
@@ -64,25 +65,35 @@ if st.session_state.cart:
     subtotal = 0
     
     for i, item in enumerate(st.session_state.cart):
-        col_c1, col_c2, col_c3, col_c4 = st.columns([4, 2, 2, 1])
+        # Column တွေကို ပိုချဲ့လိုက်သည် (Tax နဲ့ Discount ပြဖို့)
+        col_c1, col_c2, col_c3, col_c4, col_c5 = st.columns([3, 1, 1, 1, 1])
+        
         col_c1.write(item["name"])
         item["qty"] = col_c2.number_input("Qty", 1, 99, item["qty"], key=f"q_{i}")
         
         # တွက်ချက်ခြင်း
         tax_rate = safe_float(item.get("tax_rate", 0))
+        discount_allowed = item.get("discount_allowed", False)
+        
         line_total = item['selling_price'] * item['qty']
         tax_amount = line_total * (tax_rate / 100)
         
-        col_c3.write(f"{(line_total + tax_amount):,.0f} MMK")
-        if col_c4.button("🗑", key=f"del_{i}"):
+        # UI မှာ ပြသခြင်း
+        col_c3.write(f"{tax_rate}% Tax")
+        col_c4.write("✅" if discount_allowed else "❌")
+        col_c5.write(f"{(line_total + tax_amount):,.0f} MMK")
+        
+        # Delete Button
+        if col_c5.button("🗑", key=f"del_{i}"):
             st.session_state.cart.pop(i)
             st.rerun()
             
         subtotal += line_total
         total_tax += tax_amount
 
-    st.markdown(f"### Total: {(subtotal + total_tax):,.0f} MMK")
-    
+    st.markdown(f"**Subtotal:** {subtotal:,.0f} MMK")
+    st.markdown(f"**Total Tax:** {total_tax:,.0f} MMK")
+    st.markdown(f"### Total Payable: {(subtotal + total_tax):,.0f} MMK")    
     # --- 4. PAY & PRINT ---
     if st.button("💳 Pay & Print", type="primary"):
         # Data စစ်ဆေးခြင်း
