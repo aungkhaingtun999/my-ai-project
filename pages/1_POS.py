@@ -3,19 +3,19 @@ from database import get_products, checkout_sale_rpc
 
 st.set_page_config(page_title="POS v8 Smart ERP", layout="wide")
 
+# --- 1. SESSION STATE INITIALIZATION ---
+if "cart" not in st.session_state:
+    st.session_state.cart = []
+
 # Helpers
 def safe_float(v):
     try: return float(v) if v is not None else 0.0
     except: return 0.0
 
-# Session State
-if "cart" not in st.session_state:
-    st.session_state.cart = []
-
 products = get_products() or []
 st.title("🛒 POS v8 Smart POS")
 
-# UI Sections
+# --- 2. SEARCH & ADD TO CART ---
 c1, c2 = st.columns(2)
 product_options = {f"{p['name']} | {safe_float(p.get('selling_price')):,.0f} MMK": p for p in products}
 
@@ -24,7 +24,6 @@ with c1:
 with c2:
     code_input = st.text_input("📟 Barcode / SKU Scan", key="barcode_scan")
 
-# Cart Addition Logic
 selected_product = None
 if selected_label:
     selected_product = product_options[selected_label]
@@ -56,7 +55,7 @@ if selected_product:
             st.session_state.cart.append(cart_item)
         st.rerun()
 
-# Cart Display
+# --- 3. CART DISPLAY & CALCULATION ---
 st.divider()
 st.subheader("🧾 Cart")
 
@@ -69,6 +68,7 @@ if st.session_state.cart:
         col_c1.write(item["name"])
         item["qty"] = col_c2.number_input("Qty", 1, 99, item["qty"], key=f"q_{i}")
         
+        # တွက်ချက်ခြင်း
         tax_rate = safe_float(item.get("tax_rate", 0))
         line_total = item['selling_price'] * item['qty']
         tax_amount = line_total * (tax_rate / 100)
@@ -83,34 +83,36 @@ if st.session_state.cart:
 
     st.markdown(f"### Total: {(subtotal + total_tax):,.0f} MMK")
     
+    # --- 4. PAY & PRINT ---
     if st.button("💳 Pay & Print", type="primary"):
-        # ခြင်းတောင်းထဲမှာ ပစ္စည်းရှိမရှိ စစ်ဆေးခြင်း
+        # Data စစ်ဆေးခြင်း
         if not st.session_state.cart:
             st.warning("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
             st.stop()
 
-        # Data ပြင်ဆင်ခြင်း (Tax & Discount အပါအဝင်)
+        # Database ပို့ရန် Data ပြင်ဆင်ခြင်း (Tax & Discount ပါဝင်သည်)
         prepared_cart = []
         for item in st.session_state.cart:
             prepared_cart.append({
                 "id": int(item["id"]),
                 "qty": int(item["qty"]),
                 "selling_price": float(item["selling_price"]),
-                "tax_rate": float(item.get("tax_rate", 0)), # Tax ကို အသေအချာ ထည့်ထားသည်
-                "discount_allowed": bool(item.get("discount_allowed", False)) # Discount ကို အသေအချာ ထည့်ထားသည်
+                "tax_rate": float(item.get("tax_rate", 0)),
+                "discount_allowed": bool(item.get("discount_allowed", False))
             })
 
-        # Database သို့ ပို့ခြင်း (Tax & Total အားလုံးပါဝင်သည်)
+        # Database သို့ ပို့ခြင်း
         with st.spinner("အရောင်း စာရင်းသွင်းနေသည်..."):
-            # subtotal နှင့် total_tax တို့ကို တွက်ချက်ထားပြီးသားအတိုင်း ပို့ပေးခြင်း
             result = checkout_sale_rpc(prepared_cart, float(subtotal + total_tax), None)
         
         # ရလဒ် စစ်ဆေးခြင်း
         if result and isinstance(result, dict) and result.get("success"):
             st.success("အရောင်း အောင်မြင်ပါသည်။")
-            st.session_state.cart = [] # အရောင်းအောင်မြင်မှ ခြင်းတောင်းရှင်းမည်
+            st.session_state.cart = [] # အောင်မြင်မှ ခြင်းတောင်းကို ရှင်းခြင်း
             st.rerun() 
         elif result and isinstance(result, dict) and "error" in result:
             st.error(f"DB Error: {result['error']}")
         else:
             st.error("အရောင်း စာရင်းသွင်းရာတွင် အမှားတစ်ခုခု ဖြစ်နေပါသည်။")
+else:
+    st.info("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
