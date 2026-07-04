@@ -8,34 +8,27 @@ def safe_float(v):
     try: return float(v) if v is not None else 0.0
     except: return 0.0
 
-# Session State
 if "cart" not in st.session_state: st.session_state.cart = []
 
 products = get_products() or []
+st.title("🛒 POS v8 Shopify-Level Smart POS")
 
-st.title("🛒 POS v8 Smart POS")
-
-# UI Sections
+# SEARCH SECTION
 c1, c2 = st.columns(2)
-
 product_options = {f"{p['name']} | {safe_float(p.get('selling_price')):,.0f} MMK": p for p in products}
 
 with c1:
     selected_label = st.selectbox("🔍 Search by Name", options=[""] + list(product_options.keys()), index=0)
-
 with c2:
     code_input = st.text_input("📟 Barcode / SKU Scan", key="barcode_scan")
 
-# Search Logic
 selected_product = None
 if selected_label:
     selected_product = product_options[selected_label]
 elif code_input:
-    match = next((p for p in products if code_input in [str(p.get('barcode', '')), str(p.get('sku', ''))]), None)
-    if match:
-        selected_product = match
+    selected_product = next((p for p in products if code_input in [str(p.get('barcode', '')), str(p.get('sku', ''))]), None)
 
-# Cart Addition
+# Add to Cart
 if selected_product:
     st.divider()
     col_d1, col_d2, col_d3 = st.columns([3, 1, 1])
@@ -47,6 +40,8 @@ if selected_product:
             "id": selected_product["id"],
             "name": selected_product["name"],
             "selling_price": safe_float(selected_product.get("selling_price")),
+            "tax_rate": safe_float(selected_product.get("tax_rate")),
+            "discount_allowed": selected_product.get("discount_allowed", False),
             "qty": qty
         }
         
@@ -59,22 +54,33 @@ if selected_product:
             st.session_state.cart.append(cart_item)
         st.rerun()
 
-# Cart Display
+# CART SECTION
 st.divider()
 st.subheader("🧾 Cart")
 
 if st.session_state.cart:
+    total_tax = 0
+    subtotal = 0
+    
     for i, item in enumerate(st.session_state.cart):
         col_c1, col_c2, col_c3, col_c4 = st.columns([4, 2, 2, 1])
         col_c1.write(item["name"])
-        item["qty"] = col_c2.number_input("Qty", min_value=1, value=item["qty"], key=f"q_{i}")
-        col_c3.write(f"{(item['selling_price'] * item['qty']):,.0f} MMK")
+        item["qty"] = col_c2.number_input("Qty", 1, 99, item["qty"], key=f"q_{i}")
+        
+        line_total = item['selling_price'] * item['qty']
+        tax_amount = line_total * (item['tax_rate'] / 100)
+        
+        col_c3.write(f"{(line_total + tax_amount):,.0f} MMK")
         if col_c4.button("🗑", key=f"del_{i}"):
             st.session_state.cart.pop(i)
             st.rerun()
+            
+        subtotal += line_total
+        total_tax += tax_amount
 
-    subtotal = sum(i["selling_price"] * i["qty"] for i in st.session_state.cart)
-    st.markdown(f"### Total: {subtotal:,.0f} MMK")
+    st.markdown(f"### Subtotal: {subtotal:,.0f} MMK")
+    st.markdown(f"### Tax: {total_tax:,.0f} MMK")
+    st.markdown(f"## Total: {(subtotal + total_tax):,.0f} MMK")
     
     if st.button("💳 Pay & Print", type="primary"):
         prepared_cart = []
@@ -82,11 +88,13 @@ if st.session_state.cart:
             prepared_cart.append({
                 "id": int(item["id"]),
                 "qty": int(item["qty"]),
-                "selling_price": float(item["selling_price"])
+                "selling_price": float(item["selling_price"]),
+                "tax_rate": float(item["tax_rate"]),
+                "discount_allowed": bool(item["discount_allowed"])
             })
 
         try:
-            result = checkout_sale_rpc(prepared_cart, float(subtotal))
+            result = checkout_sale_rpc(prepared_cart, float(subtotal + total_tax))
             if result and hasattr(result, 'error') and result.error:
                 st.error(f"DB Error: {result.error}")
             else:
@@ -94,6 +102,6 @@ if st.session_state.cart:
                 st.session_state.cart = []
                 st.rerun()
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(f"API Error: {str(e)}")
 else:
     st.info("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
