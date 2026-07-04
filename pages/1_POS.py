@@ -23,12 +23,19 @@ c1, c2 = st.columns([1, 1])
 barcode = c1.text_input("📟 Barcode/SKU")
 name = c2.selectbox("🔍 Search Name", [""] + list(product_map.keys()))
 
-selected = next((p for p in products if barcode in [str(p.get('barcode', '')), str(p.get('sku', ''))]), None) if barcode else (product_map[name] if name else None)
+selected = None
+if barcode:
+    selected = next((p for p in products if barcode in [str(p.get('barcode', '')), str(p.get('sku', ''))]), None)
+elif name:
+    selected = product_map[name]
 
 if selected:
-    qty = st.number_input("Qty", 1, 99, 1)
+    qty = st.number_input("Qty", 1, 99, 1, key="add_qty_input")
     if st.button("➕ Add to Cart", type="primary"):
-        st.session_state.cart.append({**selected, "qty": qty})
+        # Key မထပ်စေရန် unique_id ကို timestamp သို့မဟုတ် length သုံး၍ ဖန်တီးပါ
+        import time
+        unique_id = f"{selected['id']}_{time.time_ns()}"
+        st.session_state.cart.append({**selected, "qty": qty, "unique_id": unique_id})
         st.rerun()
 
 # --- CART ---
@@ -36,25 +43,28 @@ if st.session_state.cart:
     st.divider()
     subtotal = 0
     
-    # Header
+    # Callback function
+    def delete_item(uid): 
+        st.session_state.cart = [i for i in st.session_state.cart if i["unique_id"] != uid]
+
     cols = st.columns([2, 1, 1, 0.5])
     cols[0].write("**Item**"); cols[1].write("**Price**"); cols[2].write("**Qty**")
     
-    def delete_item(uid): st.session_state.cart = [i for i in st.session_state.cart if i["id"] != uid]
-
     for item in st.session_state.cart:
+        uid = item['unique_id'] # Unique ID ကို သုံးပါ
         c = st.columns([2, 1, 1, 0.5])
         c[0].write(item['name'])
         c[1].write(f"{float(item['selling_price']):,.0f}")
         c[2].write(f"x {item['qty']}")
-        c[3].button("🗑", key=f"del_{item['id']}", on_click=delete_item, args=(item['id'],))
+        # Unique Key ဖြစ်သော uid ကို သုံးထားသဖြင့် Error မတက်တော့ပါ
+        c[3].button("🗑", key=f"del_{uid}", on_click=delete_item, args=(uid,))
         subtotal += float(item['selling_price']) * item['qty']
 
     st.divider()
     # Total Tax/Discount Inputs
     col1, col2 = st.columns(2)
-    total_tax_rate = col1.number_input("Total Tax %", 0.0, 100.0, 0.0)
-    total_discount = col2.number_input("Total Discount (MMK)", 0.0, 100000.0, 0.0)
+    total_tax_rate = col1.number_input("Total Tax %", 0.0, 100.0, 0.0, key="tax_input")
+    total_discount = col2.number_input("Total Discount (MMK)", 0.0, 100000.0, 0.0, key="disc_input")
     
     final_tax = (subtotal - total_discount) * (total_tax_rate / 100)
     final_total = subtotal - total_discount + final_tax
