@@ -1,13 +1,14 @@
 # ==========================================
-# database.py (PRODUCTION ERP POS)
+# database.py (ERP ENTERPRISE v4 - FINAL)
 # ==========================================
 
 from supabase import create_client, Client
 import streamlit as st
+from typing import List, Dict, Any, Optional, Tuple
 
-# ==========================
-# CONNECTION
-# ==========================
+# ======================================================
+# CONNECTION LAYER (SINGLETON SAFE)
+# ======================================================
 
 @st.cache_resource
 def get_supabase() -> Client:
@@ -19,41 +20,52 @@ def get_supabase() -> Client:
 supabase = get_supabase()
 
 
-# ==========================
-# SAFE EXECUTOR
-# ==========================
+# ======================================================
+# SAFE EXECUTION WRAPPER
+# ======================================================
 
 def safe_execute(query):
+    """
+    Always returns:
+    - result.data (if success)
+    - None (if fail)
+    """
     try:
-        return query.execute()
+        res = query.execute()
+        return res.data
     except Exception as e:
-        print("Database Error:", e)
+        print("DB ERROR:", e)
         return None
 
 
 # ======================================================
-# PRODUCTS
+# FLOAT SAFE HELPER (ERP MONEY SAFE)
 # ======================================================
 
-def get_products(active_only=True):
-    query = supabase.table("products").select("""
-        id,
-        barcode,
-        sku,
-        name,
-        purchase_price,
-        selling_price,
-        stock,
-        minimum_stock,
-        unit,
-        is_active,
-        category_id
-    """)
+def to_float(value, default=0.0) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except:
+        return default
+
+
+# ======================================================
+# PRODUCTS MODULE
+# ======================================================
+
+def get_products(active_only: bool = True):
+    query = supabase.table("products").select(
+        "id, barcode, sku, name, purchase_price, selling_price, stock, minimum_stock, unit, is_active, category_id"
+    )
 
     if active_only:
         query = query.eq("is_active", True)
 
-    return safe_execute(query.order("name"))
+    query = query.order("name")
+
+    return safe_execute(query)
 
 
 def get_product(product_id: int):
@@ -66,20 +78,20 @@ def get_product(product_id: int):
 
 
 # ======================================================
-# INVENTORY
+# INVENTORY MODULE
 # ======================================================
 
-def add_inventory_log(data: dict):
+def add_inventory_log(data: Dict[str, Any]):
     return safe_execute(
         supabase.table("inventory_logs").insert(data)
     )
 
 
 # ======================================================
-# RECEIPTS
+# RECEIPTS MODULE
 # ======================================================
 
-def create_receipt(data: dict):
+def create_receipt(data: Dict[str, Any]):
     return safe_execute(
         supabase.table("receipts").insert(data)
     )
@@ -95,22 +107,11 @@ def get_receipt(receipt_no: str):
 
 
 # ======================================================
-# PRINTER HOOK (SAFE)
+# STOCK VALIDATION (STRICT ERP RULE)
 # ======================================================
 
-def print_receipt_if_available(receipt, items):
-    try:
-        from utils.thermal_receipt import print_receipt
-        print_receipt(receipt, items)
-    except Exception as e:
-        print("Printer skipped:", e)
+def validate_stock(cart: List[Dict[str, Any]]) -> Tuple[bool, str]:
 
-
-# ======================================================
-# STOCK VALIDATION (SEPARATE LAYER)
-# ======================================================
-
-def validate_stock(cart):
     for item in cart:
 
         product = supabase.table("products") \
@@ -120,47 +121,62 @@ def validate_stock(cart):
             .execute()
 
         if not product.data:
-            return False, f"Product not found: {item['name']}"
+            return False, f"Product not found: {item.get('name')}"
 
-        if product.data["stock"] < item["qty"]:
-            return False, f"Not enough stock: {item['name']}"
+        db_stock = to_float(product.data["stock"])
+        qty = to_float(item.get("qty"))
+
+        if db_stock < qty:
+            return False, f"Not enough stock: {product.data.get('name')}"
 
     return True, "OK"
 
 
 # ======================================================
-# CHECKOUT ENGINE (ERP SAFE FLOW)
+# CHECKOUT ENGINE (CORE ERP FLOW)
 # ======================================================
 
-def checkout_sale_rpc(cart, paid_amount, cashier_id=None):
+def checkout_sale_rpc(
+    cart: List[Dict[str, Any]],
+    paid_amount: float,
+    cashier_id: Optional[str] = None
+):
 
     # --------------------------
-    # VALIDATION
+    # CART VALIDATION
     # --------------------------
     if not cart:
         return {"error": "Cart is empty"}
 
-    total = sum(i["selling_price"] * i["qty"] for i in cart)
+    # --------------------------
+    # TOTAL CALCULATION (FLOAT SAFE)
+    # --------------------------
+    total = sum(
+        to_float(i.get("selling_price")) * to_float(i.get("qty"))
+        for i in cart
+    )
+
+    paid_amount = to_float(paid_amount)
 
     if paid_amount < total:
         return {"error": "Insufficient payment"}
 
     # --------------------------
-    # STOCK CHECK (CLEAN)
+    # STOCK CHECK
     # --------------------------
     ok, msg = validate_stock(cart)
     if not ok:
         return {"error": msg}
 
     # --------------------------
-    # RPC CALL
+    # RPC CALL (SUPABASE)
     # --------------------------
     result = supabase.rpc("checkout_sale_rpc", {
         "p_cart": [
             {
                 "id": i["id"],
-                "qty": i["qty"],
-                "selling_price": i["selling_price"]
+                "qty": to_float(i["qty"]),
+                "selling_price": to_float(i["selling_price"])
             }
             for i in cart
         ],
@@ -169,40 +185,44 @@ def checkout_sale_rpc(cart, paid_amount, cashier_id=None):
     }).execute()
 
     if not result.data:
-        return {"error": "Checkout failed (RPC error)"}
+        return {"error": "Checkout failed (RPC returned empty)"}
 
     sale = result.data
 
     sale_id = sale.get("sale_id")
-    total = sale.get("total")
+    db_total = to_float(sale.get("total", total))
 
     if not sale_id:
-        return {"error": "Invalid sale response"}
+        return {"error": "Invalid sale response from DB"}
 
     # --------------------------
-    # RECEIPT
+    # RECEIPT CREATE
     # --------------------------
     receipt = {
         "receipt_no": f"RCP-{sale_id}",
         "sale_id": sale_id,
-        "total": total,
+        "total": db_total,
         "paid_amount": paid_amount,
-        "change_amount": paid_amount - total
+        "change_amount": paid_amount - db_total
     }
 
     create_receipt(receipt)
 
     # --------------------------
-    # PRINT
+    # OPTIONAL PRINT HOOK
     # --------------------------
-    print_receipt_if_available(receipt, cart)
+    try:
+        from utils.thermal_receipt import print_receipt
+        print_receipt(receipt, cart)
+    except Exception as e:
+        print("Printer skipped:", e)
 
     # --------------------------
-    # RESPONSE
+    # FINAL RESPONSE
     # --------------------------
     return {
         "success": True,
         "sale_id": sale_id,
-        "total": total,
+        "total": db_total,
         "receipt_no": receipt["receipt_no"]
     }
