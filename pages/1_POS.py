@@ -55,25 +55,68 @@ def add_to_cart(p):
 
 
 # ======================================================
-# 🔍 SEARCH BOX (MAIN FEATURE)
+# SMART SEARCH ENGINE (WORLD CLASS)
 # ======================================================
-search = st.text_input("🔍 Search by Name / Barcode / SKU")
 
-def match(p, q):
-    q = q.lower()
+search = st.text_input("🔍 Search by Name / Barcode / SKU").strip().lower()
 
-    return (
-        q in str(p.get("name", "")).lower()
-        or q in str(p.get("barcode", "")).lower()
-        or q in str(p.get("sku", "")).lower()
+
+def normalize(text):
+    return str(text or "").lower().replace(" ", "")
+
+
+def score_product(p, q):
+    """
+    Higher score = better match
+    """
+    name = normalize(p.get("name"))
+    barcode = normalize(p.get("barcode"))
+    sku = normalize(p.get("sku"))
+
+    score = 0
+
+    # EXACT MATCH (highest priority)
+    if q == name or q == barcode or q == sku:
+        score += 100
+
+    # STARTS WITH (strong match)
+    if name.startswith(q):
+        score += 80
+    if barcode.startswith(q) or sku.startswith(q):
+        score += 70
+
+    # CONTAINS (main search)
+    if q in name:
+        score += 50
+    if q in barcode:
+        score += 40
+    if q in sku:
+        score += 40
+
+    # PARTIAL CHAR MATCH (fuzzy fallback)
+    if any(char in name for char in q):
+        score += 10
+
+    return score
+
+
+# ======================================================
+# FILTER + SORT (IMPORTANT UPGRADE)
+# ======================================================
+
+if search:
+    filtered_products = [
+        p for p in products
+        if score_product(p, search) > 0
+    ]
+
+    # sort by best match first
+    filtered_products.sort(
+        key=lambda x: score_product(x, search),
+        reverse=True
     )
-
-filtered_products = [
-    p for p in products
-    if not search or match(p, search)
-]
-
-
+else:
+    filtered_products = products
 # ======================================================
 # PRODUCTS GRID (MODERN CARD UI)
 # ======================================================
