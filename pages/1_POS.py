@@ -28,53 +28,66 @@ def safe_float(v):
 products = get_products() or []
 
 st.title("🛒 POS v10 Enterprise")
-st.divider()   # ✔ safe here now
-
-# =========================
-# CART DISPLAY (SAFE VERSION)
-# =========================
+st.divider()
 st.subheader("🧾 Cart")
 
-if st.session_state.cart:
+cart = st.session_state.get("cart", [])
+
+if not cart:
+    st.info("Cart is empty")
+else:
 
     total_tax = 0
     subtotal = 0
     grand_total = 0
 
-    for i, item in enumerate(st.session_state.cart):
+    for i, item in enumerate(cart):
 
-        c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
+        try:
+            c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
 
-        price = safe_float(item.get("selling_price"))
-        qty = item.get("qty", 1)
+            name = item.get("name", "Unknown")
+            price = float(item.get("selling_price", 0))
+            qty = int(item.get("qty", 1))
 
-        tax_rate = safe_float(item.get("tax_rate", 0))
-        discount_allowed = item.get("discount_allowed", False)
+            tax_rate = float(item.get("tax_rate", 0))
+            discount_allowed = bool(item.get("discount_allowed", False))
 
-        line_base = price * qty
-        tax_amount = line_base * (tax_rate / 100)
+            line_base = price * qty
+            tax_amount = line_base * (tax_rate / 100)
 
-        discount = 0
+            discount = 0
+            line_total = line_base + tax_amount - discount
 
-        line_total = line_base + tax_amount - discount
+            c1.write(name)
 
-        c1.write(item["name"])
-        item["qty"] = c2.number_input("Qty", 1, 999, qty, key=f"q_{i}")
-        c3.write(f"{tax_rate}% Tax")
-        c4.write(f"{line_total:,.0f}")
+            new_qty = c2.number_input(
+                "Qty",
+                min_value=1,
+                max_value=999,
+                value=qty,
+                key=f"qty_{i}"
+            )
 
-        if st.button("🗑", key=f"del_{i}"):
-            st.session_state.cart.pop(i)
-            st.rerun()
+            item["qty"] = new_qty
 
-        subtotal += line_base
-        total_tax += tax_amount
-        grand_total += line_total
+            c3.write(f"{tax_rate}% Tax")
+            c4.write(f"{line_total:,.0f}")
+
+            if st.button("🗑", key=f"del_{i}"):
+                st.session_state.cart.pop(i)
+                st.rerun()
+
+            subtotal += line_base
+            total_tax += tax_amount
+            grand_total += line_total
+
+        except Exception as e:
+            st.error(f"Cart item error: {e}")
 
     st.markdown("---")
     st.write(f"Subtotal: {subtotal:,.0f}")
     st.write(f"Tax: {total_tax:,.0f}")
     st.write(f"Grand Total: {grand_total:,.0f}")
-
 else:
     st.info("Cart is empty")
