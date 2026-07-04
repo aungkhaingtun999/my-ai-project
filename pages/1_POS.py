@@ -21,38 +21,33 @@ products = get_products() or []
 st.title("🛒 POS v8 Shopify-Level Smart POS")
 
 # ======================================================
-# SEARCH SECTION (Floating Dropdown Feel)
+# SEARCH SECTION
 # ======================================================
 c_name, c_code = st.columns([2, 1])
 
 with c_name:
     name_search = st.text_input("🔍 Search Product Name", key="name_input")
-    
-    # Dropdown List ကို Placeholder နဲ့ ထိန်းထားခြင်း (အောက်ကဟာတွေကို မတွန်းချဘူး)
     dropdown_placeholder = st.empty()
     
     if name_search:
-        results = [p for p in products if name_search.lower() in p['name'].lower()]
+        results = [p for p in products if name_search.lower() in str(p.get('name', '')).lower()]
         if results:
             with dropdown_placeholder.container():
-                # Floating Style စာရင်း
                 for p in results[:5]:
                     if st.button(f"📄 {p['name']} | {safe_float(p.get('selling_price')):,.0f} MMK", key=f"sel_{p['id']}", use_container_width=True):
                         st.session_state.selected_product = p
                         st.rerun()
-        else:
-            dropdown_placeholder.info("မတွေ့ရှိပါ")
 
 with c_code:
-    code_search = st.text_input("📟 Barcode / SKU (Scanner Mode)")
+    code_search = st.text_input("📟 Barcode / SKU Scan", key="code_input")
     if code_search:
-        match = next((p for p in products if code_search in [p.get('barcode'), p.get('sku')]), None)
+        match = next((p for p in products if code_search in [str(p.get('barcode', '')), str(p.get('sku', ''))]), None)
         if match:
             st.session_state.selected_product = match
             st.rerun()
 
 # ======================================================
-# SELECTED PRODUCT DETAIL
+# SELECTED PRODUCT DETAIL (Logic with clean data)
 # ======================================================
 if st.session_state.selected_product:
     p = st.session_state.selected_product
@@ -64,20 +59,28 @@ if st.session_state.selected_product:
     qty = col_d2.number_input("Qty", 1, 100, 1, key="q_input")
     
     if col_d3.button("➕ Add to Cart", type="primary"):
-        # Cart ထဲထည့်ခြင်း (Existing check)
+        # CLEAN DATA: API Error မတက်စေရန် လိုအပ်သော data သီးသန့်သာ ထည့်ပါ
+        cart_item = {
+            "id": p["id"],
+            "name": p["name"],
+            "selling_price": safe_float(p.get("selling_price")),
+            "qty": qty
+        }
+        
+        # Check existing
         found = False
         for item in st.session_state.cart:
-            if item["id"] == p["id"]:
+            if item["id"] == cart_item["id"]:
                 item["qty"] += qty
                 found = True
         if not found:
-            st.session_state.cart.append({**p, "qty": qty, "selling_price": safe_float(p.get("selling_price"))})
+            st.session_state.cart.append(cart_item)
         
-        st.session_state.selected_product = None # ပစ္စည်းရွေးပြီးတာနဲ့ Detail ပိတ်မယ်
+        st.session_state.selected_product = None
         st.rerun()
 
 # ======================================================
-# CART (PERSISTENT)
+# CART
 # ======================================================
 st.divider()
 st.subheader("🧾 Cart")
@@ -86,9 +89,7 @@ if st.session_state.cart:
     for i, item in enumerate(st.session_state.cart):
         c1, c2, c3, c4 = st.columns([4, 2, 2, 1])
         c1.write(item["name"])
-        # Qty ပြင်ဆင်ခြင်း
-        new_qty = c2.number_input("Qty", 1, 99, item["qty"], key=f"q_{i}", label_visibility="collapsed")
-        item["qty"] = new_qty
+        item["qty"] = c2.number_input("Qty", 1, 99, item["qty"], key=f"q_{i}", label_visibility="collapsed")
         c3.write(f"{(item['selling_price'] * item['qty']):,.0f} MMK")
         if c4.button("🗑", key=f"del_{i}"):
             st.session_state.cart.pop(i)
@@ -98,8 +99,9 @@ if st.session_state.cart:
     st.markdown(f"### Total: {subtotal:,.0f} MMK")
     
     if st.button("💳 Pay & Print", type="primary"):
+        # API ကို clean data ပေးပို့ခြင်း
         checkout_sale_rpc(st.session_state.cart, paid_amount=subtotal)
-        st.session_state.cart = [] # ရှင်းပြီးရင် Cart ပြန်လည်ရှင်းထုတ်မယ်
+        st.session_state.cart = []
         st.rerun()
 else:
     st.info("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
