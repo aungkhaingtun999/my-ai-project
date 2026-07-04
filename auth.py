@@ -4,85 +4,124 @@ from database import get_supabase
 supabase = get_supabase()
 
 # =========================
-# SESSION INIT
+# SESSION INIT (SAFE)
 # =========================
-if "user" not in st.session_state:
-    st.session_state.user = None
+def init_session():
+    if "user" not in st.session_state:
+        st.session_state.user = None
+
+init_session()
 
 # =========================
-# LOGIN FUNCTION
+# SAFE LOGIN QUERY WRAPPER
+# =========================
+def get_user(username: str):
+    try:
+        response = (
+            supabase.table("users")
+            .select("*")
+            .or_(f"email.eq.{username},name.eq.{username}")
+            .limit(1)
+            .execute()
+        )
+
+        return response.data[0] if response.data else None
+
+    except Exception as e:
+        st.error("Database connection error")
+        st.caption(str(e))
+        return None
+
+# =========================
+# LOGIN PAGE
 # =========================
 def login_page():
 
-    st.set_page_config(page_title="Login", layout="centered")
+    st.set_page_config(page_title="ERP Login", layout="centered")
 
-    st.title("🔐 Secure Login System")
-    st.caption("ERP Access Control Panel")
+    st.title("🔐 ERP Secure Login System")
+    st.caption("Enterprise Access Control Layer")
 
     username = st.text_input("Username or Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
 
+        # -------------------------
+        # INPUT VALIDATION
+        # -------------------------
         if not username or not password:
             st.error("Please fill all fields")
-            return
+            st.stop()
 
-        # =========================
-        # CHECK USER FROM DB
-        # =========================
-        user_resp = supabase.table("users") \
-            .select("*") \
-            .or_(f"email.eq.{username},name.eq.{username}") \
-            .execute()
+        # -------------------------
+        # FETCH USER SAFELY
+        # -------------------------
+        user = get_user(username)
 
-        users = user_resp.data or []
-
-        if not users:
+        if not user:
             st.error("User not found")
-            return
+            st.stop()
 
-        user = users[0]
+        # -------------------------
+        # PASSWORD CHECK (TEMP SAFE VERSION)
+        # -------------------------
+        # ⚠️ Production: replace with bcrypt later
+        stored_password = user.get("password")
 
-        # =========================
-        # PASSWORD CHECK
-        # =========================
-        # NOTE: for production → use hashed password (bcrypt)
-        if user.get("password") != password:
-            st.error("Invalid password")
-            return
+        if stored_password != password:
+            st.error("Invalid credentials")
+            st.stop()
 
-        # =========================
-        # LOGIN SUCCESS
-        # =========================
+        # -------------------------
+        # SUCCESS LOGIN
+        # -------------------------
         st.session_state.user = {
-            "id": user["id"],
+            "id": user.get("id"),
             "name": user.get("name"),
             "email": user.get("email"),
             "role": user.get("role", "staff")
         }
 
-        st.success(f"Welcome {user.get('name')} ({user.get('role')})")
-
+        st.success(f"Welcome {user.get('name')} 👋")
         st.rerun()
 
 # =========================
-# LOGOUT FUNCTION
+# LOGOUT
 # =========================
 def logout():
     st.session_state.user = None
     st.rerun()
 
 # =========================
-# AUTO ROUTING
+# AUTH GUARD (USE IN MAIN APP)
 # =========================
-if st.session_state.user:
-    st.success(f"Logged in as {st.session_state.user['name']}")
+def is_authenticated():
+    user = st.session_state.get("user")
+    return user is not None and isinstance(user, dict)
 
-    st.write(f"Role: {st.session_state.user['role']}")
+# =========================
+# OPTIONAL: LOGIN STATE VIEW
+# =========================
+def show_auth_status():
+    if is_authenticated():
+        st.sidebar.success(f"👤 {st.session_state.user['name']}")
+        st.sidebar.write(f"Role: {st.session_state.user['role']}")
 
-    if st.button("Logout"):
-        logout()
+        if st.sidebar.button("🚪 Logout"):
+            logout()
+    else:
+        st.sidebar.info("Not logged in")
 
-else:
-    login_page()
+# =========================
+# AUTO ROUTING (FOR TEST ONLY)
+# =========================
+if __name__ == "__main__":
+
+    if is_authenticated():
+        st.success(f"Logged in as {st.session_state.user['name']}")
+
+        show_auth_status()
+
+    else:
+        login_page()
