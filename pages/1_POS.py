@@ -84,7 +84,8 @@ with c1:
     placeholder="Coffee..."
 )
 
-matches = search_products(search_name)", options=[""] + list(product_options.keys()), index=0)
+matches = search_products(search_name)", 
+
 with c2:
     code_input = st.text_input("📟 Barcode / SKU Scan", key="barcode_scan")
 
@@ -104,8 +105,7 @@ if matches:
     )
 
     selected_product = matches[labels.index(choice)]
-if selected_label:
-    selected_product = product_options[selected_label]
+
 elif code_input:
     selected_product = next((p for p in products if code_input in [str(p.get('barcode', '')), str(p.get('sku', ''))]), None)
 
