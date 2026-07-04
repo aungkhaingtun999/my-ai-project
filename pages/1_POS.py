@@ -3,11 +3,18 @@ from database import get_products, checkout_sale_rpc
 
 st.set_page_config(page_title="Professional POS", layout="centered")
 
-# CSS: Professional Receipt Layout
+# CSS: Advanced Receipt Layout
 st.markdown("""
 <style>
-    .receipt-box { background: white; color: black; padding: 20px; border: 1px solid #333; 
-                   font-family: 'Courier New', monospace; width: 320px; margin: auto; }
+    .receipt-container { 
+        background: #fff; color: #000; padding: 25px; border: 1px solid #ddd; 
+        font-family: 'Courier New', Courier, monospace; width: 350px; margin: auto;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+    }
+    .receipt-header { text-align: center; font-weight: bold; font-size: 1.2em; margin-bottom: 10px; }
+    .receipt-divider { border-top: 1px dashed #000; margin: 10px 0; }
+    .receipt-item { display: flex; justify-content: space-between; margin-bottom: 5px; }
+    .receipt-total { font-weight: bold; font-size: 1.1em; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -18,32 +25,26 @@ product_map = {f"{p['name']} ({p.get('sku', '')})": p for p in products}
 
 st.subheader("🛒 Professional POS")
 
-# 1. Search Sections
 col1, col2 = st.columns(2)
 barcode = col1.text_input("📟 Barcode", key="bc_in")
 name = col2.selectbox("🔍 Search Name", [""] + list(product_map.keys()), key="name_in")
 
-# Logic to pick selected product
 selected = None
 if barcode:
     selected = next((p for p in products if str(p.get('barcode', '')) == barcode), None)
 elif name:
     selected = product_map[name]
 
-# 2. Add to Cart Button (ရွေးပြီးမှ နှိပ်ရမည့် အဆင့်)
 if selected:
     qty = st.number_input("Quantity", 1, 99, 1, key="qty_input")
     if st.button("➕ Add to Cart", type="primary"):
-        # Unique ID ထည့်သွင်းခြင်း
         uid = f"{selected['id']}_{len(st.session_state.cart)}"
         st.session_state.cart.append({**selected, "qty": qty, "uid": uid})
         st.rerun()
 
-# 3. Cart Display
 if st.session_state.cart:
     st.divider()
     subtotal = 0
-    
     def delete_item(uid): st.session_state.cart = [i for i in st.session_state.cart if i["uid"] != uid]
     
     for item in st.session_state.cart:
@@ -54,7 +55,6 @@ if st.session_state.cart:
         c[3].button("🗑", key=f"del_{item['uid']}", on_click=delete_item, args=(item['uid'],))
         subtotal += float(item['selling_price']) * item['qty']
 
-    # Checkout
     tax = st.number_input("Total Tax %", 0.0, 100.0, 0.0)
     disc = st.number_input("Total Discount", 0.0, 100000.0, 0.0)
     final_total = subtotal - disc + ((subtotal - disc) * tax / 100)
@@ -65,14 +65,18 @@ if st.session_state.cart:
         res = checkout_sale_rpc(st.session_state.cart, final_total, None)
         if res and res.get("success"):
             st.success("Payment Successful!")
-            # Receipt Display
-            items_lines = "".join([f"{i['name'][:15]:<15} x{i['qty']} : {(float(i['selling_price'])*i['qty']):,.0f}\n" for i in st.session_state.cart])
+            # Render World Class Receipt
+            receipt_items = "".join([f'<div class="receipt-item"><span>{i["name"][:15]} x{i["qty"]}</span> <span>{(float(i["selling_price"])*i["qty"]):,.0f}</span></div>' for i in st.session_state.cart])
             st.markdown(f"""
-            <div class="receipt-box">
-                <center><b>ENTERPRISE WORLD CLASS</b><br>Tachileik Branch</center>
-                <pre>{items_lines}</pre>
-                -------------------------------<br>
-                <b>GRAND TOTAL : {final_total:,.0f} MMK</b>
+            <div class="receipt-container">
+                <div class="receipt-header">AURORA LUXE RETAIL<br>Tachileik Branch</div>
+                <div class="receipt-divider"></div>
+                {receipt_items}
+                <div class="receipt-divider"></div>
+                <div class="receipt-item"><span>SUBTOTAL</span> <span>{subtotal:,.0f}</span></div>
+                <div class="receipt-item"><span>DISCOUNT</span> <span>-{disc:,.0f}</span></div>
+                <div class="receipt-item receipt-total"><span>TOTAL</span> <span>{final_total:,.0f} MMK</span></div>
+                <div style="text-align:center; margin-top:15px;">Thank You!</div>
             </div>
             """, unsafe_allow_html=True)
             if st.button("New Sale"):
