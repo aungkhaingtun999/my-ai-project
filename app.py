@@ -130,9 +130,14 @@ def page_router():
 # ==========================================
 def main():
 
-    # 🔐 LOGIN GATE (ABSOLUTE RULE)
-    if not is_authenticated():
+    # 🔐 HARD GATE (NO EXCEPTION)
+    if not st.session_state.get("user"):
         login_page()
+        st.stop()   # 🔥 IMPORTANT FIX (NOT return)
+
+    # ONLY AFTER LOGIN
+    show_sidebar()
+    page_router()
         return
 
     # sync role safely
