@@ -1,4 +1,9 @@
+# ==========================================
+# guards.py (Enterprise RBAC Engine v2)
+# ==========================================
+
 import streamlit as st
+from typing import Optional, Dict, Any, Tuple, Set
 
 # =====================================================
 # ROLE CONSTANTS
@@ -8,216 +13,191 @@ ROLE_MANAGER = 2
 ROLE_CASHIER = 3
 
 ROLE_NAME = {
-    1: "Admin",
-    2: "Manager",
-    3: "Cashier"
+    ROLE_ADMIN: "Admin",
+    ROLE_MANAGER: "Manager",
+    ROLE_CASHIER: "Cashier"
 }
 
 # =====================================================
-# CURRENT USER
+# SESSION SAFE USER NORMALIZER
 # =====================================================
-def current_user():
-    return st.session_state.get("user")
-
-
-# =====================================================
-# LOGIN CHECK
-# =====================================================
-def is_logged_in():
-
-    user = current_user()
+def current_user() -> Optional[Dict[str, Any]]:
+    user = st.session_state.get("user")
 
     if not isinstance(user, dict):
+        return None
+
+    # normalize missing keys
+    return {
+        "id": user.get("id"),
+        "full_name": user.get("full_name", "Unknown"),
+        "username": user.get("username"),
+        "role_id": user.get("role_id"),
+        "is_active": user.get("is_active", False)
+    }
+
+
+# =====================================================
+# LOGIN CHECK (HARD GATE)
+# =====================================================
+def is_logged_in() -> bool:
+    user = current_user()
+
+    if not user:
         return False
 
     if not user.get("id"):
         return False
 
-    if not user.get("is_active", False):
+    if user.get("is_active") is not True:
         return False
 
     return True
 
 
-# =====================================================
-# REQUIRE LOGIN
-# =====================================================
 def require_login():
-
     if not is_logged_in():
-
-        st.warning("🔐 Please login first")
+        st.warning("🔐 Login required")
         st.stop()
 
     return current_user()
 
 
 # =====================================================
-# ROLE HELPERS
+# ROLE RESOLUTION (SAFE)
 # =====================================================
-def get_role_id():
-
+def get_role_id() -> int:
     user = require_login()
 
-    return int(user.get("role_id", ROLE_CASHIER))
+    try:
+        return int(user.get("role_id") or ROLE_CASHIER)
+    except:
+        return ROLE_CASHIER
 
 
-def get_role_name():
-
-    return ROLE_NAME.get(
-        get_role_id(),
-        "Cashier"
-    )
+def get_role_name() -> str:
+    return ROLE_NAME.get(get_role_id(), "Cashier")
 
 
 # =====================================================
 # ROLE CHECKERS
 # =====================================================
-def is_admin():
-
+def is_admin() -> bool:
     return get_role_id() == ROLE_ADMIN
 
 
-def is_manager():
-
+def is_manager() -> bool:
     return get_role_id() == ROLE_MANAGER
 
 
-def is_cashier():
-
+def is_cashier() -> bool:
     return get_role_id() == ROLE_CASHIER
 
 
 # =====================================================
-# ADMIN GUARD
+# CORE GUARDS
 # =====================================================
 def require_admin():
-
     user = require_login()
 
-    if user["role_id"] != ROLE_ADMIN:
-
-        st.error("⛔ Access Denied")
-
-        st.info("Administrator permission required.")
-
+    if get_role_id() != ROLE_ADMIN:
+        st.error("⛔ Admin Only Access")
         st.stop()
 
     return user
 
 
-# =====================================================
-# MANAGER GUARD
-# =====================================================
 def require_manager():
-
     user = require_login()
 
-    if user["role_id"] not in (
-        ROLE_ADMIN,
-        ROLE_MANAGER
-    ):
-
-        st.error("⛔ Manager permission required.")
-
+    if get_role_id() not in (ROLE_ADMIN, ROLE_MANAGER):
+        st.error("⛔ Manager Access Required")
         st.stop()
 
     return user
 
 
-# =====================================================
-# CASHIER GUARD
-# =====================================================
 def require_cashier():
+    return require_login()
 
+
+def require_role(*roles: Tuple[int]):
     user = require_login()
 
-    if user["role_id"] not in (
-        ROLE_ADMIN,
-        ROLE_MANAGER,
-        ROLE_CASHIER
-    ):
+    if get_role_id() not in roles:
+        allowed = ", ".join([ROLE_NAME.get(r, str(r)) for r in roles])
 
-        st.error("⛔ Access Denied")
-
+        st.error("⛔ Permission Denied")
+        st.caption(f"Allowed: {allowed}")
         st.stop()
 
     return user
 
 
 # =====================================================
-# GENERIC ROLE GUARD
+# PERMISSION ENGINE (FUTURE RBAC READY)
 # =====================================================
-def require_role(*roles):
 
+# in-memory cache (fast ERP performance)
+_PERMISSION_CACHE: Dict[int, Set[str]] = {}
+
+
+def load_permissions(role_id: int) -> Set[str]:
+    """
+    FUTURE: replace with DB lookup
+    """
+    if role_id in _PERMISSION_CACHE:
+        return _PERMISSION_CACHE[role_id]
+
+    # default static permissions (MVP fallback)
+    default = {
+        ROLE_ADMIN: {
+            "sales.create",
+            "sales.refund",
+            "inventory.edit",
+            "users.manage",
+            "reports.view",
+        },
+        ROLE_MANAGER: {
+            "sales.create",
+            "inventory.view",
+            "reports.view",
+        },
+        ROLE_CASHIER: {
+            "sales.create",
+        }
+    }
+
+    perms = default.get(role_id, set())
+    _PERMISSION_CACHE[role_id] = perms
+
+    return perms
+
+
+def require_permission(permission: str):
     user = require_login()
 
-    if user["role_id"] not in roles:
+    role_id = get_role_id()
+    permissions = load_permissions(role_id)
 
-        allowed = ", ".join(
-            ROLE_NAME.get(r, str(r))
-            for r in roles
-        )
-
-        st.error("⛔ Permission denied")
-
-        st.caption(f"Allowed Roles : {allowed}")
-
+    if permission not in permissions:
+        st.error("⛔ Permission Denied")
+        st.caption(f"Required: {permission}")
         st.stop()
 
     return user
 
 
 # =====================================================
-# PERMISSION ENGINE (Future RBAC)
+# SAFE PAGE HEADER
 # =====================================================
-def require_permission(permission_name):
-
-    """
-    Future RBAC Hook
-
-    Example:
-
-    require_permission("sales.create")
-
-    require_permission("inventory.edit")
-
-    require_permission("users.delete")
-
-    """
-
+def page_header(title: str, icon: str = "📄"):
     user = require_login()
-
-    # -----------------------------------
-    # FUTURE DATABASE LOOKUP
-    # -----------------------------------
-    # role_permissions table
-    #
-    # role_id
-    # permission_name
-    #
-    # TODO
-    #
-    # if permission not found:
-    #     deny
-    #
-    # -----------------------------------
-
-    return user
-
-
-# =====================================================
-# PAGE TITLE HELPER
-# =====================================================
-def page_header(title, icon="📄"):
-
-    require_login()
 
     st.title(f"{icon} {title}")
 
     st.caption(
-        f"Logged in as {current_user()['full_name']} "
-        f"({get_role_name()})"
+        f"User: {user.get('full_name')} | Role: {get_role_name()}"
     )
 
 
@@ -225,9 +205,8 @@ def page_header(title, icon="📄"):
 # DEBUG PANEL
 # =====================================================
 def debug_user():
+    st.subheader("🔍 DEBUG USER")
+    st.json(current_user())
 
-    user = current_user()
-
-    st.write("Current User")
-
-    st.json(user)
+    st.subheader("🔐 PERMISSIONS")
+    st.write(load_permissions(get_role_id()))
