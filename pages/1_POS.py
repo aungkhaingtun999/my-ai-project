@@ -87,24 +87,37 @@ if st.session_state.cart:
     st.markdown(f"### Total: {subtotal:,.0f} MMK")
     
     if st.button("💳 Pay & Print", type="primary"):
-        # [FIX] Data Type ကို integer သို့ သေချာပြောင်းလဲပေးခြင်း
+        if not st.session_state.cart:
+            st.error("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
+            st.stop()
+
         prepared_cart = []
         for item in st.session_state.cart:
-            # round() ကို သုံးပြီး ဒသမကိန်းများကို ဖယ်ထုတ်လိုက်ပါသည်
-            clean_id = int(round(float(item["id"])))
-            clean_qty = int(round(float(item["qty"])))
-            clean_price = float(item["selling_price"])
+            # အဆင့် ၁: float ပြောင်း
+            # အဆင့် ၂: int ပြောင်း
+            # အဆင့် ၃: ဒီတန်ဖိုးကို dict ထဲထည့်
+            val_id = int(float(item["id"]))
+            val_qty = int(float(item["qty"]))
             
             prepared_cart.append({
-                "id": clean_id,
-                "qty": clean_qty,
-                "selling_price": clean_price
+                "id": val_id,
+                "qty": val_qty,
+                "selling_price": float(item["selling_price"])
             })
 
         try:
-            result = checkout_sale_rpc(prepared_cart, paid_amount=float(subtotal))
-            if isinstance(result, dict) and result.get("error"):
-                st.error(f"Error: {result.get('error')}")
+            # API သို့ပို့ခြင်း
+            result = checkout_sale_rpc(prepared_cart, float(subtotal))
+            
+            # Error စစ်ဆေးခြင်း
+            if result and hasattr(result, 'error') and result.error:
+                st.error(f"Error: {result.error}")
+            else:
+                st.success("အရောင်း အောင်မြင်ပါသည်။")
+                st.session_state.cart = []
+                st.rerun()
+        except Exception as e:
+            st.error(f"API Connection Error: {str(e)}")
             else:
                 st.success("အရောင်း အောင်မြင်ပါသည်။")
                 st.session_state.cart = []
