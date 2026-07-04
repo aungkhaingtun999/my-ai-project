@@ -35,24 +35,26 @@ if selected_product:
     col_d1.write(f"**{selected_product['name']}**")
     qty = col_d2.number_input("Qty", min_value=1, value=1, key="q_input")
     
-    if col_d3.button("➕ Add to Cart", type="primary"):
-        cart_item = {
-            "id": selected_product["id"],
-            "name": selected_product["name"],
-            "selling_price": safe_float(selected_product.get("selling_price")),
-            "tax_rate": safe_float(selected_product.get("tax_rate")),
-            "discount_allowed": selected_product.get("discount_allowed", False),
-            "qty": qty
-        }
-        
-        found = False
-        for item in st.session_state.cart:
-            if item["id"] == cart_item["id"]:
-                item["qty"] += qty
-                found = True
-        if not found:
-            st.session_state.cart.append(cart_item)
-        st.rerun()
+    # Add to Cart Logic (Product Detail Section)
+        if col_d3.button("➕ Add to Cart", type="primary"):
+            # .get() ကို အသုံးပြု၍ Key မရှိပါက Default Value ထည့်ပေးခြင်း
+            cart_item = {
+                "id": selected_product["id"],
+                "name": selected_product["name"],
+                "selling_price": safe_float(selected_product.get("selling_price")),
+                "tax_rate": safe_float(selected_product.get("tax_rate", 0)), 
+                "discount_allowed": selected_product.get("discount_allowed", False),
+                "qty": qty
+            }
+            
+            found = False
+            for item in st.session_state.cart:
+                if item["id"] == cart_item["id"]:
+                    item["qty"] += qty
+                    found = True
+            if not found:
+                st.session_state.cart.append(cart_item)
+            st.rerun()
 
 # CART SECTION
 st.divider()
@@ -67,8 +69,11 @@ if st.session_state.cart:
         col_c1.write(item["name"])
         item["qty"] = col_c2.number_input("Qty", 1, 99, item["qty"], key=f"q_{i}")
         
+        # [FIX] .get() သုံးပြီး Default Value 0 သတ်မှတ်ပေးခြင်း
+        tax_rate = float(item.get("tax_rate", 0))
+        
         line_total = item['selling_price'] * item['qty']
-        tax_amount = line_total * (item['tax_rate'] / 100)
+        tax_amount = line_total * (tax_rate / 100)
         
         col_c3.write(f"{(line_total + tax_amount):,.0f} MMK")
         if col_c4.button("🗑", key=f"del_{i}"):
