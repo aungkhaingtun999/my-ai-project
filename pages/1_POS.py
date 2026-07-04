@@ -1,43 +1,35 @@
 import streamlit as st
 from database import get_products
-from utils.helpers import safe_float
 
-st.set_page_config(page_title="POS v10 Float Search", layout="wide")
+st.set_page_config(page_title="POS v10 Enterprise", layout="wide")
 
-products = get_products() or []
-
-# =========================================================
-# SESSION STATE
-# =========================================================
+# =========================
+# SESSION
+# =========================
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
-if "search_index" not in st.session_state:
-    st.session_state.search_index = 0
+if "selected" not in st.session_state:
+    st.session_state.selected = None
 
-if "dropdown_open" not in st.session_state:
-    st.session_state.dropdown_open = False
+products = get_products() or []
 
-if "selected_product" not in st.session_state:
-    st.session_state.selected_product = None
+st.title("🛒 POS v10 Enterprise")
 
-
-# =========================================================
-# NORMALIZE + SEARCH ENGINE
-# =========================================================
-def norm(x):
-    return str(x or "").lower().strip()
-
+# =========================
+# HELPERS
+# =========================
+def norm(v):
+    return str(v or "").lower().strip()
 
 def search(keyword):
+    keyword = norm(keyword)
     if not keyword:
         return []
 
-    keyword = norm(keyword)
     results = []
 
     for p in products:
-
         name = norm(p.get("name"))
         barcode = norm(p.get("barcode"))
         sku = norm(p.get("sku"))
@@ -47,141 +39,111 @@ def search(keyword):
         if keyword == name or keyword == barcode or keyword == sku:
             score += 1000
 
-        if keyword in name:
+        if name.startswith(keyword):
             score += 500
 
-        if keyword in barcode or keyword in sku:
-            score += 400
+        if keyword in name:
+            score += 300
 
-        if name.startswith(keyword):
-            score += 600
+        if keyword in barcode or keyword in sku:
+            score += 250
 
         if score:
             results.append((score, p))
 
     results.sort(key=lambda x: x[0], reverse=True)
-    return [x[1] for x in results[:8]]   # FLOAT LIMIT
+    return [p for _, p in results]
 
 
-# =========================================================
-# UI HEADER
-# =========================================================
-st.title("🛒 POS v10 Floating Search Engine")
+# =========================
+# SEARCH INPUT
+# =========================
+search_text = st.text_input("🔍 Search Product (Name / Barcode / SKU)")
 
-
-# =========================================================
-# SEARCH BOX
-# =========================================================
-search_input = st.text_input(
-    "🔍 Search Product (type for floating dropdown)",
-    key="search_box"
-)
-
-results = search(search_input)
-
-# open dropdown automatically
-st.session_state.dropdown_open = bool(search_input and results)
-
-
-# =========================================================
+# =========================
 # FLOATING DROPDOWN CONTAINER
-# =========================================================
+# =========================
 dropdown = st.empty()
 
+matches = search(search_text)
 
-if st.session_state.dropdown_open:
+# =========================
+# FLOAT UI (NO PAGE SHIFT)
+# =========================
+selected = None
+
+if search_text and matches:
 
     with dropdown.container():
 
-        st.markdown(
-            """
-            <style>
-            .float-box {
-                border: 1px solid #ddd;
-                border-radius: 10px;
-                padding: 10px;
-                background: white;
-                box-shadow: 0px 5px 20px rgba(0,0,0,0.15);
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
+        st.markdown("""
+        <style>
+        .dropbox {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            max-height: 250px;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        .item {
+            padding: 10px;
+            cursor: pointer;
+        }
+        .item:hover {
+            background: #f0f6ff;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
-        st.markdown("### 🔎 Results")
+        st.markdown('<div class="dropbox">', unsafe_allow_html=True)
 
-        for i, p in enumerate(results):
+        for i, p in enumerate(matches[:10]):
 
-            highlight = "🟡" if i == st.session_state.search_index else "⚪"
+            label = f"{p['name']} | {p.get('barcode','')} | {p.get('sku','')}"
 
-            if st.button(
-                f"{highlight} {p['name']}  |  {safe_float(p['selling_price']):,.0f} MMK",
-                key=f"p_{p['id']}"
-            ):
-                st.session_state.selected_product = p
-                st.session_state.dropdown_open = False
-                st.session_state.search_index = 0
+            if st.button(label, key=f"p_{i}"):
+
+                st.session_state.selected = p
                 st.rerun()
 
-
-# =========================================================
-# KEYBOARD NAVIGATION (SIMULATED)
-# =========================================================
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    if st.button("⬆️ Up"):
-        st.session_state.search_index = max(0, st.session_state.search_index - 1)
-        st.rerun()
-
-with col2:
-    if st.button("⬇️ Down"):
-        st.session_state.search_index = min(len(results)-1, st.session_state.search_index + 1)
-        st.rerun()
-
-with col3:
-    if st.button("⏎ Select"):
-        if results:
-            st.session_state.selected_product = results[st.session_state.search_index]
-            st.session_state.dropdown_open = False
-            st.session_state.search_index = 0
-            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
-# =========================================================
-# PRODUCT DETAIL (ONLY AFTER SELECT)
-# =========================================================
-if st.session_state.selected_product:
+# =========================
+# SELECTED PRODUCT ONLY
+# =========================
+selected = st.session_state.selected
 
-    p = st.session_state.selected_product
+if selected:
 
     st.divider()
-    st.subheader("🛒 Selected Product")
+    st.subheader("📦 Selected Product")
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3 = st.columns([4,1,1])
 
-    c1.write(p["name"])
-    c2.metric("Price", f"{safe_float(p['selling_price']):,.0f}")
-    c3.metric("Stock", safe_float(p.get("stock", 0)))
+    c1.write(selected["name"])
+    c2.write(f"{selected.get('selling_price',0):,.0f} MMK")
 
-    qty = st.number_input("Qty", 1, 999, 1)
+    qty = c3.number_input("Qty", 1, 999, 1)
 
-    if st.button("➕ Add to Cart", type="primary"):
+    if st.button("➕ Add to Cart"):
 
         st.session_state.cart.append({
-            "id": p["id"],
-            "name": p["name"],
-            "selling_price": safe_float(p["selling_price"]),
+            "id": selected["id"],
+            "name": selected["name"],
+            "price": selected.get("selling_price", 0),
             "qty": qty
         })
 
-        st.session_state.selected_product = None
+        st.session_state.selected = None
+        st.success("Added to cart")
         st.rerun()
 
 
-# =========================================================
-# CART (MINIMAL VIEW)
-# =========================================================
+# =========================
+# CART
+# =========================
 st.divider()
 st.subheader("🧾 Cart")
 
@@ -189,13 +151,12 @@ total = 0
 
 for i, item in enumerate(st.session_state.cart):
 
-    line = item["selling_price"] * item["qty"]
-    total += line
-
-    c1, c2, c3 = st.columns([5, 2, 1])
+    c1, c2, c3 = st.columns([4,1,1])
 
     c1.write(item["name"])
-    c2.write(f"{item['qty']} x {item['selling_price']:,.0f}")
-    c3.write(f"{line:,.0f}")
+    c2.write(f"{item['qty']} x {item['price']}")
+    c3.write(f"{item['qty'] * item['price']:.0f}")
 
-st.markdown(f"## Total: {total:,.0f} MMK")
+    total += item["qty"] * item["price"]
+
+st.markdown(f"### TOTAL: {total:,.0f} MMK")
