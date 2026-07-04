@@ -2,9 +2,9 @@ import streamlit as st
 from supabase_client import supabase
 from datetime import date, timedelta
 
-st.set_page_config(page_title="ERP Dashboard", layout="wide")
+st.set_page_config(page_title="ERP Reports", layout="wide")
 
-st.title("📊 ERP Executive Dashboard")
+st.title("📊 ERP Executive Reports (Warehouse-Based)")
 
 # =========================
 # DATE FILTER
@@ -36,13 +36,26 @@ products = supabase.table("products").select("*").execute().data or []
 sale_items = supabase.table("sale_items").select("*").execute().data or []
 
 # =========================
+# 🔥 WAREHOUSE STOCK (NEW CORE FIX)
+# =========================
+stock_rows = supabase.table("warehouse_stock").select("*").execute().data or []
+
+stock_map = {}
+for s in stock_rows:
+    pid = s["product_id"]
+    stock_map[pid] = stock_map.get(pid, 0) + (s.get("qty") or 0)
+
+# =========================
 # PRE-CALC
 # =========================
 total_sales = sum(s["total"] for s in sales)
 total_refund = sum(r["refund_amount"] for r in refunds)
 net_profit = total_sales - total_refund
 
-low_stock_items = [p for p in products if p["stock"] <= p["minimum_stock"]]
+low_stock_items = [
+    p for p in products
+    if stock_map.get(p["id"], 0) <= (p.get("minimum_stock") or 0)
+]
 
 # =========================
 # KPI
@@ -59,7 +72,7 @@ k4.metric("📊 Net Profit", f"{net_profit:,.0f}")
 st.divider()
 
 # =========================
-# AI INSIGHTS
+# AI INSIGHTS ENGINE
 # =========================
 st.subheader("🧠 AI Insights Engine")
 
@@ -87,7 +100,7 @@ if sales:
 
 critical_stock = [
     p for p in products
-    if p["stock"] <= (p["minimum_stock"] * 1.5)
+    if stock_map.get(p["id"], 0) <= (p.get("minimum_stock") or 0) * 1.5
 ]
 
 if critical_stock:
@@ -117,7 +130,7 @@ if total_sales:
 st.divider()
 
 # =========================
-# FORECAST
+# FORECAST ENGINE
 # =========================
 st.subheader("🔮 Forecast AI")
 
@@ -163,14 +176,12 @@ if values:
 st.divider()
 
 # =========================
-# CHARTS (FIXED)
+# CHARTS
 # =========================
 left, right = st.columns(2)
 
 with left:
     st.subheader("📈 Sales Trend")
-
-    # ✅ FIXED HERE (main bug)
     if trend:
         st.line_chart(trend, x="day", y="sales")
     else:
@@ -204,7 +215,7 @@ with t2:
 st.divider()
 
 # =========================
-# INVENTORY
+# INVENTORY (WAREHOUSE-BASED)
 # =========================
 st.subheader("📦 Inventory Health")
 
@@ -213,7 +224,7 @@ col1, col2 = st.columns(2)
 col1.metric("Total Products", len(products))
 col2.metric("Low Stock Alerts", len(low_stock_items))
 
-st.warning("⚠️ Low Stock Items")
+st.warning("⚠️ Low Stock Items (Warehouse-Based)")
 st.dataframe(low_stock_items, use_container_width=True)
 
-st.success("Dashboard Fully Loaded 🚀")
+st.success("ERP Reports Engine Fully Warehouse-Integrated 🚀")
