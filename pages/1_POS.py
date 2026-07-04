@@ -84,23 +84,33 @@ if st.session_state.cart:
     st.markdown(f"### Total: {(subtotal + total_tax):,.0f} MMK")
     
     if st.button("💳 Pay & Print", type="primary"):
+        # ခြင်းတောင်းထဲမှာ ပစ္စည်းရှိမရှိ စစ်ဆေးခြင်း
+        if not st.session_state.cart:
+            st.warning("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
+            st.stop()
+
+        # Data ပြင်ဆင်ခြင်း (Tax & Discount အပါအဝင်)
         prepared_cart = []
         for item in st.session_state.cart:
             prepared_cart.append({
                 "id": int(item["id"]),
                 "qty": int(item["qty"]),
                 "selling_price": float(item["selling_price"]),
-                "tax_rate": float(item.get("tax_rate", 0)),
-                "discount_allowed": bool(item.get("discount_allowed", False))
+                "tax_rate": float(item.get("tax_rate", 0)), # Tax ကို အသေအချာ ထည့်ထားသည်
+                "discount_allowed": bool(item.get("discount_allowed", False)) # Discount ကို အသေအချာ ထည့်ထားသည်
             })
 
-        result = checkout_sale_rpc(prepared_cart, float(subtotal + total_tax), None)
+        # Database သို့ ပို့ခြင်း (Tax & Total အားလုံးပါဝင်သည်)
+        with st.spinner("အရောင်း စာရင်းသွင်းနေသည်..."):
+            # subtotal နှင့် total_tax တို့ကို တွက်ချက်ထားပြီးသားအတိုင်း ပို့ပေးခြင်း
+            result = checkout_sale_rpc(prepared_cart, float(subtotal + total_tax), None)
         
-        if isinstance(result, dict) and "error" in result:
+        # ရလဒ် စစ်ဆေးခြင်း
+        if result and isinstance(result, dict) and result.get("success"):
+            st.success("အရောင်း အောင်မြင်ပါသည်။")
+            st.session_state.cart = [] # အရောင်းအောင်မြင်မှ ခြင်းတောင်းရှင်းမည်
+            st.rerun() 
+        elif result and isinstance(result, dict) and "error" in result:
             st.error(f"DB Error: {result['error']}")
         else:
-            st.success("အရောင်း အောင်မြင်ပါသည်။")
-            st.session_state.cart = []
-            st.rerun()
-else:
-    st.info("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
+            st.error("အရောင်း စာရင်းသွင်းရာတွင် အမှားတစ်ခုခု ဖြစ်နေပါသည်။")
