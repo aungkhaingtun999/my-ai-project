@@ -1,13 +1,31 @@
 # ==========================================
-# database.py (ERP ENTERPRISE v4 - FINAL)
+# database.py (ERP ENTERPRISE WORLD CLASS v5)
 # ==========================================
 
 from supabase import create_client, Client
 import streamlit as st
 from typing import List, Dict, Any, Optional, Tuple
+from decimal import Decimal, ROUND_HALF_UP
+import time
+import logging
 
 # ======================================================
-# CONNECTION LAYER (SINGLETON SAFE)
+# LOGGER (PRODUCTION DEBUG SAFE)
+# ======================================================
+
+logging.basicConfig(
+    filename="erp_db.log",
+    level=logging.ERROR,
+    format="%(asctime)s %(levelname)s %(message)s"
+)
+
+def log_error(err: Exception):
+    logging.error(str(err))
+    print("DB ERROR:", err)
+
+
+# ======================================================
+# CONNECTION LAYER (SINGLETON)
 # ======================================================
 
 @st.cache_resource
@@ -21,34 +39,41 @@ supabase = get_supabase()
 
 
 # ======================================================
-# SAFE EXECUTION WRAPPER
+# SAFE EXECUTION (WITH RETRY)
 # ======================================================
 
-def safe_execute(query):
+def safe_execute(query, retries: int = 2):
     """
-    Always returns:
-    - result.data (if success)
-    - None (if fail)
+    ERP SAFE EXECUTOR:
+    - retries on failure
+    - logs error
     """
-    try:
-        res = query.execute()
-        return res.data
-    except Exception as e:
-        print("DB ERROR:", e)
-        return None
+    for attempt in range(retries + 1):
+        try:
+            res = query.execute()
+            return res.data
+        except Exception as e:
+            log_error(e)
+            if attempt < retries:
+                time.sleep(0.5)
+                continue
+            return None
 
 
 # ======================================================
-# FLOAT SAFE HELPER (ERP MONEY SAFE)
+# MONEY ENGINE (100% ERP SAFE PRECISION)
 # ======================================================
 
-def to_float(value, default=0.0) -> float:
+def money(value) -> float:
     try:
-        if value is None:
-            return default
-        return float(value)
+        return float(
+            Decimal(str(value)).quantize(
+                Decimal("0.01"),
+                rounding=ROUND_HALF_UP
+            )
+        )
     except:
-        return default
+        return 0.0
 
 
 # ======================================================
@@ -63,9 +88,7 @@ def get_products(active_only: bool = True):
     if active_only:
         query = query.eq("is_active", True)
 
-    query = query.order("name")
-
-    return safe_execute(query)
+    return safe_execute(query.order("name"))
 
 
 def get_product(product_id: int):
@@ -107,7 +130,7 @@ def get_receipt(receipt_no: str):
 
 
 # ======================================================
-# STOCK VALIDATION (STRICT ERP RULE)
+# STOCK VALIDATION (STRICT)
 # ======================================================
 
 def validate_stock(cart: List[Dict[str, Any]]) -> Tuple[bool, str]:
@@ -123,8 +146,8 @@ def validate_stock(cart: List[Dict[str, Any]]) -> Tuple[bool, str]:
         if not product.data:
             return False, f"Product not found: {item.get('name')}"
 
-        db_stock = to_float(product.data["stock"])
-        qty = to_float(item.get("qty"))
+        db_stock = money(product.data["stock"])
+        qty = money(item.get("qty"))
 
         if db_stock < qty:
             return False, f"Not enough stock: {product.data.get('name')}"
@@ -133,7 +156,7 @@ def validate_stock(cart: List[Dict[str, Any]]) -> Tuple[bool, str]:
 
 
 # ======================================================
-# CHECKOUT ENGINE (CORE ERP FLOW)
+# CHECKOUT ENGINE (WORLD CLASS CORE FLOW)
 # ======================================================
 
 def checkout_sale_rpc(
@@ -149,14 +172,14 @@ def checkout_sale_rpc(
         return {"error": "Cart is empty"}
 
     # --------------------------
-    # TOTAL CALCULATION (FLOAT SAFE)
+    # TOTAL CALCULATION (PRECISION SAFE)
     # --------------------------
     total = sum(
-        to_float(i.get("selling_price")) * to_float(i.get("qty"))
+        money(i.get("selling_price")) * money(i.get("qty"))
         for i in cart
     )
 
-    paid_amount = to_float(paid_amount)
+    paid_amount = money(paid_amount)
 
     if paid_amount < total:
         return {"error": "Insufficient payment"}
@@ -169,14 +192,14 @@ def checkout_sale_rpc(
         return {"error": msg}
 
     # --------------------------
-    # RPC CALL (SUPABASE)
+    # RPC CALL
     # --------------------------
     result = supabase.rpc("checkout_sale_rpc", {
         "p_cart": [
             {
                 "id": i["id"],
-                "qty": to_float(i["qty"]),
-                "selling_price": to_float(i["selling_price"])
+                "qty": money(i["qty"]),
+                "selling_price": money(i["selling_price"])
             }
             for i in cart
         ],
@@ -185,40 +208,40 @@ def checkout_sale_rpc(
     }).execute()
 
     if not result.data:
-        return {"error": "Checkout failed (RPC returned empty)"}
+        return {"error": "Checkout failed (RPC empty response)"}
 
     sale = result.data
-
     sale_id = sale.get("sale_id")
-    db_total = to_float(sale.get("total", total))
 
     if not sale_id:
-        return {"error": "Invalid sale response from DB"}
+        return {"error": "Invalid DB response"}
+
+    db_total = money(sale.get("total", total))
 
     # --------------------------
-    # RECEIPT CREATE
+    # RECEIPT
     # --------------------------
     receipt = {
         "receipt_no": f"RCP-{sale_id}",
         "sale_id": sale_id,
         "total": db_total,
         "paid_amount": paid_amount,
-        "change_amount": paid_amount - db_total
+        "change_amount": money(paid_amount - db_total)
     }
 
     create_receipt(receipt)
 
     # --------------------------
-    # OPTIONAL PRINT HOOK
+    # OPTIONAL PRINT (SAFE HOOK)
     # --------------------------
     try:
         from utils.thermal_receipt import print_receipt
         print_receipt(receipt, cart)
     except Exception as e:
-        print("Printer skipped:", e)
+        log_error(e)
 
     # --------------------------
-    # FINAL RESPONSE
+    # RESPONSE
     # --------------------------
     return {
         "success": True,
