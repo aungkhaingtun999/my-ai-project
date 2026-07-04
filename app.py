@@ -3,7 +3,7 @@ from auth import login_page
 from sidebar import show_sidebar
 
 # ==========================================
-# PAGE CONFIG (MUST BE FIRST)
+# PAGE CONFIG
 # ==========================================
 st.set_page_config(
     page_title="Myanmar ERP Enterprise",
@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# SESSION INIT (CRASH SAFE ERP STYLE)
+# SESSION INIT
 # ==========================================
 def init_state():
     defaults = {
@@ -32,14 +32,14 @@ def init_state():
 init_state()
 
 # ==========================================
-# AUTH CHECK (STRICT + SAFE)
+# AUTH CHECK
 # ==========================================
 def is_authenticated():
     user = st.session_state.get("user")
     return isinstance(user, dict) and user.get("id") is not None
 
 # ==========================================
-# ROLE GETTER (SAFE + NO SPOOF)
+# ROLE SAFE
 # ==========================================
 def get_role():
     user = st.session_state.get("user")
@@ -49,15 +49,11 @@ def get_role():
 
     role = user.get("role", "Cashier")
 
-    # prevent fake roles
     allowed_roles = ["Admin", "Manager", "Cashier"]
-    if role not in allowed_roles:
-        return "Cashier"
-
-    return role
+    return role if role in allowed_roles else "Cashier"
 
 # ==========================================
-# LOGOUT (FULL RESET SAFE)
+# LOGOUT
 # ==========================================
 def logout():
     st.session_state.clear()
@@ -65,7 +61,7 @@ def logout():
     st.rerun()
 
 # ==========================================
-# PAGE ROUTER (ERP ENGINE)
+# PAGE ROUTER
 # ==========================================
 def page_router():
 
@@ -74,13 +70,11 @@ def page_router():
 
     st.markdown("---")
 
-    # ================= DASHBOARD =================
     if page == "dashboard":
         st.title("🏭 ERP Control Dashboard")
         st.subheader(f"Welcome, {user.get('full_name') or user.get('name', 'User')} 🚀")
 
         c1, c2, c3, c4 = st.columns(4)
-
         c1.metric("System", "ACTIVE 🟢")
         c2.metric("Role", st.session_state.role)
         c3.metric("Mode", "Enterprise ERP")
@@ -93,75 +87,56 @@ def page_router():
             "✔ Secure Session Layer Active"
         )
 
-    # ================= MODULES =================
     elif page == "sales":
         st.title("🛒 Sales Module")
-        st.info("POS → ERP Sales Engine Active")
 
     elif page == "purchase":
         st.title("📦 Purchase Module")
-        st.info("Procurement System Active")
 
     elif page == "transfer":
         st.title("🔁 Warehouse Transfer")
-        st.info("Inventory Movement Engine")
 
     elif page == "reports":
         st.title("📊 Reports Engine")
-        st.info("BI + Analytics Module")
 
     elif page == "settings":
         st.title("⚙️ ERP Settings Hub")
-        st.info("System Configuration Center")
 
     elif page == "customers":
         st.title("👥 CRM Module")
-        st.info("Customer Management")
 
     elif page == "suppliers":
         st.title("🏭 Supplier Module")
-        st.info("Supplier Management")
 
     else:
         st.warning("Page not found")
 
 # ==========================================
-# MAIN APP CONTROLLER
+# MAIN APP
 # ==========================================
 def main():
 
-    # 🔐 HARD GATE (NO EXCEPTION)
-    if not st.session_state.get("user"):
+    # 🔐 LOGIN GATE (ABSOLUTE RULE)
+    if not is_authenticated():
         login_page()
-        st.stop()   # 🔥 IMPORTANT FIX (NOT return)
+        st.stop()
 
-    # ONLY AFTER LOGIN
-    show_sidebar()
-    page_router()
-      
-
-    # sync role safely
+    # sync role
     st.session_state.role = get_role()
 
-    # =========================
-    # SIDEBAR (ONLY AFTER LOGIN)
-    # =========================
+    # sidebar ONLY after login
     show_sidebar()
 
-    # =========================
-    # MAIN PAGE RENDER
-    # =========================
+    # render page
     page_router()
 
-    # =========================
-    # GLOBAL LOGOUT
-    # =========================
+    # logout button
     st.divider()
 
     if st.button("🚪 Logout", use_container_width=True):
         logout()
 
 # ==========================================
-# RUN APP
+# RUN
 # ==========================================
 main()
