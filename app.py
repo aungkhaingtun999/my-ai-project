@@ -1,6 +1,5 @@
 import streamlit as st
 from auth import login_page
-from guards import require_login
 from sidebar import show_sidebar
 
 # ==========================================
@@ -14,7 +13,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# SESSION STATE INIT (STRICT ERP STYLE)
+# SESSION INIT (SAFE + MINIMAL)
 # ==========================================
 def init_state():
     defaults = {
@@ -27,108 +26,92 @@ def init_state():
     }
 
     for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+        st.session_state.setdefault(k, v)
 
 init_state()
 
 # ==========================================
-# AUTH CHECK (SAFE + SCALABLE)
+# AUTH CHECK (CRASH SAFE)
 # ==========================================
-def is_authenticated() -> bool:
+def is_authenticated():
     user = st.session_state.get("user")
-
-    if not user:
-        return False
-
-    if isinstance(user, dict):
-        return bool(user.get("id"))
-
-    if isinstance(user, str):
-        return len(user.strip()) > 0
-
-    return False
+    return isinstance(user, dict) and bool(user.get("id"))
 
 # ==========================================
-# ROLE HELPER (ERP READY)
+# ROLE GETTER (SAFE)
 # ==========================================
 def get_role():
     user = st.session_state.get("user")
-
     if isinstance(user, dict):
         return user.get("role", "Cashier")
-
     return "Cashier"
 
 # ==========================================
-# LOGOUT (FULL RESET SAFE)
+# LOGOUT (SAFE RESET)
 # ==========================================
 def logout():
-    keys_to_keep = {}
-
     st.session_state.clear()
-
-    # restore clean session
-    for k, v in {
-        "user": None,
-        "role": None,
-        "active_page": "dashboard",
-        "warehouse_id": None,
-        "cart": [],
-        "theme": "light"
-    }.items():
-        st.session_state[k] = v
-
+    init_state()
     st.rerun()
 
 # ==========================================
-# PAGE ROUTER (ERP CORE ENGINE)
+# PAGE ROUTER
 # ==========================================
 def page_router():
+
     page = st.session_state.get("active_page", "dashboard")
 
     st.markdown("---")
 
+    # ================= DASHBOARD =================
     if page == "dashboard":
+        user = st.session_state.get("user") or {}
+
         st.title("🏭 ERP Control Dashboard")
-        st.subheader(f"Welcome, {st.session_state.user.get('name','User') if isinstance(st.session_state.user, dict) else 'User'} 🚀")
+        st.subheader(f"Welcome, {user.get('full_name', 'User')} 🚀")
 
-        col1, col2, col3, col4 = st.columns(4)
+        c1, c2, c3, c4 = st.columns(4)
 
-        col1.metric("System", "ACTIVE 🟢")
-        col2.metric("Role", st.session_state.role)
-        col3.metric("Mode", "Enterprise ERP")
-        col4.metric("Backend", "Supabase ⚡")
+        c1.metric("System", "ACTIVE 🟢")
+        c2.metric("Role", st.session_state.role)
+        c3.metric("Mode", "Enterprise ERP")
+        c4.metric("Backend", "Supabase ⚡")
 
-        st.info("✔ ERP Core Engine Loaded\n✔ Warehouse System Ready\n✔ RPC Checkout Enabled\n✔ Multi-module Architecture Active")
+        st.info(
+            "✔ ERP Core Engine Loaded\n"
+            "✔ Warehouse System Ready\n"
+            "✔ POS + ERP Hybrid Mode\n"
+            "✔ Secure Session Layer Active"
+        )
 
+    # ================= MODULES =================
     elif page == "sales":
-        st.title("🛒 Sales Module Loaded")
-        st.info("Sales engine connected (POS → ERP mode)")
+        st.title("🛒 Sales Module")
+        st.info("POS → ERP Sales Engine Active")
 
     elif page == "purchase":
-        st.title("📦 Purchase Module Loaded")
-        st.info("Procurement system active")
+        st.title("📦 Purchase Module")
+        st.info("Procurement System Active")
 
     elif page == "transfer":
-        st.title("🔁 Warehouse Transfer Module")
-        st.info("Inventory movement system ready")
+        st.title("🔁 Warehouse Transfer")
+        st.info("Inventory Movement Engine")
 
     elif page == "reports":
         st.title("📊 Reports Engine")
-        st.info("BI + AI analytics module")
+        st.info("BI + Analytics Module")
 
     elif page == "settings":
         st.title("⚙️ ERP Settings Hub")
-        st.info("System configuration center")
+        st.info("System Configuration Center")
 
     elif page == "customers":
         st.title("👥 CRM Module")
-        st.info("Customer management system")
+        st.info("Customer Management")
 
     elif page == "suppliers":
         st.title("🏭 Supplier Module")
-        st.info("Supplier management system")
+        st.info("Supplier Management")
 
     else:
         st.warning("Page not found")
@@ -138,9 +121,7 @@ def page_router():
 # ==========================================
 def main():
 
-    # --------------------------
-    # LOGIN GATE
-    # --------------------------
+    # 🔐 LOGIN GATE (CRITICAL FIX)
     if not is_authenticated():
         login_page()
         return
@@ -148,28 +129,18 @@ def main():
     # role sync
     st.session_state.role = get_role()
 
-    # --------------------------
-    # SIDEBAR (ERP NAVIGATION)
-    # --------------------------
+    # sidebar only when logged in
     show_sidebar()
 
-    # --------------------------
-    # ACTIVE PAGE RENDER
-    # --------------------------
+    # render page
     page_router()
 
-    # --------------------------
-    # GLOBAL LOGOUT
-    # --------------------------
+    # logout
     st.divider()
-
-    col1, col2, col3 = st.columns([6, 2, 2])
-
-    with col3:
-        if st.button("🚪 Logout", use_container_width=True):
-            logout()
+    if st.button("🚪 Logout", use_container_width=True):
+        logout()
 
 # ==========================================
-# RUN APP
+# RUN
 # ==========================================
 main()
