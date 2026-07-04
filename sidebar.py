@@ -11,6 +11,7 @@ MENU = {
         ("🧾", "Reports", "pages/3_Reports.py"),
         ("👥", "Users", "pages/4_Users.py"),
         ("↩️", "Refund", "pages/5_Refund.py"),
+        ("⚙️", "Settings", "pages/12_Settings.py"),
     ],
     "Manager": [
         ("🛒", "POS", "pages/1_POS.py"),
@@ -23,50 +24,56 @@ MENU = {
 }
 
 # ==========================================
-# AUTH CHECK (STRICT)
+# SAFE AUTH CHECK
 # ==========================================
 def is_logged_in():
     user = st.session_state.get("user")
-
     return isinstance(user, dict) and user.get("id") is not None
 
 
 # ==========================================
-# SAFE USER
-# ==========================================
-def get_username():
-    user = st.session_state.get("user")
-    if isinstance(user, dict):
-        return user.get("name", "Guest")
-    return "Guest"
-
-
-# ==========================================
-# SAFE ROLE (NO SPOOF)
+# SAFE ROLE (SERVER-TRUSTED ONLY)
 # ==========================================
 def get_role():
     user = st.session_state.get("user")
 
-    if isinstance(user, dict):
-        role = user.get("role", "Cashier")
-        return role if role in MENU else "Cashier"
+    if not isinstance(user, dict):
+        return "Cashier"
 
-    return "Cashier"
+    role = user.get("role", "Cashier")
+
+    # prevent fake role injection
+    if role not in MENU:
+        return "Cashier"
+
+    return role
 
 
 # ==========================================
-# SIDEBAR
+# SAFE USER NAME
+# ==========================================
+def get_username():
+    user = st.session_state.get("user")
+
+    if isinstance(user, dict):
+        return user.get("name") or user.get("email") or "User"
+
+    return "Guest"
+
+
+# ==========================================
+# SIDEBAR (SECURE CORE)
 # ==========================================
 def show_sidebar():
 
-    # ❗ IMPORTANT: BLOCK BEFORE RENDER
+    # 🔐 HARD BLOCK (CRITICAL FIX)
     if not is_logged_in():
-        return
+        return   # ❌ NO SIDEBAR BEFORE LOGIN
 
     with st.sidebar:
 
-        st.title("🛒 ERP SYSTEM")
-        st.caption("Ultra v3 Controller")
+        st.title("🏭 ERP SYSTEM")
+        st.caption("Enterprise Control Center")
 
         st.divider()
 
@@ -79,29 +86,32 @@ def show_sidebar():
         st.divider()
 
         # =========================
-        # LANGUAGE
+        # LANGUAGE SAFE STORE
         # =========================
-        lang = st.selectbox(
+        if "language" not in st.session_state:
+            st.session_state.language = "English"
+
+        lang = st.radio(
             "Language",
             ["English", "မြန်မာ"],
-            index=0 if st.session_state.get("language", "English") == "English" else 1
+            index=0 if st.session_state.language == "English" else 1
         )
         st.session_state.language = lang
 
         st.divider()
 
         # =========================
-        # NAVIGATION
+        # NAVIGATION (SAFE SWITCH)
         # =========================
         st.subheader("📂 Navigation")
 
         for icon, title, page in MENU.get(role, MENU["Cashier"]):
 
-            label = f"{icon} {title}"
+            if st.button(f"{icon} {title}", key=f"nav_{role}_{page}"):
 
-            if st.button(label, key=f"nav_{role}_{page}"):
+                # IMPORTANT: only set state, not direct switch conflict
                 st.session_state.active_page = page
-                st.switch_page(page)
+                st.rerun()
 
         st.divider()
 
@@ -111,13 +121,14 @@ def show_sidebar():
         st.success("🟢 System Online")
 
         # =========================
-        # LOGOUT (CLEAN RESET)
+        # LOGOUT (FULL RESET SAFE)
         # =========================
         if st.button("🚪 Logout", use_container_width=True):
 
-            st.session_state.clear()
+            # FULL CLEAN RESET (NO DATA LEAK)
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
 
-            # safe re-init only essentials
             st.session_state.update({
                 "user": None,
                 "role": None,
@@ -125,4 +136,4 @@ def show_sidebar():
                 "active_page": "pages/1_POS.py"
             })
 
-            st.switch_page("app.py")
+            st.rerun()
