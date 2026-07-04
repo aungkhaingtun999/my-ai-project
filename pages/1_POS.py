@@ -1,9 +1,9 @@
 import streamlit as st
 from database import get_products, checkout_sale_rpc
 
-st.set_page_config(page_title="POS v7 Shopify UX", layout="wide")
+st.set_page_config(page_title="POS v7 Smart UX FIX", layout="wide")
 
-st.title("🛒 POS v7 Shopify Infinite Smart Search")
+st.title("🛒 POS Smart ERP (Dropdown UX FIXED)")
 
 
 # ======================================================
@@ -17,16 +17,13 @@ def safe_float(v):
 
 
 # ======================================================
-# SESSION INIT
+# SESSION
 # ======================================================
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
 if "selected" not in st.session_state:
     st.session_state.selected = None
-
-if "limit" not in st.session_state:
-    st.session_state.limit = 10   # pagination size
 
 
 # ======================================================
@@ -36,14 +33,11 @@ products = get_products() or []
 
 
 # ======================================================
-# SEARCH INPUT (LIVE TYPEAHEAD)
+# SEARCH
 # ======================================================
 search = st.text_input("🔍 Search product (name / barcode / SKU)").strip().lower()
 
 
-# ======================================================
-# NORMALIZE + SCORE ENGINE
-# ======================================================
 def norm(v):
     return str(v or "").lower().replace(" ", "")
 
@@ -70,70 +64,69 @@ def score(p, q):
 
 
 # ======================================================
-# FILTER PRODUCTS
+# FILTER
 # ======================================================
-filtered = []
+results = []
 
 if search:
     for p in products:
         sc = score(p, search)
         if sc > 0:
             p["_score"] = sc
-            filtered.append(p)
+            results.append(p)
 
-    filtered.sort(key=lambda x: x["_score"], reverse=True)
-
-# LIMIT (infinite simulation)
-visible = filtered[:st.session_state.limit]
+    results.sort(key=lambda x: x["_score"], reverse=True)
+    results = results[:6]   # dropdown limit
 
 
 # ======================================================
-# FLOAT DROPDOWN UI (CUSTOM PANEL)
+# FLOAT DROPDOWN (REAL FIX)
 # ======================================================
-if search:
+dropdown = st.empty()
 
-    st.markdown("### 🔍 Search Results")
+selected = None
 
-    if not visible:
-        st.info("No products found")
+with dropdown.container():
 
-    for p in visible:
+    if search and results:
 
-        col1, col2 = st.columns([6, 2])
+        st.markdown("### 🔎 Results")
 
-        with col1:
-            if st.button(
-                f"{p['name']} | {p.get('barcode')} | {p.get('sku')}",
-                key=f"sel_{p['id']}"
-            ):
-                st.session_state.selected = p
+        # RADIO = dropdown replacement (clean UX)
+        choice = st.radio(
+            "Select product",
+            options=[
+                f"{p['name']} | {p.get('barcode')} | {p.get('sku')}"
+                for p in results
+            ],
+            label_visibility="collapsed"
+        )
 
-        with col2:
-            st.write(f"{safe_float(p.get('selling_price')):,.0f} MMK")
+        selected = results[
+            [
+                f"{p['name']} | {p.get('barcode')} | {p.get('sku')}"
+                for p in results
+            ].index(choice)
+        ]
 
-    # ==================================================
-    # LOAD MORE (INFINITE SCROLL SIMULATION)
-    # ==================================================
-    if len(filtered) > st.session_state.limit:
-        if st.button("⬇ Load more"):
-            st.session_state.limit += 10
-            st.rerun()
+    elif search:
+        st.info("No matching product")
 
 
 # ======================================================
-# SELECTED PRODUCT DETAIL (ONLY ONE)
+# CLEAR DROP WHEN SELECTED
 # ======================================================
-if st.session_state.selected:
+if selected:
+    dropdown.empty()  # 🔥 hides dropdown → real UX feel
 
-    p = st.session_state.selected
 
     st.divider()
-    st.subheader("🛒 Product Detail")
+    st.subheader("🛒 Selected Product")
 
-    st.write(p["name"])
-    st.caption(f"{p.get('barcode')} | {p.get('sku')} | {p.get('unit','pcs')}")
+    stock = safe_float(selected.get("stock"))
 
-    stock = safe_float(p.get("stock"))
+    st.write(selected["name"])
+    st.caption(f"{selected.get('barcode')} | {selected.get('sku')}")
 
     qty = st.number_input("Qty", 1, 100, 1)
 
@@ -143,17 +136,17 @@ if st.session_state.selected:
             st.error("Out of stock")
         else:
             for item in st.session_state.cart:
-                if item["id"] == p["id"]:
+                if item["id"] == selected["id"]:
                     item["qty"] += qty
                     break
             else:
                 st.session_state.cart.append({
-                    "id": p["id"],
-                    "name": p["name"],
-                    "barcode": p["barcode"],
-                    "sku": p["sku"],
-                    "unit": p.get("unit", "pcs"),
-                    "selling_price": safe_float(p.get("selling_price")),
+                    "id": selected["id"],
+                    "name": selected["name"],
+                    "barcode": selected["barcode"],
+                    "sku": selected["sku"],
+                    "unit": selected.get("unit", "pcs"),
+                    "selling_price": safe_float(selected.get("selling_price")),
                     "qty": qty
                 })
 
@@ -219,5 +212,4 @@ if st.button("💳 Pay & Print"):
     st.info(f"Receipt: {result.get('receipt_no')}")
 
     st.session_state.cart = []
-    st.session_state.selected = None
     st.rerun()
