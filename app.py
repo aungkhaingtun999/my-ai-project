@@ -3,7 +3,7 @@ from auth import login_page
 from sidebar import show_sidebar
 
 # ==========================================
-# PAGE CONFIG
+# PAGE CONFIG (MUST BE FIRST)
 # ==========================================
 st.set_page_config(
     page_title="Myanmar ERP Enterprise",
@@ -13,16 +13,17 @@ st.set_page_config(
 )
 
 # ==========================================
-# SESSION INIT (SAFE + MINIMAL)
+# SESSION INIT (CRASH SAFE ERP STYLE)
 # ==========================================
 def init_state():
     defaults = {
         "user": None,
-        "role": None,
+        "role": "Cashier",
         "active_page": "dashboard",
         "warehouse_id": None,
         "cart": [],
-        "theme": "light"
+        "theme": "light",
+        "language": "English"
     }
 
     for k, v in defaults.items():
@@ -31,23 +32,32 @@ def init_state():
 init_state()
 
 # ==========================================
-# AUTH CHECK (CRASH SAFE)
+# AUTH CHECK (STRICT + SAFE)
 # ==========================================
 def is_authenticated():
     user = st.session_state.get("user")
-    return isinstance(user, dict) and bool(user.get("id"))
+    return isinstance(user, dict) and user.get("id") is not None
 
 # ==========================================
-# ROLE GETTER (SAFE)
+# ROLE GETTER (SAFE + NO SPOOF)
 # ==========================================
 def get_role():
     user = st.session_state.get("user")
-    if isinstance(user, dict):
-        return user.get("role", "Cashier")
-    return "Cashier"
+
+    if not isinstance(user, dict):
+        return "Cashier"
+
+    role = user.get("role", "Cashier")
+
+    # prevent fake roles
+    allowed_roles = ["Admin", "Manager", "Cashier"]
+    if role not in allowed_roles:
+        return "Cashier"
+
+    return role
 
 # ==========================================
-# LOGOUT (SAFE RESET)
+# LOGOUT (FULL RESET SAFE)
 # ==========================================
 def logout():
     st.session_state.clear()
@@ -55,20 +65,19 @@ def logout():
     st.rerun()
 
 # ==========================================
-# PAGE ROUTER
+# PAGE ROUTER (ERP ENGINE)
 # ==========================================
 def page_router():
 
     page = st.session_state.get("active_page", "dashboard")
+    user = st.session_state.get("user") or {}
 
     st.markdown("---")
 
     # ================= DASHBOARD =================
     if page == "dashboard":
-        user = st.session_state.get("user") or {}
-
         st.title("🏭 ERP Control Dashboard")
-        st.subheader(f"Welcome, {user.get('full_name', 'User')} 🚀")
+        st.subheader(f"Welcome, {user.get('full_name') or user.get('name', 'User')} 🚀")
 
         c1, c2, c3, c4 = st.columns(4)
 
@@ -117,30 +126,37 @@ def page_router():
         st.warning("Page not found")
 
 # ==========================================
-# MAIN APP
+# MAIN APP CONTROLLER
 # ==========================================
 def main():
 
-    # 🔐 LOGIN GATE (CRITICAL FIX)
+    # 🔐 LOGIN GATE (ABSOLUTE RULE)
     if not is_authenticated():
         login_page()
         return
 
-    # role sync
+    # sync role safely
     st.session_state.role = get_role()
 
-    # sidebar only when logged in
+    # =========================
+    # SIDEBAR (ONLY AFTER LOGIN)
+    # =========================
     show_sidebar()
 
-    # render page
+    # =========================
+    # MAIN PAGE RENDER
+    # =========================
     page_router()
 
-    # logout
+    # =========================
+    # GLOBAL LOGOUT
+    # =========================
     st.divider()
+
     if st.button("🚪 Logout", use_container_width=True):
         logout()
 
 # ==========================================
-# RUN
+# RUN APP
 # ==========================================
 main()
