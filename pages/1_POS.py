@@ -11,10 +11,10 @@ st.markdown("""
         font-family: 'Courier New', Courier, monospace; width: 350px; margin: auto;
         box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
     }
-    .receipt-header { text-align: center; font-weight: bold; font-size: 1.2em; margin-bottom: 10px; }
+    .receipt-header { text-align: center; font-weight: bold; font-size: 1.3em; margin-bottom: 10px; }
     .receipt-divider { border-top: 1px dashed #000; margin: 10px 0; }
-    .receipt-item { display: flex; justify-content: space-between; margin-bottom: 5px; }
-    .receipt-total { font-weight: bold; font-size: 1.1em; }
+    .receipt-item { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.95em; }
+    .receipt-total { font-weight: bold; font-size: 1.1em; border-top: 1px solid #000; padding-top: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -25,6 +25,7 @@ product_map = {f"{p['name']} ({p.get('sku', '')})": p for p in products}
 
 st.subheader("🛒 Professional POS")
 
+# Input Section
 col1, col2 = st.columns(2)
 barcode = col1.text_input("📟 Barcode", key="bc_in")
 name = col2.selectbox("🔍 Search Name", [""] + list(product_map.keys()), key="name_in")
@@ -42,6 +43,7 @@ if selected:
         st.session_state.cart.append({**selected, "qty": qty, "uid": uid})
         st.rerun()
 
+# Cart Table
 if st.session_state.cart:
     st.divider()
     subtotal = 0
@@ -65,20 +67,38 @@ if st.session_state.cart:
         res = checkout_sale_rpc(st.session_state.cart, final_total, None)
         if res and res.get("success"):
             st.success("Payment Successful!")
-            # Render World Class Receipt
-            receipt_items = "".join([f'<div class="receipt-item"><span>{i["name"][:15]} x{i["qty"]}</span> <span>{(float(i["selling_price"])*i["qty"]):,.0f}</span></div>' for i in st.session_state.cart])
+            
+            # Receipt Rendering
+            # ပစ္စည်းအမည် | အရေအတွက် x ဈေးနှုန်း | စုစုပေါင်း
+            receipt_items = ""
+            for i in st.session_state.cart:
+                u_price = float(i["selling_price"])
+                line_total = u_price * i["qty"]
+                receipt_items += f"""
+                <div class="receipt-item">
+                    <span>{i['name'][:12]} x{i['qty']}</span>
+                    <span>{u_price:,.0f}</span>
+                    <span>{line_total:,.0f}</span>
+                </div>
+                """
+            
             st.markdown(f"""
             <div class="receipt-container">
                 <div class="receipt-header">AURORA LUXE RETAIL<br>Tachileik Branch</div>
                 <div class="receipt-divider"></div>
+                <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:0.8em;">
+                    <span>ITEM</span><span>PRICE</span><span>TOTAL</span>
+                </div>
+                <div class="receipt-divider"></div>
                 {receipt_items}
                 <div class="receipt-divider"></div>
-                <div class="receipt-item"><span>SUBTOTAL</span> <span>{subtotal:,.0f}</span></div>
-                <div class="receipt-item"><span>DISCOUNT</span> <span>-{disc:,.0f}</span></div>
-                <div class="receipt-item receipt-total"><span>TOTAL</span> <span>{final_total:,.0f} MMK</span></div>
-                <div style="text-align:center; margin-top:15px;">Thank You!</div>
+                <div class="receipt-item"><span>SUBTOTAL</span> <span></span> <span>{subtotal:,.0f}</span></div>
+                <div class="receipt-item"><span>DISCOUNT</span> <span></span> <span>-{disc:,.0f}</span></div>
+                <div class="receipt-item receipt-total"><span>GRAND TOTAL</span> <span></span> <span>{final_total:,.0f}</span></div>
+                <div style="text-align:center; margin-top:20px; font-size: 0.9em;">Thank You!</div>
             </div>
             """, unsafe_allow_html=True)
+            
             if st.button("New Sale"):
                 st.session_state.cart = []
                 st.rerun()
