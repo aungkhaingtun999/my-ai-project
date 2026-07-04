@@ -98,10 +98,31 @@ if st.session_state.cart:
     subtotal = sum(i["selling_price"] * i["qty"] for i in st.session_state.cart)
     st.markdown(f"### Total: {subtotal:,.0f} MMK")
     
+    # [FIX] Pay & Print Button Logic အတွက် အစားထိုးရန်
     if st.button("💳 Pay & Print", type="primary"):
-        # API ကို clean data ပေးပို့ခြင်း
-        checkout_sale_rpc(st.session_state.cart, paid_amount=subtotal)
-        st.session_state.cart = []
-        st.rerun()
-else:
-    st.info("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
+        if not st.session_state.cart:
+            st.error("ခြင်းတောင်း ဗလာဖြစ်နေပါသည်။")
+            st.stop()
+
+        # Database Schema နှင့် ကိုက်ညီသော သန့်စင်ပြီးသား Data ဖွဲ့စည်းပုံ
+        # Schema တွင်ပါသော အဓိကလိုအပ်သည့် column များသာ ထည့်ပါ
+        prepared_cart = []
+        for item in st.session_state.cart:
+            prepared_cart.append({
+                "id": int(item["id"]),             # bigint
+                "qty": int(item["qty"]),           # integer
+                "selling_price": float(item["selling_price"]) # numeric
+            })
+
+        # API သို့ စနစ်တကျ ပေးပို့ခြင်း
+        try:
+            result = checkout_sale_rpc(prepared_cart, paid_amount=float(subtotal))
+            
+            if isinstance(result, dict) and result.get("error"):
+                st.error(f"Error: {result.get('error')}")
+            else:
+                st.success("အရောင်း အောင်မြင်ပါသည်။")
+                st.session_state.cart = [] # Cart ရှင်းခြင်း
+                st.rerun()
+        except Exception as e:
+            st.error(f"API Connection Error: {str(e)}")
