@@ -3,14 +3,6 @@ from database import get_products, checkout_sale_rpc
 
 st.set_page_config(page_title="Professional POS", layout="centered")
 
-# CSS: Professional Receipt Layout
-st.markdown("""
-<style>
-    .receipt-box { background: white; color: black; padding: 20px; border: 1px solid #333; 
-                   font-family: 'Courier New', monospace; width: 320px; margin: auto; }
-</style>
-""", unsafe_allow_html=True)
-
 if "cart" not in st.session_state: st.session_state.cart = []
 if "selection_pool" not in st.session_state: st.session_state.selection_pool = []
 
@@ -19,24 +11,39 @@ search_options = [""] + [f"{p.get('barcode', '')} | {p['name']} ({p.get('sku', '
 
 st.subheader("🛒 Professional POS")
 
-# Unified Search
+# 1. Search Box
 search_selection = st.selectbox("🔍 Search Barcode or Product Name", search_options, key="search_in")
 
 if search_selection and search_selection != "":
     selected = next((p for p in products if f"{p.get('barcode', '')} | {p['name']} ({p.get('sku', '')})" == search_selection), None)
     if selected:
-        st.session_state.selection_pool.append({**selected, "uid": f"{selected['id']}_{len(st.session_state.selection_pool)}"})
+        uid = f"{selected['id']}_{len(st.session_state.selection_pool)}"
+        st.session_state.selection_pool.append({**selected, "uid": uid})
         st.rerun()
 
-# Selection Pool
+# 2. Selection Pool (ယာယီစာရင်းကို ရှင်းလင်းစွာပြသခြင်း)
 if st.session_state.selection_pool:
-    st.write("✅ **ရွေးထားသော ပစ္စည်းများ:**", ", ".join([i['name'] for i in st.session_state.selection_pool]))
-    if st.button("📥 Add All to Cart", type="primary"):
+    st.write("--- ယာယီရွေးထားသော ပစ္စည်းများ ---")
+    
+    # ယာယီစာရင်းကို List ပုံစံပြပြီး ဖြုတ်လို့ရအောင်လုပ်ခြင်း
+    for i, item in enumerate(st.session_state.selection_pool):
+        c1, c2 = st.columns([4, 1])
+        c1.write(f"{i+1}. {item['name']}")
+        if c2.button("❌", key=f"del_pool_{item['uid']}"):
+            st.session_state.selection_pool.pop(i)
+            st.rerun()
+
+    # Add & Clear Buttons
+    col_a, col_b = st.columns(2)
+    if col_a.button("📥 Add All to Cart", type="primary"):
         st.session_state.cart.extend(st.session_state.selection_pool)
         st.session_state.selection_pool = []
         st.rerun()
+    if col_b.button("🗑 Clear All Selection"):
+        st.session_state.selection_pool = []
+        st.rerun()
 
-# Cart Display
+# 3. Cart Display
 if st.session_state.cart:
     st.divider()
     subtotal = 0
@@ -46,10 +53,12 @@ if st.session_state.cart:
         c = st.columns([2, 1, 1, 0.5])
         c[0].write(item['name'])
         c[1].write(f"{float(item['selling_price']):,.0f}")
-        item['qty'] = c[2].number_input("Qty", 1, 99, item['qty'], key=f"q_{item['uid']}")
+        item['qty'] = c[2].number_input("Qty", 1, 99, item.get('qty', 1), key=f"q_{item['uid']}")
         c[3].button("🗑", key=f"del_{item['uid']}", on_click=delete_item, args=(item['uid'],))
         subtotal += float(item['selling_price']) * item['qty']
 
+    # Checkout Section... (ယခင်ကအတိုင်း Receipt ပုံစံ ဆက်ထားပါ)
+    # ... (Checkout logic ထည့်ရန်)
     st.divider()
     tax_rate = st.number_input("Total Tax %", 0.0, 100.0, 0.0)
     discount = st.number_input("Total Discount", 0.0, 100000.0, 0.0)
