@@ -1,4 +1,5 @@
 import streamlit as st
+("🧾", "Receipt Viewer", "pages/6_Receipt_Viewer.py")
 
 # ==========================================
 # MENU CONFIG (ROLE BASED ERP)
