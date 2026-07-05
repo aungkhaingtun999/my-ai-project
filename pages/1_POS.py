@@ -1,6 +1,13 @@
 import streamlit as st
 import time
 from database import get_products, checkout_sale_rpc
+# app.py ကနေ လိုအပ်တဲ့ auth function ကို ခေါ်သုံးပါ
+from auth import is_authenticated 
+
+# 🛑 SECURE GATE
+if not is_authenticated():
+    st.error("ကျေးဇူးပြု၍ Login အရင်ဝင်ပေးပါ။")
+    st.stop()
 
 st.set_page_config(page_title="Professional POS", layout="centered")
 
@@ -16,7 +23,7 @@ st.markdown("""
     .receipt-grid { display: grid; grid-template-columns: 100px 40px 80px 80px; gap: 5px; font-size: 0.9em; }
     .receipt-total-row { display: flex; justify-content: space-between; font-weight: bold; margin-top: 5px; }
 </style>
-""", unsafe_allow_html=True)
+""", unsafe_html=True)
 
 # Session States
 if "cart" not in st.session_state: st.session_state.cart = []
@@ -49,7 +56,6 @@ if selected:
 if st.session_state.cart and not st.session_state.show_receipt:
     st.divider()
     subtotal = 0
-    # Calculations
     for item in st.session_state.cart:
         c = st.columns([2, 1, 1, 0.5])
         c[0].write(item['name'])
@@ -67,11 +73,9 @@ if st.session_state.cart and not st.session_state.show_receipt:
     
     st.markdown(f"### Grand Total: {final_total:,.0f} MMK")
     
-    # PAY & PRINT Logic
     if st.button("💳 Pay & Print", type="primary"):
         res = checkout_sale_rpc(st.session_state.cart, final_total, None)
         if res and res.get("success"):
-            # Store values in session to show receipt
             st.session_state.subtotal = subtotal
             st.session_state.disc = disc
             st.session_state.tax_amount = tax_amount
@@ -95,7 +99,7 @@ if st.session_state.show_receipt:
         <div class="receipt-total-row"><span>TAX</span><span>{st.session_state.tax_amount:,.0f}</span></div>
         <div class="receipt-total-row" style="font-size: 1.2em;"><span>GRAND TOTAL</span><span>{st.session_state.final_total:,.0f}</span></div>
     </div>
-    """, unsafe_allow_html=True)
+    """, unsafe_html=True)
     
     if st.button("New Sale"):
         st.session_state.cart = []
