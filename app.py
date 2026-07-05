@@ -5,7 +5,84 @@
 import streamlit as st
 from auth import login_page, is_authenticated
 from sidebar import show_sidebar
+from guards impoimport streamlit as st
+from auth import login_page, is_authenticated
+from sidebar import show_sidebar
 from guards import get_current_user
+
+st.set_page_config(
+    page_title="Myanmar ERP Enterprise",
+    page_icon="🏭",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+def init_state():
+    defaults = {
+        "user": None,
+        "role": "Cashier",
+        "active_page": "dashboard",
+        "cart": [],
+        "language": "English",
+        "theme": "light",
+        "auth_checked": False
+    }
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
+
+init_state()
+
+def sync_role():
+    user = st.session_state.get("user")
+    st.session_state.role = user.get("role", "Cashier") if isinstance(user, dict) else "Cashier"
+
+def ensure_user_object():
+    user = st.session_state.get("user")
+    if not isinstance(user, dict) or not user.get("id"):
+        st.session_state.user = None
+        return False
+    return True
+
+def page_router():
+    page = st.session_state.get("active_page", "dashboard")
+    user = st.session_state.get("user") or {}
+    st.markdown("---")
+    
+    if page == "dashboard":
+        st.title("🏭 ERP Control Dashboard")
+        st.subheader(f"Welcome, {user.get('full_name') or user.get('username') or 'User'} 🚀")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("System", "ACTIVE 🟢")
+        c2.metric("Role", st.session_state.role)
+        c3.metric("Mode", "Enterprise ERP")
+        c4.metric("Backend", "Supabase ⚡")
+    # ... (ကျန်တဲ့ modules များ)
+    else:
+        st.warning("Page not found")
+
+def main():
+    if not is_authenticated():
+        login_page()
+        st.stop()
+
+    if not ensure_user_object():
+        st.error("Invalid session. Please login again.")
+        st.stop()
+
+    sync_role()
+    try:
+        show_sidebar()
+    except Exception as e:
+        st.error("Sidebar error")
+    
+    page_router()
+    st.divider()
+    if st.button("🚪 Logout", use_container_width=True):
+        st.session_state.clear()
+        init_state()
+        st.rerun()
+
+main()rrent_user
 
 # ==========================================
 # PAGE CONFIG (MUST BE FIRST)
