@@ -4,7 +4,7 @@ from database import get_products, checkout_sale_rpc
 
 st.set_page_config(page_title="Professional POS", layout="centered")
 
-# CSS: 4-Column Receipt Grid
+# CSS
 st.markdown("""
 <style>
     .receipt-container { 
@@ -18,24 +18,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Session States
 if "cart" not in st.session_state: st.session_state.cart = []
-if "sale_success" not in st.session_state: st.session_state.sale_success = None
-if "final_total_val" not in st.session_state: st.session_state.final_total_val = 0
+if "show_receipt" not in st.session_state: st.session_state.show_receipt = False
 
 products = get_products() or []
 product_map = {f"{p['name']} ({p.get('sku', '')})": p for p in products}
 
-def clear_cart():
-    st.session_state.cart = []
-    st.session_state.sale_success = None
-    st.rerun()
-
 st.subheader("🛒 Professional POS")
 
 # Input
-col1, col2 = st.columns(2)
-barcode = col1.text_input("📟 Barcode", key="bc_in")
-name = col2.selectbox("🔍 Search Name", [""] + list(product_map.keys()), key="name_in")
+c1, c2 = st.columns(2)
+barcode = c1.text_input("📟 Barcode", key="bc_in")
+name = c2.selectbox("🔍 Search Name", [""] + list(product_map.keys()), key="name_in")
 
 selected = None
 if barcode:
@@ -51,9 +46,10 @@ if selected:
         st.rerun()
 
 # Cart Table
-if st.session_state.cart and not st.session_state.sale_success:
+if st.session_state.cart and not st.session_state.show_receipt:
     st.divider()
     subtotal = 0
+    # Calculations
     for item in st.session_state.cart:
         c = st.columns([2, 1, 1, 0.5])
         c[0].write(item['name'])
@@ -69,18 +65,22 @@ if st.session_state.cart and not st.session_state.sale_success:
     tax_amount = (subtotal - disc) * (tax_rate / 100)
     final_total = subtotal - disc + tax_amount
     
+    st.markdown(f"### Grand Total: {final_total:,.0f} MMK")
+    
+    # PAY & PRINT Logic
     if st.button("💳 Pay & Print", type="primary"):
         res = checkout_sale_rpc(st.session_state.cart, final_total, None)
         if res and res.get("success"):
-            st.session_state.sale_success = True
-            st.session_state.final_total_val = final_total
+            # Store values in session to show receipt
             st.session_state.subtotal = subtotal
             st.session_state.disc = disc
             st.session_state.tax_amount = tax_amount
+            st.session_state.final_total = final_total
+            st.session_state.show_receipt = True
             st.rerun()
 
-# Receipt Display (State ကို အခြေခံပြီး ပြသခြင်း)
-if st.session_state.sale_success:
+# RECEIPT DISPLAY
+if st.session_state.show_receipt:
     receipt_rows = "".join([f'<div class="receipt-grid"><span>{i["name"][:12]}</span><span>x{i["qty"]}</span><span>{float(i["selling_price"]):,.0f}</span><span style="text-align:right">{(float(i["selling_price"])*i["qty"]):,.0f}</span></div>' for i in st.session_state.cart])
     st.markdown(f"""
     <div class="receipt-container">
@@ -93,7 +93,11 @@ if st.session_state.sale_success:
         <div class="receipt-total-row"><span>SUBTOTAL</span><span>{st.session_state.subtotal:,.0f}</span></div>
         <div class="receipt-total-row"><span>DISCOUNT</span><span>-{st.session_state.disc:,.0f}</span></div>
         <div class="receipt-total-row"><span>TAX</span><span>{st.session_state.tax_amount:,.0f}</span></div>
-        <div class="receipt-total-row" style="font-size: 1.2em;"><span>GRAND TOTAL</span><span>{st.session_state.final_total_val:,.0f}</span></div>
+        <div class="receipt-total-row" style="font-size: 1.2em;"><span>GRAND TOTAL</span><span>{st.session_state.final_total:,.0f}</span></div>
     </div>
     """, unsafe_allow_html=True)
-    st.button("New Sale", on_click=clear_cart)
+    
+    if st.button("New Sale"):
+        st.session_state.cart = []
+        st.session_state.show_receipt = False
+        st.rerun()
