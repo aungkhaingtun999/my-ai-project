@@ -1,9 +1,15 @@
 import streamlit as st
 import time
+import sys
+import os
+
+# Root directory ကို path ထဲထည့်ခြင်း (modules တွေကို ရှာတွေ့စေရန်)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from database import get_products, checkout_sale_rpc
 from auth import is_authenticated
-from thermal_receipt import print_thermal
-from receipt_pdf import generate_pdf
+from utils.thermal_receipt import print_thermal
+from utils.receipt_pdf import generate_pdf
 
 # 1. Page Config & Security
 st.set_page_config(page_title="Enterprise POS", layout="wide")
@@ -109,9 +115,9 @@ if st.session_state.show_receipt and "sale_data" in st.session_state:
     data = st.session_state.sale_data
     st.success(f"✅ Sale Successful! Receipt: {data['receipt_no']}")
     
-    # Receipt Preview Logic here (as previously defined)
     col_p1, col_p2, col_p3 = st.columns(3)
-    if col_p1.button("🖨 Print (Thermal)"): print_thermal(data)
+    if col_p1.button("🖨 Print (Thermal)"): 
+        print_thermal(data)
     if col_p2.button("📄 Export PDF"): 
         pdf_file = generate_pdf(data)
         st.download_button("Download PDF", pdf_file, "receipt.pdf")
