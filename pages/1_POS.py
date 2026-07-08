@@ -1,15 +1,22 @@
 import streamlit as st
-import time
 import sys
 import os
 
-# Root directory ကို path ထဲထည့်ခြင်း (modules တွေကို ရှာတွေ့စေရန်)
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 1. PATH FIXING: ဤအပိုင်းသည် အရေးကြီးဆုံးဖြစ်သည်
+# Project root directory (app.py ရှိသည့်နေရာ) ကို ရှာဖွေပြီး path ထဲသို့ ထည့်ခြင်း
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
+# 2. ပြင်ဆင်ထားသော Imports
 from database import get_products, checkout_sale_rpc
 from auth import is_authenticated
+# အခုဆိုရင် utils ကို root directory ကနေ တိုက်ရိုက်မြင်ရပါပြီ
 from utils.thermal_receipt import print_thermal
 from utils.receipt_pdf import generate_pdf
+
+# ကျန်ရှိသော code များ...
 
 # 1. Page Config & Security
 st.set_page_config(page_title="Enterprise POS", layout="wide")
