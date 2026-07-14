@@ -106,7 +106,9 @@ if st.session_state.cart and not st.session_state.show_receipt:
     
     if st.button("💳 Pay & Print", type="primary"):
         prepared_cart = [{"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])} for i in st.session_state.cart]
-        cashier_id = str(st.session_state.get("user_id", "Admin"))
+        
+        # ပြင်ဆင်ချက်: cashier_id ကို None သို့ပြောင်းပေးလိုက်ပါ
+        cashier_id = None 
         
         res = checkout_sale_rpc(prepared_cart, final_total, cashier_id)
         if res and res.get("success"):
@@ -143,4 +145,4 @@ if st.session_state.show_receipt and "sale_data" in st.session_state:
         st.session_state.sale_data = None
         st.session_state.show_receipt = False
         st.rerun()
-                
+        
