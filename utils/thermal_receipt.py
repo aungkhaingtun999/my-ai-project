@@ -1,6 +1,9 @@
 # utils/thermal_receipt.py
 from datetime import datetime
-from escpos.printer import Usb
+try:
+    from escpos.printer import Usb
+except ImportError:
+    Usb = None
 
 class DummyPrinter:
     def set(self, **kwargs): pass
@@ -8,6 +11,8 @@ class DummyPrinter:
     def cut(self): print("\n--- CUT ---\n")
 
 def get_printer():
+    if Usb is None:
+        return DummyPrinter()
     try:
         # သင်၏ ပရင်တာ ID များမှန်ကန်ကြောင်း စစ်ဆေးပါ
         return Usb(0x0000, 0x0000)
@@ -19,7 +24,6 @@ def line(left="", right="", width=32):
     space = width - len(left) - len(right)
     return left + (" " * max(1, space)) + right + "\n"
 
-# POS.py မှ print_thermal(data) ဟု ခေါ်သောကြောင့် ဤနာမည်အတိအကျဖြစ်ရမည်
 def print_thermal(data):
     p = get_printer()
     receipt = data
@@ -28,23 +32,35 @@ def print_thermal(data):
     try:
         p.set(align="center", bold=True)
         p.text("MY POS SHOP\n========================\n")
+        
         p.set(align="left", bold=False)
-        p.text(line("Receipt:", receipt.get("receipt_no", "")))
-        p.text(line("Date:", datetime.now().strftime("%Y-%m-%d %H:%M")))
+        p.text(f"Receipt: {receipt.get('receipt_no', '')}\n")
+        p.text(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+        p.text(f"Cashier: {receipt.get('cashier_name', 'Admin')}\n")
         p.text("------------------------\n")
         
+        # Items
         for item in items:
             name = item.get("name", "Item")
             qty = item.get("qty", 0)
             price = float(item.get("selling_price", 0))
-            p.text(line(f"{name} x{qty}", f"{qty*price:.0f}"))
+            p.text(line(f"{name} x{qty}", f"{qty*price:,.0f}"))
             
         p.text("------------------------\n")
+        
+        # Financial Details
+        p.text(line("Subtotal:", f"{receipt.get('subtotal', 0):,.0f}"))
+        p.text(line("Discount:", f"{receipt.get('discount', 0):,.0f}"))
+        p.text(line("Tax:", f"{receipt.get('tax', 0):,.0f}"))
+        
         p.set(bold=True)
-        p.text(line("TOTAL", f"{receipt.get('total', 0):.0f}"))
+        p.text("------------------------\n")
+        p.text(line("GRAND TOTAL:", f"{receipt.get('total', 0):,.0f}"))
         p.text("========================\n")
+        
         p.set(align="center", bold=False)
-        p.text("THANK YOU\n\n")
+        p.text("THANK YOU\nVISIT AGAIN\n\n")
         p.cut()
+        
     except Exception as e:
         print("Printer Error:", e)
