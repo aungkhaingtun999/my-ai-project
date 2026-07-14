@@ -83,18 +83,13 @@ if selected_product:
 if st.session_state.cart and not st.session_state.show_receipt:
     st.divider()
     subtotal = 0
-    # Copy of cart to avoid modification issues during iteration
     for i, item in enumerate(st.session_state.cart):
         c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
         c1.write(f"**{item['name']}**")
-        
-        # Quantity Update
-        new_qty = c2.number_input("Qty", 1, 99, item['qty'], key=f"q_{item['id']}")
-        st.session_state.cart[i]['qty'] = new_qty
-        
-        row_total = float(item['selling_price']) * new_qty
+        qty = c2.number_input("Qty", 1, 99, item['qty'], key=f"q_{item['id']}")
+        st.session_state.cart[i]['qty'] = qty
+        row_total = float(item['selling_price']) * qty
         c3.write(f"{row_total:,.0f} MMK")
-        
         if c4.button("🗑", key=f"del_{item['id']}"):
             st.session_state.cart.pop(i)
             st.rerun()
@@ -110,18 +105,11 @@ if st.session_state.cart and not st.session_state.show_receipt:
     st.markdown(f"### Grand Total: {final_total:,.0f} MMK")
     
     if st.button("💳 Pay & Print", type="primary"):
-        # Data Preparation
-        prepared_cart = [
-            {"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])} 
-            for i in st.session_state.cart
-        ]
+        prepared_cart = [{"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])} for i in st.session_state.cart]
         cashier_id = str(st.session_state.get("user_id", "Admin"))
         
-        # Database Execution
         res = checkout_sale_rpc(prepared_cart, final_total, cashier_id)
-        
         if res and res.get("success"):
-            # သိမ်းဆည်းမည့် Data
             st.session_state.sale_data = {
                 "cart": list(st.session_state.cart), 
                 "subtotal": subtotal, 
@@ -132,56 +120,27 @@ if st.session_state.cart and not st.session_state.show_receipt:
                 "cashier_name": st.session_state.get("username", "Admin")
             }
             st.session_state.show_receipt = True
-            st.rerun() # Page ကို အချက်အလက်အသစ်နဲ့ ပြန်စခြင်း
+            st.rerun()
         else:
             st.error(f"Checkout Failed: {res.get('error', 'Unknown Error')}")
 
 # ==========================================
 # 7. RECEIPT MODULE
 # ==========================================
-# show_receipt က True ဖြစ်မှ ဤအပိုင်း အလုပ်လုပ်မည်
 if st.session_state.show_receipt and "sale_data" in st.session_state:
     data = st.session_state.sale_data
     st.success(f"✅ Sale Successful! Receipt: {data['receipt_no']}")
     
     c_a, c_b, c_c = st.columns(3)
-    
-    # Thermal Print
     if c_a.button("🖨 Print (Thermal)"):
         print_thermal(data)
     
-    # PDF Download
     pdf_bytes = generate_pdf(data)
     c_b.download_button("📄 Export PDF", pdf_bytes, f"receipt_{data['receipt_no']}.pdf", "application/pdf")
     
-    # Reset
     if c_c.button("🔄 New Sale"):
         st.session_state.cart = []
         st.session_state.sale_data = None
         st.session_state.show_receipt = False
         st.rerun()
-
-                "total": final_total, 
-                "receipt_no": res.get("receipt_no"),
-                "cashier_name": st.session_state.get("username", "Admin") # Cashier Name ထည့်ပေးခြင်း
-            }
-            st.session_state.show_receipt = True
-            st.rerun()
-
-# ==========================================
-# 7. RECEIPT MODULE
-# ==========================================
-if st.session_state.show_receipt and "sale_data" in st.session_state:
-    data = st.session_state.sale_data
-    st.success(f"✅ Sale Successful! Receipt: {data['receipt_no']}")
-    
-    c_a, c_b, c_c = st.columns(3)
-    if c_a.button("🖨 Print (Thermal)"): print_thermal(data)
-    
-    pdf_bytes = generate_pdf(data)
-    c_b.download_button("📄 Export PDF", pdf_bytes, f"receipt_{data['receipt_no']}.pdf", "application/pdf")
-    
-    if c_c.button("🔄 New Sale"):
-        st.session_state.cart = []
-        st.session_state.show_receipt = False
-        st.rerun()
+                
