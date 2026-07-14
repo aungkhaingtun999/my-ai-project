@@ -2,3 +2,5 @@ streamlit
 supabase
 pandas
 streamlit-searchbox
+python-escpos
+reportlab
