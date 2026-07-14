@@ -55,7 +55,6 @@ code_query = col_s2.text_input("🔍 Search by SKU or Barcode", key="code_search
 
 selected_product = None
 
-# Search Logic
 if name_query:
     matches = [p for p in products if name_query.lower() in p['name'].lower()]
     if matches:
@@ -95,6 +94,54 @@ if st.session_state.cart and not st.session_state.show_receipt:
             st.session_state.cart.pop(i)
             st.rerun()
         subtotal += row_total
+
+    # Tax & Discount Inputs
+    col1, col2 = st.columns(2)
+    tax_rate = col1.number_input("Tax %", 0.0, 100.0, 0.0)
+    discount = col2.number_input("Total Discount", 0.0, 100000.0, 0.0)
+    
+    # တွက်ချက်မှုအမှန် (Subtotal - Discount) * TaxRate
+    tax_amount = (subtotal - discount) * (tax_rate / 100)
+    final_total = (subtotal - discount) + tax_amount
+    
+    st.markdown(f"### Grand Total: {final_total:,.0f} MMK")
+    
+    if st.button("💳 Pay & Print", type="primary"):
+        prepared_cart = [{"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])} for i in st.session_state.cart]
+        # Cashier_id အတွက် session မှရယူခြင်း
+        cashier_id = st.session_state.get("user_id", "Admin") 
+        
+        res = checkout_sale_rpc(prepared_cart, final_total, cashier_id)
+        if res and res.get("success"):
+            st.session_state.sale_data = {
+                "cart": st.session_state.cart, 
+                "subtotal": subtotal, 
+                "discount": discount, 
+                "tax": tax_amount,           # တန်ဖိုးမှန်ကို ထည့်ပေးခြင်း
+                "total": final_total, 
+                "receipt_no": res.get("receipt_no"),
+                "cashier_name": st.session_state.get("username", "Admin") # Cashier Name ထည့်ပေးခြင်း
+            }
+            st.session_state.show_receipt = True
+            st.rerun()
+
+# ==========================================
+# 7. RECEIPT MODULE
+# ==========================================
+if st.session_state.show_receipt and "sale_data" in st.session_state:
+    data = st.session_state.sale_data
+    st.success(f"✅ Sale Successful! Receipt: {data['receipt_no']}")
+    
+    c_a, c_b, c_c = st.columns(3)
+    if c_a.button("🖨 Print (Thermal)"): print_thermal(data)
+    
+    pdf_bytes = generate_pdf(data)
+    c_b.download_button("📄 Export PDF", pdf_bytes, f"receipt_{data['receipt_no']}.pdf", "application/pdf")
+    
+    if c_c.button("🔄 New Sale"):
+        st.session_state.cart = []
+        st.session_state.show_receipt = False
+        st.rerun()
 
     col1, col2 = st.columns(2)
     tax_rate = col1.number_input("Tax %", 0.0, 100.0, 0.0)
