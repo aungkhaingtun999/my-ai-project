@@ -1,100 +1,53 @@
-# ==========================================
-# printer.py
-# Production Thermal Printer Engine
-# ==========================================
-
+# utils/thermal_receipt.py
 from datetime import datetime
-
-# ==========================
-# GET PRINTER (SAFE)
-# ==========================
-
-def get_printer():
-    """
-    Safe printer initialization
-    Replace with real ESC/POS printer later
-    """
-
-    try:
-        from escpos.printer import Usb
-
-        # 🔧 CHANGE THIS FOR YOUR PRINTER
-        # Vendor ID / Product ID
-        p = Usb(0x0000, 0x0000)
-
-        return p
-
-    except Exception:
-        return DummyPrinter()
-
-
-# ==========================
-# DUMMY PRINTER (FALLBACK)
-# ==========================
+from escpos.printer import Usb
 
 class DummyPrinter:
-    def set(self, **kwargs):
-        pass
+    def set(self, **kwargs): pass
+    def text(self, msg): print(msg, end="")
+    def cut(self): print("\n--- CUT ---\n")
 
-    def text(self, msg):
-        print(msg, end="")
-
-    def cut(self):
-        print("\n--- CUT ---\n")
-
-
-# ==========================
-# FORMAT HELPERS
-# ==========================
+def get_printer():
+    try:
+        # သင်၏ ပရင်တာ ID များမှန်ကန်ကြောင်း စစ်ဆေးပါ
+        return Usb(0x0000, 0x0000)
+    except:
+        return DummyPrinter()
 
 def line(left="", right="", width=32):
-    """
-    Align text like receipt layout
-    """
-    left = str(left)
-    right = str(right)
-
+    left, right = str(left), str(right)
     space = width - len(left) - len(right)
-    if space < 0:
-        space = 1
+    return left + (" " * max(1, space)) + right + "\n"
 
-    return left + (" " * space) + right + "\n"
-
-
-# ==========================
-# MAIN PRINT FUNCTION
-# ==========================
-
-def print_receipt(receipt, items):
-
+# POS.py မှ print_thermal(data) ဟု ခေါ်သောကြောင့် ဤနာမည်အတိအကျဖြစ်ရမည်
+def print_thermal(data):
     p = get_printer()
-
-    # ==========================
-    # HEADER
-    # ==========================
+    receipt = data
+    items = data.get("cart", [])
+    
     try:
         p.set(align="center", bold=True)
-        p.text("MY POS SHOP\n")
-        p.text("========================\n")
-
-        # ==========================
-        # META INFO
-        # ==========================
+        p.text("MY POS SHOP\n========================\n")
         p.set(align="left", bold=False)
-
         p.text(line("Receipt:", receipt.get("receipt_no", "")))
-        p.text(line("Date:", receipt.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M"))))
+        p.text(line("Date:", datetime.now().strftime("%Y-%m-%d %H:%M")))
         p.text("------------------------\n")
-
-        # ==========================
-        # ITEMS
-        # ==========================
+        
         for item in items:
-
             name = item.get("name", "Item")
             qty = item.get("qty", 0)
-            price = item.get("selling_price", 0)
-            total = qty * price
+            price = float(item.get("selling_price", 0))
+            p.text(line(f"{name} x{qty}", f"{qty*price:.0f}"))
+            
+        p.text("------------------------\n")
+        p.set(bold=True)
+        p.text(line("TOTAL", f"{receipt.get('total', 0):.0f}"))
+        p.text("========================\n")
+        p.set(align="center", bold=False)
+        p.text("THANK YOU\n\n")
+        p.cut()
+    except Exception as e:
+        print("Printer Error:", e)
 
             p.text(line(f"{name} x{qty}", f"{total:.0f}"))
 
