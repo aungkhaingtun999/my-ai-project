@@ -18,6 +18,7 @@ def log_error(err: Exception):
 # Singleton Connection
 @st.cache_resource
 def get_supabase() -> Client:
+    # streamlit secrets ကို သေချာစစ်ဆေးပါ
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = get_supabase()
@@ -31,18 +32,10 @@ def money(value) -> float:
 # ======================================================
 
 def checkout_sale_rpc(cart: List[Dict[str, Any]], paid_amount: float, cashier_id: Optional[str] = None):
-    """
-    World Class Checkout Engine:
-    1. Validates input
-    2. Calls RPC with correct parameter mapping
-    3. Handles receipt and logging
-    """
     if not cart:
         return {"error": "ခြင်းတောင်း ဗလာဖြစ်နေပါသည်"}
 
-    # 1. RPC Call (Map parameters precisely to DB Function)
     try:
-        # p_cart, p_paid_amount, p_cashier_id (3 parameters)
         payload = {
             "p_cart": cart, 
             "p_paid_amount": money(paid_amount),
@@ -55,10 +48,11 @@ def checkout_sale_rpc(cart: List[Dict[str, Any]], paid_amount: float, cashier_id
             return {"error": "Database returned no response"}
             
         sale_data = result.data
-        sale_id = sale_data.get("sale_id") # Database ကနေ ပြန်လာမယ့် ID
+        sale_id = sale_data.get("sale_id")
         
-        # 2. Receipt Creation
+        # Calculate total for receipt if not provided by RPC
         total_amount = money(sale_data.get("total", sum(i["selling_price"] * i["qty"] for i in cart)))
+        
         receipt = {
             "receipt_no": f"RCP-{sale_id}",
             "sale_id": sale_id,
@@ -76,7 +70,7 @@ def checkout_sale_rpc(cart: List[Dict[str, Any]], paid_amount: float, cashier_id
         return {"error": f"Checkout Failed: {str(e)}"}
 
 # ======================================================
-# PRODUCTS MODULE
+# PRODUCTS & RECEIPTS MODULE
 # ======================================================
 
 def get_products(active_only: bool = True):
@@ -85,6 +79,28 @@ def get_products(active_only: bool = True):
         query = query.eq("is_active", True)
     try:
         return query.execute().data
+    except Exception as e:
+        log_error(e)
+        return []
+
+def get_receipt(receipt_no: str):
+    """
+    Receipt ID ဖြင့် Database မှ ရှာဖွေခြင်း
+    """
+    try:
+        result = supabase.table("receipts").select("*").eq("receipt_no", receipt_no).single().execute()
+        return result.data
+    except Exception as e:
+        log_error(e)
+        return None
+
+def get_sale_items(sale_id: str):
+    """
+    Sale ID ဖြင့် ဆက်စပ်နေသော Items များကို ရှာဖွေခြင်း
+    """
+    try:
+        result = supabase.table("sale_items").select("*").eq("sale_id", sale_id).execute()
+        return result.data
     except Exception as e:
         log_error(e)
         return []
