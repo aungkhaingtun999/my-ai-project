@@ -48,29 +48,3 @@ def print_thermal(data):
         p.cut()
     except Exception as e:
         print("Printer Error:", e)
-
-            p.text(line(f"{name} x{qty}", f"{total:.0f}"))
-
-        p.text("------------------------\n")
-
-        # ==========================
-        # TOTAL SECTION
-        # ==========================
-        p.set(bold=True)
-
-        p.text(line("TOTAL", f"{receipt.get('total', 0):.0f}"))
-        p.text(line("PAID", f"{receipt.get('paid_amount', 0):.0f}"))
-        p.text(line("CHANGE", f"{receipt.get('change_amount', 0):.0f}"))
-
-        p.text("========================\n")
-
-        # ==========================
-        # FOOTER
-        # ==========================
-        p.set(align="center", bold=False)
-        p.text("THANK YOU\nVISIT AGAIN\n")
-
-        p.cut()
-
-    except Exception as e:
-        print("Printer Error:", e)
