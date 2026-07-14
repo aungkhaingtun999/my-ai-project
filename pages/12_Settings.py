@@ -19,7 +19,6 @@ def require_admin():
 
     return user
 
-
 # =========================
 # APPLY GUARD
 # =========================
@@ -31,18 +30,26 @@ st.success(f"🔐 Welcome Admin: {user.get('full_name', 'Admin')}")
 # =========================
 # LOAD SETTINGS FROM DB
 # =========================
-settings = supabase.table("erp_settings").select("*").execute().data or []
-
-settings_map = {s["key"]: s["value"] for s in settings}
+try:
+    settings = supabase.table("erp_settings").select("*").execute().data or []
+    settings_map = {s["key"]: s["value"] for s in settings}
+except Exception as e:
+    st.error(f"Error loading settings: {e}")
+    settings_map = {}
 
 # =========================
-# SAVE FUNCTION (SAFE)
+# SAVE FUNCTION (FIXED)
 # =========================
 def save_setting(key, value):
-    supabase.table("erp_settings").upsert({
-        "key": key,
-        "value": str(value)
-    }).execute()
+    try:
+        # on_conflict="key" ကို မဖြစ်မနေ ထည့်ပေးရပါမယ်
+        supabase.table("erp_settings").upsert(
+            {"key": key, "value": str(value)},
+            on_conflict="key"
+        ).execute()
+    except Exception as e:
+        st.error(f"Failed to save {key}: {e}")
+        st.stop()
 
 # =========================
 # HELPER GETTERS (SAFE CAST)
@@ -55,7 +62,6 @@ def get_float(key, default=0):
         return float(settings_map.get(key, default))
     except:
         return default
-
 
 # =========================
 # 🧾 ACCOUNTING & TAX
@@ -151,16 +157,20 @@ st.divider()
 # =========================
 st.subheader("💱 Finance Settings")
 
+# Default values for currency
+saved_currency = settings_map.get("currency", "MMK")
+curr_options = ["MMK", "USD", "THB", "SGD"]
+
 currency = st.selectbox(
     "Base Currency",
-    ["MMK", "USD", "THB", "SGD"],
-    index=0
+    curr_options,
+    index=curr_options.index(saved_currency) if saved_currency in curr_options else 0
 )
 
 payment_methods = st.multiselect(
     "Enable Payment Methods",
     ["Cash", "Bank Transfer", "Mobile Pay", "Credit"],
-    default=["Cash", "Bank Transfer"]
+    default=settings_map.get("payment_methods", "Cash,Bank Transfer").split(",")
 )
 
 if st.button("Save Finance Settings"):
@@ -175,12 +185,5 @@ st.divider()
 # 🧠 SYSTEM STATUS
 # =========================
 st.subheader("System Status")
-
-st.success("""
-✔ ERP Core Active  
-✔ Warehouse Engine Ready  
-✔ Sales/Purchase Connected  
-✔ Settings DB Synced  
-""")
-
+st.success("✔ ERP Core Active\n✔ Warehouse Engine Ready\n✔ Sales/Purchase Connected\n✔ Settings DB Synced")
 st.success("⚙️ Control Center Fully Operational 🚀")
