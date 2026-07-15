@@ -1,4 +1,5 @@
 import streamlit as st
+import datetime
 from database import get_supabase
 
 supabase = get_supabase()
@@ -22,25 +23,30 @@ price = float(product.get("selling_price") or 0)
 # ၃။ အရောင်းလုပ်ဆောင်ခြင်း
 if st.button("Process Sale"):
     try:
-        # A. အရောင်းခေါင်းစဉ်အသစ်တစ်ခု ဖန်တီးခြင်း (Sales Table)
-        # သင့် database တွင် 'status' သို့မဟုတ် 'total' လိုအပ်ပါက ထည့်ပေးပါ
+        # A. Invoice နံပါတ် အတိုလေး ဖန်တီးခြင်း
+        invoice_no = f"INV-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        # B. အရောင်းခေါင်းစဉ်အသစ်တစ်ခု ဖန်တီးခြင်း (Sales Table)
+        # သင့် Database Schema အရ လိုအပ်သော column များကို ထည့်ပေးထားသည်
+        # 'status' ကို ဖြုတ်ပြီး 'invoice_no' ကို ထည့်ထားသည်
         sale_header = supabase.table("sales").insert({
-            "total": price * qty,
-            "status": "completed"
+            "invoice_no": invoice_no,
+            "total": float(price * qty),
+            "created_at": datetime.datetime.now().isoformat()
         }).execute().data[0]
         
         sale_id = sale_header["id"] # ဖန်တီးလိုက်သော sale ၏ ID ကိုယူခြင်း
 
-        # B. ပစ္စည်းအသေးစိတ်ထည့်ခြင်း (Sale_Items Table)
+        # C. ပစ္စည်းအသေးစိတ်ထည့်ခြင်း (Sale_Items Table)
         supabase.table("sale_items").insert({
-            "sale_id": sale_id,           # အထက်ကရလာသော ID
-            "product_id": product["id"],  # Product ID
-            "quantity": int(qty),         # Quantity
-            "unit_price": price,          # Unit Price
-            "total": price * qty          # Total (Not Null ဖြစ်၍ မဖြစ်မနေထည့်ရန်)
+            "sale_id": sale_id,           
+            "product_id": product["id"],  
+            "quantity": int(qty),         
+            "unit_price": price,          
+            "total": float(price * qty)   
         }).execute()
 
-        st.success(f"Sale completed successfully! (Receipt ID: {sale_id})")
+        st.success(f"Sale completed successfully! (Invoice: {invoice_no})")
         st.rerun()
         
     except Exception as e:
