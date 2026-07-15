@@ -1,8 +1,22 @@
 # utils/thermal_receipt.py
+import json
+import os
 try:
     from escpos.printer import Usb
 except ImportError:
     Usb = None
+
+def get_shop_info():
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {
+            "shop_name": "MY POS SHOP",
+            "address": "Tachileik, Myanmar",
+            "footer_msg": "THANK YOU\nVISIT AGAIN"
+        }
 
 class DummyPrinter:
     def set(self, **kwargs): pass
@@ -24,20 +38,19 @@ def line(left="", right="", width=32):
     return left + (" " * max(1, space)) + right + "\n"
 
 def print_thermal(data):
+    shop = get_shop_info()
     p = get_printer()
     receipt = data
     items = data.get("cart", [])
-    
-    # POS မှ ပို့ပေးလိုက်သော မြန်မာစံတော်ချိန်ကို ရယူခြင်း
     timestamp = receipt.get("timestamp", "N/A")
     
     try:
         p.set(align="center", bold=True)
-        p.text("MY POS SHOP\n========================\n")
+        p.text(f"{shop['shop_name']}\n")
+        p.text("========================\n")
         
         p.set(align="left", bold=False)
         p.text(f"Receipt: {receipt.get('receipt_no', '')}\n")
-        # ဤနေရာတွင် POS မှပို့လိုက်သည့် Timestamp ကို သုံးထားပါသည်
         p.text(f"Date: {timestamp}\n")
         p.text(f"Cashier: {receipt.get('cashier_name', 'Admin')}\n")
         p.text("------------------------\n")
@@ -62,7 +75,7 @@ def print_thermal(data):
         p.text("========================\n")
         
         p.set(align="center", bold=False)
-        p.text("THANK YOU\nVISIT AGAIN\n\n")
+        p.text(f"{shop['footer_msg']}\n\n")
         p.cut()
         
     except Exception as e:
