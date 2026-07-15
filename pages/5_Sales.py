@@ -2,6 +2,10 @@ import streamlit as st
 import datetime
 from database import get_supabase
 
+# Session State စတင်ခြင်း
+if 'sale_processed' not in st.session_state:
+    st.session_state.sale_processed = False
+
 supabase = get_supabase()
 
 st.title("🛒 Enterprise POS")
@@ -12,7 +16,7 @@ if not products:
     st.error("No products available")
     st.stop()
 
-# Search Feature (Error မတက်စေရန် .get() နှင့် str() အသုံးပြုထားသည်)
+# Search Feature
 search_query = st.text_input("🔍 Search by Name, SKU or Barcode")
 filtered_products = [
     p for p in products 
@@ -21,7 +25,7 @@ filtered_products = [
 ]
 
 if not filtered_products:
-    st.warning("No products found matching your search.")
+    st.warning("No products found.")
     st.stop()
 
 product_map = {f"{p.get('name', 'Unknown')} ({p.get('sku', '')})": p for p in filtered_products}
@@ -37,6 +41,7 @@ line_total = float(price * qty)
 
 # POS UI Calculation
 st.markdown("---")
+st.write(f"### 📋 Order Summary")
 st.write(f"**Item:** {product.get('name', 'N/A')}")
 st.write(f"**Grand Total:** {line_total:,.2f} MMK")
 
@@ -46,13 +51,10 @@ if payment_method == "Cash":
     amount_given = st.number_input("Amount Received (ပေးငွေ)", min_value=0.0, value=line_total)
     change_due = amount_given - line_total
     st.info(f"💰 Change to return (ပြန်အမ်းငွေ): {max(0, change_due):,.2f} MMK")
-else:
-    st.write(f"✅ Selected: {payment_method}")
 
 # ၃။ အရောင်းလုပ်ဆောင်ခြင်း
 if st.button("Process Sale"):
     try:
-        # Cash ပေးငွေ မလုံလောက်မှု စစ်ဆေးခြင်း
         if payment_method == "Cash" and amount_given < line_total:
             st.error("Error: Insufficient payment received!")
             st.stop()
@@ -61,7 +63,7 @@ if st.button("Process Sale"):
         invoice_no = f"INV-{now.strftime('%Y%m%d%H%M%S')}"
         payment_status = "pending" if payment_method == "Credit" else "paid"
 
-        # A. အရောင်းခေါင်းစဉ် ဖန်တီးခြင်း
+        # A. အရောင်းခေါင်းစဉ်
         sale_header = supabase.table("sales").insert({
             "invoice_no": invoice_no,
             "subtotal": line_total,
@@ -74,7 +76,7 @@ if st.button("Process Sale"):
         
         sale_id = sale_header["id"] 
 
-        # B. ပစ္စည်းအသေးစိတ် ထည့်ခြင်း
+        # B. ပစ္စည်းအသေးစိတ်
         supabase.table("sale_items").insert({
             "sale_id": sale_id,           
             "product_id": product["id"],  
@@ -83,24 +85,25 @@ if st.button("Process Sale"):
             "total": line_total           
         }).execute()
 
-        st.success(f"Sale completed successfully! (Invoice: {invoice_no})")
-        
-        # C. Receipt ပြသခြင်း
-        st.markdown("---")
-        st.subheader("🧾 SPORTWORLD Receipt")
-        st.write(f"**Invoice No:** {invoice_no}")
-        st.write(f"**Method:** {payment_method} | **Status:** {payment_status.upper()}")
-        st.write(f"**Total Amount:** {line_total:,.2f} MMK")
-        
-        if payment_method == "Cash":
-            st.write(f"**Change Given:** {max(0, amount_given - line_total):,.2f} MMK")
-        
-        st.markdown("---")
-        st.write("ขอบคุณที่ใช้บริการ / ကျေးဇူးတင်ပါသည် / THANK YOU")
-        
-        if st.button("New Sale"):
-            st.rerun()
+        # အောင်မြင်ကြောင်းပြပြီး Session State ပြောင်းလဲခြင်း
+        st.session_state.sale_processed = True
+        st.session_state.last_invoice = invoice_no
+        st.session_state.last_total = line_total
+        st.rerun() # UI အသစ်ပြန်ဖြစ်အောင် လုပ်ခြင်း
         
     except Exception as e:
         st.error(f"Error occurred: {e}")
+
+# ၄။ အရောင်းပြီးနောက် Receipt ပြခြင်း
+if st.session_state.sale_processed:
+    st.success(f"Sale completed successfully!")
+    st.markdown("---")
+    st.subheader("🧾 SPORTWORLD Receipt")
+    st.write(f"**Invoice No:** {st.session_state.last_invoice}")
+    st.write(f"**Total Amount:** {st.session_state.last_total:,.2f} MMK")
+    st.write("ขอบคุณที่ใช้บริการ / ကျေးဇူးတင်ပါသည် / THANK YOU")
+    
+    if st.button("New Sale"):
+        st.session_state.sale_processed = False
+        st.rerun()
         
