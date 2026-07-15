@@ -2,33 +2,50 @@
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import io
+import json
+import os
+
+def get_shop_info():
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {
+            "shop_name": "MY POS SYSTEM",
+            "address": "",
+            "phone": "",
+            "footer_msg": "Thank you for shopping with us!"
+        }
 
 def generate_pdf(data):
     """
     Receipt PDF Generator with Tax, Discount, Subtotal and Cashier Info.
     """
+    shop = get_shop_info()
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
     
     receipt = data
     items = data.get("cart", [])
-    # POS မှပို့ပေးလိုက်သော မြန်မာစံတော်ချိန်ကို ရယူခြင်း
     timestamp = receipt.get("timestamp", "N/A")
 
     # HEADER
     c.setFont("Helvetica-Bold", 18)
-    c.drawCentredString(width / 2, 800, "MY POS SYSTEM")
+    c.drawCentredString(width / 2, 800, shop['shop_name'])
     
     c.setFont("Helvetica", 10)
-    c.drawString(50, 770, f"Receipt No: {receipt.get('receipt_no', '')}")
-    # ဤနေရာတွင် POS မှပို့လိုက်သည့် Timestamp ကို သုံးထားပါသည်
-    c.drawString(50, 755, f"Date: {timestamp}")
-    c.drawString(50, 740, f"Cashier: {receipt.get('cashier_name', 'Admin')}")
-    c.drawString(50, 725, "-" * 90)
+    c.drawCentredString(width / 2, 785, shop['address'])
+    c.drawCentredString(width / 2, 770, f"Tel: {shop['phone']}")
+    
+    c.drawString(50, 745, f"Receipt No: {receipt.get('receipt_no', '')}")
+    c.drawString(50, 730, f"Date: {timestamp}")
+    c.drawString(50, 715, f"Cashier: {receipt.get('cashier_name', 'Admin')}")
+    c.drawString(50, 700, "-" * 90)
 
     # TABLE HEADER
-    y = 705
+    y = 680
     c.setFont("Helvetica-Bold", 11)
     c.drawString(50, y, "Item")
     c.drawString(250, y, "Qty")
@@ -75,11 +92,10 @@ def generate_pdf(data):
     
     # FOOTER
     c.setFont("Helvetica-Oblique", 10)
-    c.drawCentredString(width / 2, 50, "Thank you for shopping with us!")
+    c.drawCentredString(width / 2, 50, shop['footer_msg'])
     
     c.save()
     
     pdf_out = buffer.getvalue()
     buffer.close()
     return pdf_out
-    
