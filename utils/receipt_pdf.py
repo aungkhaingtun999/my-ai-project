@@ -6,15 +6,18 @@ import json
 import os
 
 def get_shop_info():
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+    # လက်ရှိ utils ဖိုင်ရှိရာ folder မှ အပြင်သို့ထွက် ('..')
+    # ထို့နောက် 'pages' ဖိုဒါထဲရှိ 'config.json' ကို ရှာဖွေခြင်း
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'pages', 'config.json')
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except:
+    except Exception as e:
+        # ဖိုင်ရှာမတွေ့ပါက Default တန်ဖိုးကို ပြန်ပေးခြင်း
         return {
             "shop_name": "MY POS SYSTEM",
-            "address": "",
-            "phone": "",
+            "address": "Tachileik, Shan State, Myanmar",
+            "phone": "09-XXXXXXXXXX",
             "footer_msg": "Thank you for shopping with us!"
         }
 
@@ -33,11 +36,11 @@ def generate_pdf(data):
 
     # HEADER
     c.setFont("Helvetica-Bold", 18)
-    c.drawCentredString(width / 2, 800, shop['shop_name'])
+    c.drawCentredString(width / 2, 800, shop.get('shop_name', 'MY POS SYSTEM'))
     
     c.setFont("Helvetica", 10)
-    c.drawCentredString(width / 2, 785, shop['address'])
-    c.drawCentredString(width / 2, 770, f"Tel: {shop['phone']}")
+    c.drawCentredString(width / 2, 785, shop.get('address', ''))
+    c.drawCentredString(width / 2, 770, f"Tel: {shop.get('phone', '')}")
     
     c.drawString(50, 745, f"Receipt No: {receipt.get('receipt_no', '')}")
     c.drawString(50, 730, f"Date: {timestamp}")
@@ -92,10 +95,11 @@ def generate_pdf(data):
     
     # FOOTER
     c.setFont("Helvetica-Oblique", 10)
-    c.drawCentredString(width / 2, 50, shop['footer_msg'])
+    c.drawCentredString(width / 2, 50, shop.get('footer_msg', 'Thank you for shopping with us!'))
     
     c.save()
     
     pdf_out = buffer.getvalue()
     buffer.close()
     return pdf_out
+
