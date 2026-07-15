@@ -7,14 +7,16 @@ except ImportError:
     Usb = None
 
 def get_shop_info():
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+    # config.json သည် pages ဖိုဒါထဲတွင် ရှိနေပါသည်
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'pages', 'config.json')
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except:
         return {
-            "shop_name": "MY POS SHOP",
-            "address": "Tachileik, Myanmar",
+            "shop_name": "MY POS SYSTEM",
+            "address": "Tachileik, Shan State, Myanmar",
+            "phone": "09-XXXXXXXXXX",
             "footer_msg": "THANK YOU\nVISIT AGAIN"
         }
 
@@ -46,7 +48,12 @@ def print_thermal(data):
     
     try:
         p.set(align="center", bold=True)
-        p.text(f"{shop['shop_name']}\n")
+        # ဆိုင်အမည်နှင့် လိပ်စာ ဖော်ပြခြင်း
+        p.text(f"{shop.get('shop_name', 'MY POS SYSTEM')}\n")
+        if shop.get('address'):
+            p.text(f"{shop['address']}\n")
+        if shop.get('phone'):
+            p.text(f"Tel: {shop['phone']}\n")
         p.text("========================\n")
         
         p.set(align="left", bold=False)
@@ -75,7 +82,7 @@ def print_thermal(data):
         p.text("========================\n")
         
         p.set(align="center", bold=False)
-        p.text(f"{shop['footer_msg']}\n\n")
+        p.text(f"{shop.get('footer_msg', 'THANK YOU')}\n\n")
         p.cut()
         
     except Exception as e:
