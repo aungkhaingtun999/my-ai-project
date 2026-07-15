@@ -1,7 +1,6 @@
 # utils/receipt_pdf.py
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
-from datetime import datetime
 import io
 
 def generate_pdf(data):
@@ -14,6 +13,8 @@ def generate_pdf(data):
     
     receipt = data
     items = data.get("cart", [])
+    # POS မှပို့ပေးလိုက်သော မြန်မာစံတော်ချိန်ကို ရယူခြင်း
+    timestamp = receipt.get("timestamp", "N/A")
 
     # HEADER
     c.setFont("Helvetica-Bold", 18)
@@ -21,7 +22,8 @@ def generate_pdf(data):
     
     c.setFont("Helvetica", 10)
     c.drawString(50, 770, f"Receipt No: {receipt.get('receipt_no', '')}")
-    c.drawString(50, 755, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    # ဤနေရာတွင် POS မှပို့လိုက်သည့် Timestamp ကို သုံးထားပါသည်
+    c.drawString(50, 755, f"Date: {timestamp}")
     c.drawString(50, 740, f"Cashier: {receipt.get('cashier_name', 'Admin')}")
     c.drawString(50, 725, "-" * 90)
 
@@ -80,4 +82,4 @@ def generate_pdf(data):
     pdf_out = buffer.getvalue()
     buffer.close()
     return pdf_out
-
+    
