@@ -1,5 +1,4 @@
 # utils/thermal_receipt.py
-from datetime import datetime
 try:
     from escpos.printer import Usb
 except ImportError:
@@ -29,13 +28,17 @@ def print_thermal(data):
     receipt = data
     items = data.get("cart", [])
     
+    # POS မှ ပို့ပေးလိုက်သော မြန်မာစံတော်ချိန်ကို ရယူခြင်း
+    timestamp = receipt.get("timestamp", "N/A")
+    
     try:
         p.set(align="center", bold=True)
         p.text("MY POS SHOP\n========================\n")
         
         p.set(align="left", bold=False)
         p.text(f"Receipt: {receipt.get('receipt_no', '')}\n")
-        p.text(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+        # ဤနေရာတွင် POS မှပို့လိုက်သည့် Timestamp ကို သုံးထားပါသည်
+        p.text(f"Date: {timestamp}\n")
         p.text(f"Cashier: {receipt.get('cashier_name', 'Admin')}\n")
         p.text("------------------------\n")
         
@@ -64,3 +67,4 @@ def print_thermal(data):
         
     except Exception as e:
         print("Printer Error:", e)
+        
