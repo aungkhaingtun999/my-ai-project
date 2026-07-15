@@ -1,6 +1,8 @@
 import streamlit as st
 import sys
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo  # Python 3.9+ အတွက် မြန်မာစံတော်ချိန်
 
 # ==========================================
 # 1. PATH FIXING
@@ -20,6 +22,10 @@ try:
 except ImportError as e:
     st.error(f"Import Error: {e}")
     st.stop()
+
+# Helper Function: မြန်မာစံတော်ချိန်ရယူရန်
+def get_mst_now():
+    return datetime.now(ZoneInfo("Asia/Yangon")).strftime("%Y-%m-%d %H:%M:%S")
 
 # ==========================================
 # 3. PAGE CONFIG & SECURITY
@@ -107,7 +113,7 @@ if st.session_state.cart and not st.session_state.show_receipt:
     if st.button("💳 Pay & Print", type="primary"):
         prepared_cart = [{"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])} for i in st.session_state.cart]
         
-        # ပြင်ဆင်ချက်: cashier_id ကို None သို့ပြောင်းပေးလိုက်ပါ
+        # Cashier ID ကို None ပို့ခြင်း (UUID error ရှောင်ရန်)
         cashier_id = None 
         
         res = checkout_sale_rpc(prepared_cart, final_total, cashier_id)
@@ -119,7 +125,8 @@ if st.session_state.cart and not st.session_state.show_receipt:
                 "tax": tax_amount, 
                 "total": final_total, 
                 "receipt_no": res.get("receipt_no"),
-                "cashier_name": st.session_state.get("username", "Admin")
+                "cashier_name": st.session_state.get("username", "Admin"),
+                "timestamp": get_mst_now() # မြန်မာစံတော်ချိန်ကို ထည့်ပေးလိုက်ပါပြီ
             }
             st.session_state.show_receipt = True
             st.rerun()
@@ -132,6 +139,7 @@ if st.session_state.cart and not st.session_state.show_receipt:
 if st.session_state.show_receipt and "sale_data" in st.session_state:
     data = st.session_state.sale_data
     st.success(f"✅ Sale Successful! Receipt: {data['receipt_no']}")
+    st.write(f"🕒 Transaction Time: {data['timestamp']}")
     
     c_a, c_b, c_c = st.columns(3)
     if c_a.button("🖨 Print (Thermal)"):
@@ -145,4 +153,4 @@ if st.session_state.show_receipt and "sale_data" in st.session_state:
         st.session_state.sale_data = None
         st.session_state.show_receipt = False
         st.rerun()
-        
+
