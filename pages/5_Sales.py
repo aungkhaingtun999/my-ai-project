@@ -4,7 +4,7 @@ from database import get_supabase
 
 supabase = get_supabase()
 
-st.title("🛒 Sales Management")
+st.title("🛒 Enterprise POS")
 
 # ၁။ Product များထုတ်ယူခြင်း
 products = supabase.table("products").select("*").execute().data or []
@@ -12,29 +12,48 @@ if not products:
     st.error("No products available")
     st.stop()
 
-product_map = {p["name"]: p for p in products}
+# Search Feature
+search_query = st.text_input("🔍 Search by Name, SKU or Barcode")
+filtered_products = [p for p in products if search_query.lower() in p["name"].lower() or search_query.lower() in p.get("sku", "").lower()]
+
+product_map = {f"{p['name']} ({p.get('sku', '')})": p for p in filtered_products}
+if not product_map:
+    st.warning("No products found matching your search.")
+    st.stop()
 
 # ၂။ Input များ
-selected_name = st.selectbox("Select Product", list(product_map.keys()))
+selected_key = st.selectbox("Select product:", list(product_map.keys()))
 qty = st.number_input("Quantity", min_value=1, value=1)
-
-# ငွေပေးချေမှုပုံစံ ရွေးချယ်ခြင်း
 payment_method = st.radio("Payment Method", ["Cash", "Card", "Credit"])
 
-product = product_map[selected_name]
+product = product_map[selected_key]
 price = float(product.get("selling_price") or 0)
 line_total = float(price * qty)
+
+# POS UI Calculation
+st.markdown("---")
+st.write(f"**Item:** {product['name']}")
+st.write(f"**Grand Total:** {line_total:,.2f} MMK")
+
+# ငွေရှင်းခြင်းနှင့် ပြန်အမ်းငွေတွက်ချက်ခြင်း
+amount_given = st.number_input("Amount Received (ပေးငွေ)", min_value=0.0, value=line_total)
+change_due = amount_given - line_total
+
+if payment_method == "Cash":
+    st.info(f"💰 Change to return (ပြန်အမ်းငွေ): {max(0, change_due):,.2f} MMK")
 
 # ၃။ အရောင်းလုပ်ဆောင်ခြင်း
 if st.button("Process Sale"):
     try:
+        if payment_method == "Cash" and amount_given < line_total:
+            st.error("Error: Insufficient payment received!")
+            st.stop()
+
         now = datetime.datetime.now()
         invoice_no = f"INV-{now.strftime('%Y%m%d%H%M%S')}"
-        
-        # Credit ဆိုရင် 'pending'၊ ကျန်တာ 'paid'
         payment_status = "pending" if payment_method == "Credit" else "paid"
 
-        # A. အရောင်းခေါင်းစဉ် (Sales Table)
+        # A. အရောင်းခေါင်းစဉ် ဖန်တီးခြင်း
         sale_header = supabase.table("sales").insert({
             "invoice_no": invoice_no,
             "subtotal": line_total,
@@ -47,7 +66,7 @@ if st.button("Process Sale"):
         
         sale_id = sale_header["id"] 
 
-        # B. ပစ္စည်းအသေးစိတ် (Sale_Items Table)
+        # B. ပစ္စည်းအသေးစိတ်ထည့်ခြင်း
         supabase.table("sale_items").insert({
             "sale_id": sale_id,           
             "product_id": product["id"],  
@@ -56,19 +75,16 @@ if st.button("Process Sale"):
             "total": line_total           
         }).execute()
 
-        st.success(f"Sale completed! (Invoice: {invoice_no})")
+        st.success(f"Sale completed successfully! (Invoice: {invoice_no})")
         
         # C. Receipt ပြသခြင်း
         st.markdown("---")
         st.subheader("🧾 SPORTWORLD Receipt")
         st.write(f"**Invoice No:** {invoice_no}")
-        st.write(f"**Payment Method:** {payment_method}")
-        st.write(f"**Status:** {payment_status.upper()}")
-        st.markdown("---")
-        
-        st.write(f"**Item:** {selected_name}")
-        st.write(f"**Qty:** {qty}")
-        st.write(f"**Total Amount:** {line_total:,.2f}")
+        st.write(f"**Payment:** {payment_method} | **Status:** {payment_status.upper()}")
+        st.write(f"**Total Amount:** {line_total:,.2f} MMK")
+        if payment_method == "Cash":
+            st.write(f"**Change Given:** {max(0, change_due):,.2f} MMK")
         
         st.markdown("---")
         st.write("ขอบคุณที่ใช้บริการ / ကျေးဇူးတင်ပါသည် / THANK YOU")
