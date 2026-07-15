@@ -2,7 +2,7 @@ import streamlit as st
 import sys
 import os
 from datetime import datetime
-from zoneinfo import ZoneInfo  # Python 3.9+ အတွက် မြန်မာစံတော်ချိန်
+from zoneinfo import ZoneInfo
 
 # ==========================================
 # 1. PATH FIXING
@@ -23,7 +23,6 @@ except ImportError as e:
     st.error(f"Import Error: {e}")
     st.stop()
 
-# Helper Function: မြန်မာစံတော်ချိန်ရယူရန်
 def get_mst_now():
     return datetime.now(ZoneInfo("Asia/Yangon")).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -111,13 +110,14 @@ if st.session_state.cart and not st.session_state.show_receipt:
     st.markdown(f"### Grand Total: {final_total:,.0f} MMK")
     
     if st.button("💳 Pay & Print", type="primary"):
+        # Format ပြောင်းလဲခြင်း: float သေချာစေရန်
         prepared_cart = [{"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])} for i in st.session_state.cart]
         
-        # Cashier ID ကို None ပို့ခြင်း (UUID error ရှောင်ရန်)
-        cashier_id = None 
+        # checkout_sale_rpc ခေါ်ခြင်း
+        res = checkout_sale_rpc(prepared_cart, float(final_total), None)
         
-        res = checkout_sale_rpc(prepared_cart, final_total, cashier_id)
-        if res and res.get("success"):
+        # res ကို စစ်ဆေးခြင်း
+        if res and isinstance(res, dict) and res.get("success") and res.get("receipt_no"):
             st.session_state.sale_data = {
                 "cart": list(st.session_state.cart), 
                 "subtotal": subtotal, 
@@ -126,12 +126,14 @@ if st.session_state.cart and not st.session_state.show_receipt:
                 "total": final_total, 
                 "receipt_no": res.get("receipt_no"),
                 "cashier_name": st.session_state.get("username", "Admin"),
-                "timestamp": get_mst_now() # မြန်မာစံတော်ချိန်ကို ထည့်ပေးလိုက်ပါပြီ
+                "timestamp": get_mst_now()
             }
             st.session_state.show_receipt = True
             st.rerun()
         else:
-            st.error(f"Checkout Failed: {res.get('error', 'Unknown Error')}")
+            # Error မက်ဆေ့ခ်ျကို အသေးစိတ်ထုတ်ပေးခြင်း
+            error_detail = res.get("error", "Unknown DB Error") if isinstance(res, dict) else "No response from database"
+            st.error(f"❌ Checkout Failed: {error_detail}")
 
 # ==========================================
 # 7. RECEIPT MODULE
@@ -153,4 +155,3 @@ if st.session_state.show_receipt and "sale_data" in st.session_state:
         st.session_state.sale_data = None
         st.session_state.show_receipt = False
         st.rerun()
-
