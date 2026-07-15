@@ -24,7 +24,9 @@ if not product_map:
 # ၂။ Input များ
 selected_key = st.selectbox("Select product:", list(product_map.keys()))
 qty = st.number_input("Quantity", min_value=1, value=1)
-payment_method = st.radio("Payment Method", ["Cash", "Card", "Credit"])
+
+# ငွေပေးချေမှုပုံစံများ (Mobile Banking ကို ထပ်ထည့်ထားသည်)
+payment_method = st.radio("Payment Method", ["Cash", "Card", "Mobile Banking", "Credit"])
 
 product = product_map[selected_key]
 price = float(product.get("selling_price") or 0)
@@ -35,12 +37,14 @@ st.markdown("---")
 st.write(f"**Item:** {product['name']}")
 st.write(f"**Grand Total:** {line_total:,.2f} MMK")
 
-# ငွေရှင်းခြင်းနှင့် ပြန်အမ်းငွေတွက်ချက်ခြင်း
-amount_given = st.number_input("Amount Received (ပေးငွေ)", min_value=0.0, value=line_total)
-change_due = amount_given - line_total
-
+# ငွေပေးချေမှုစစ်ဆေးခြင်း
 if payment_method == "Cash":
+    amount_given = st.number_input("Amount Received (ပေးငွေ)", min_value=0.0, value=line_total)
+    change_due = amount_given - line_total
     st.info(f"💰 Change to return (ပြန်အမ်းငွေ): {max(0, change_due):,.2f} MMK")
+else:
+    amount_given = line_total # Cash မဟုတ်လျှင် ပေးငွေသည် total နှင့် ညီသည်ဟု သတ်မှတ်သည်
+    st.write(f"✅ Selected: {payment_method}")
 
 # ၃။ အရောင်းလုပ်ဆောင်ခြင်း
 if st.button("Process Sale"):
@@ -51,6 +55,8 @@ if st.button("Process Sale"):
 
         now = datetime.datetime.now()
         invoice_no = f"INV-{now.strftime('%Y%m%d%H%M%S')}"
+        
+        # Credit ဆိုရင် 'pending'၊ ကျန်တာ (Cash, Card, Mobile Banking) ဆိုရင် 'paid'
         payment_status = "pending" if payment_method == "Credit" else "paid"
 
         # A. အရောင်းခေါင်းစဉ် ဖန်တီးခြင်း
@@ -81,16 +87,14 @@ if st.button("Process Sale"):
         st.markdown("---")
         st.subheader("🧾 SPORTWORLD Receipt")
         st.write(f"**Invoice No:** {invoice_no}")
-        st.write(f"**Payment:** {payment_method} | **Status:** {payment_status.upper()}")
+        st.write(f"**Method:** {payment_method} | **Status:** {payment_status.upper()}")
         st.write(f"**Total Amount:** {line_total:,.2f} MMK")
+        
         if payment_method == "Cash":
             st.write(f"**Change Given:** {max(0, change_due):,.2f} MMK")
         
         st.markdown("---")
         st.write("ขอบคุณที่ใช้บริการ / ကျေးဇူးတင်ပါသည် / THANK YOU")
-        
-        if st.button("New Sale"):
-            st.rerun()
         
     except Exception as e:
         st.error(f"Error occurred: {e}")
