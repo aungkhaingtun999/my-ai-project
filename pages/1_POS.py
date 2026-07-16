@@ -99,8 +99,6 @@ if st.session_state.cart and not st.session_state.show_receipt:
                     "timestamp": get_mst_now()
                 }
                 st.session_state.show_receipt = True
-                st.rerun()
-
 # Receipt Module (ယခင်နေရာတွင် အောက်ပါအတိုင်း အစားထိုးပါ)
 if st.session_state.show_receipt:
     data = st.session_state.sale_data
@@ -117,3 +115,4 @@ if st.session_state.show_receipt:
         st.session_state.sale_data = None
         st.session_state.show_receipt = False
         st.rerun()
+
