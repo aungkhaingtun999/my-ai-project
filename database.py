@@ -1,16 +1,21 @@
 # ==========================================
 # database.py
-# ERP ENTERPRISE WORLD CLASS v7
-# FINAL STABLE
+# ERP ENTERPRISE WORLD CLASS v8
+# RECEIPT + CHECKOUT STABLE
 # ==========================================
 
 from supabase import create_client, Client
+
 import streamlit as st
 
 from typing import List, Dict, Any, Optional
+
 from decimal import Decimal, ROUND_HALF_UP
+
 import logging
+
 import uuid
+
 
 
 # ==========================================
@@ -24,9 +29,17 @@ logging.basicConfig(
 )
 
 
-def log_error(err: Exception):
-    logging.error(str(err))
-    print("DB ERROR:", err)
+
+def log_error(err):
+
+    logging.error(
+        str(err)
+    )
+
+    print(
+        "DB ERROR:",
+        err
+    )
 
 
 
@@ -48,21 +61,24 @@ supabase = get_supabase()
 
 
 # ==========================================
-# MONEY FORMAT
+# MONEY
 # ==========================================
 
-def money(value) -> float:
+def money(value):
 
     try:
+
         return float(
-            Decimal(str(value))
+            Decimal(
+                str(value)
+            )
             .quantize(
                 Decimal("0.01"),
                 rounding=ROUND_HALF_UP
             )
         )
 
-    except Exception:
+    except:
 
         return 0.0
 
@@ -75,15 +91,20 @@ def money(value) -> float:
 def validate_uuid(value):
 
     if not value:
+
         return None
+
 
     try:
 
         return str(
-            uuid.UUID(str(value))
+            uuid.UUID(
+                str(value)
+            )
         )
 
-    except Exception:
+
+    except:
 
         return None
 
@@ -99,34 +120,41 @@ def checkout_sale_rpc(
     cashier_id: Optional[str] = None
 ):
 
+
     if not cart:
 
         return {
-            "error": "ခြင်းတောင်း ဗလာဖြစ်နေပါသည်"
+            "error":
+            "Cart is empty"
         }
+
 
 
     try:
 
-        final_cashier_id = validate_uuid(
-            cashier_id
-        )
-
 
         payload = {
 
-            "p_cart": cart,
+            "p_cart":
+                cart,
+
 
             "p_paid_amount":
-                money(paid_amount),
+                money(
+                    paid_amount
+                ),
+
 
             "p_cashier_id":
-                final_cashier_id
+                validate_uuid(
+                    cashier_id
+                )
+
         }
 
 
 
-        result = (
+        response = (
             supabase
             .rpc(
                 "checkout_sale_rpc",
@@ -137,68 +165,65 @@ def checkout_sale_rpc(
 
 
 
-        if not result or not result.data:
+        data = response.data
+
+
+
+        if not data:
 
             return {
                 "error":
-                "Database မှ တုံ့ပြန်ချက် မရရှိပါ"
+                "No database response"
             }
 
 
 
-        sale_data = result.data
+        if isinstance(data, dict):
 
 
-
-        # Supabase JSON return
-        if isinstance(
-            sale_data,
-            dict
-        ):
-
-
-            if sale_data.get(
-                "success"
-            ):
+            if data.get("success"):
 
 
                 return {
 
-                    "success": True,
+                    "success":
+                    True,
+
 
                     "receipt_no":
-                        sale_data.get(
-                            "receipt_no"
-                        )
-                        or
-                        sale_data.get(
-                            "invoice_no"
-                        ),
+                    data.get(
+                        "invoice_no"
+                    )
+                    or
+                    data.get(
+                        "receipt_no"
+                    ),
+
 
                     "sale_id":
-                        sale_data.get(
-                            "sale_id"
-                        )
-                }
-
-
-            else:
-
-                return {
-
-                    "error":
-                    sale_data.get(
-                        "error",
-                        "Unknown DB Error"
+                    data.get(
+                        "sale_id"
                     )
+
                 }
+
+
+            return {
+
+                "error":
+                data.get(
+                    "error",
+                    "Checkout failed"
+                )
+
+            }
 
 
 
         return {
 
             "error":
-            "Invalid database response"
+            "Invalid RPC response"
 
         }
 
@@ -206,12 +231,14 @@ def checkout_sale_rpc(
 
     except Exception as e:
 
+
         log_error(e)
+
 
         return {
 
             "error":
-            f"Checkout Failed: {str(e)}"
+            f"Checkout Failed: {e}"
 
         }
 
@@ -222,12 +249,15 @@ def checkout_sale_rpc(
 # ==========================================
 
 def get_products(
-    active_only: bool = True
+    active_only=True
 ):
+
 
     try:
 
+
         query = (
+
             supabase
             .table("products")
             .select(
@@ -243,6 +273,7 @@ def get_products(
                 is_active
                 """
             )
+
         )
 
 
@@ -254,6 +285,7 @@ def get_products(
             )
 
 
+
         return (
             query
             .execute()
@@ -262,7 +294,9 @@ def get_products(
         )
 
 
+
     except Exception as e:
+
 
         log_error(e)
 
@@ -271,30 +305,36 @@ def get_products(
 
 
 # ==========================================
-# RECEIPT
+# RECEIPT HEADER
 # ==========================================
 
 def get_receipt(
     receipt_no: str
 ):
 
+
     try:
 
+
         return (
+
             supabase
             .table("sales")
             .select("*")
             .eq(
                 "invoice_no",
-                receipt_no
+                receipt_no.strip()
             )
             .single()
             .execute()
             .data
+
         )
 
 
+
     except Exception as e:
+
 
         log_error(e)
 
@@ -303,31 +343,103 @@ def get_receipt(
 
 
 # ==========================================
+# RECEIPT DETAIL
+# ==========================================
+
+def get_receipt_detail(
+    receipt_no: str
+):
+
+
+    try:
+
+
+        sale = get_receipt(
+            receipt_no
+        )
+
+
+        if not sale:
+
+            return None
+
+
+
+        items = get_sale_items(
+            sale["id"]
+        )
+
+
+        sale["items"] = items
+
+
+        return sale
+
+
+
+    except Exception as e:
+
+
+        log_error(e)
+
+        return None
+
+
+
+
+# ==========================================
 # SALE ITEMS
 # ==========================================
 
 def get_sale_items(
-    sale_id: str
+    sale_id
 ):
+
 
     try:
 
+
         return (
+
             supabase
             .table("sale_items")
-            .select("*")
+            .select(
+                """
+                id,
+                product_id,
+                quantity,
+                unit_price,
+                discount,
+                total,
+                products(
+                    name,
+                    barcode,
+                    sku
+                )
+                """
+            )
             .eq(
                 "sale_id",
                 sale_id
             )
             .execute()
             .data
+
             or []
+
         )
+
 
 
     except Exception as e:
 
+
         log_error(e)
 
         return []
+
+
+
+# ==========================================
+# END
+# ==========================================
