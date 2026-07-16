@@ -431,8 +431,8 @@ def get_sale_items(
         log_error(e)
 
         return []
-        # ==========================================
-# DATABASE MODULE LOADED
+# # ==========================================
+# DATABASE MODULE STATUS
 # ==========================================
 
-print("DATABASE v9 LOADED SUCCESS")
+logging.info("DATABASE v9 LOADED SUCCESS")
