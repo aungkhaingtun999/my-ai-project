@@ -71,7 +71,6 @@ if st.session_state.cart and not st.session_state.show_receipt:
     final_total = (subtotal - discount) * (1 + tax_rate / 100)
     st.markdown(f"### Grand Total: {final_total:,.0f} MMK")
 
-    # --- Payment System ---
     st.divider()
     st.subheader("💳 Payment Details")
     payment_method = st.radio("Payment Method", ["Cash", "Card", "Mobile Banking", "Credit", "Installment"])
@@ -88,7 +87,10 @@ if st.session_state.cart and not st.session_state.show_receipt:
             st.error("❌ ပေးငွေ မလုံလောက်ပါ။")
         else:
             prepared_cart = [{"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])} for i in st.session_state.cart]
-            res = checkout_sale_rpc(prepared_cart, float(final_total), payment_method)
+            
+            # Database သို့ ပို့ပေးခြင်း (payment_method ကို မပို့တော့ပါ)
+            c_id = st.session_state.get("user_id")
+            res = checkout_sale_rpc(prepared_cart, float(final_total), c_id)
             
             if res and isinstance(res, dict) and res.get("success"):
                 st.session_state.sale_data = {
@@ -99,20 +101,19 @@ if st.session_state.cart and not st.session_state.show_receipt:
                     "timestamp": get_mst_now()
                 }
                 st.session_state.show_receipt = True
-# Receipt Module (ယခင်နေရာတွင် အောက်ပါအတိုင်း အစားထိုးပါ)
+                st.rerun()
+            else:
+                st.error(f"❌ Checkout Failed: {res.get('error', 'Unknown Error')}")
+
+# Receipt Module
 if st.session_state.show_receipt:
     data = st.session_state.sale_data
     st.success(f"✅ Sale Successful! Receipt: {data.get('receipt_no', 'N/A')}")
-    
-    # .get() ကို အသုံးပြု၍ KeyError မတက်အောင် ကာကွယ်ခြင်း
-    method = data.get('method', 'N/A')
-    change = data.get('change', 0.0)
-    
-    st.write(f"**Method:** {method} | **Change:** {change:,.0f} MMK")
+    st.write(f"**Method:** {data.get('method', 'N/A')} | **Change:** {data.get('change', 0.0):,.0f} MMK")
     
     if st.button("🔄 New Sale"):
         st.session_state.cart = []
         st.session_state.sale_data = None
         st.session_state.show_receipt = False
         st.rerun()
-
+        
