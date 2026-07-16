@@ -101,13 +101,19 @@ if st.session_state.cart and not st.session_state.show_receipt:
                 st.session_state.show_receipt = True
                 st.rerun()
 
-# Receipt Module
+# Receipt Module (ယခင်နေရာတွင် အောက်ပါအတိုင်း အစားထိုးပါ)
 if st.session_state.show_receipt:
     data = st.session_state.sale_data
-    st.success(f"✅ Sale Successful! Receipt: {data['receipt_no']}")
-    st.write(f"**Method:** {data['method']} | **Change:** {data['change']:,.0f} MMK")
+    st.success(f"✅ Sale Successful! Receipt: {data.get('receipt_no', 'N/A')}")
+    
+    # .get() ကို အသုံးပြု၍ KeyError မတက်အောင် ကာကွယ်ခြင်း
+    method = data.get('method', 'N/A')
+    change = data.get('change', 0.0)
+    
+    st.write(f"**Method:** {method} | **Change:** {change:,.0f} MMK")
+    
     if st.button("🔄 New Sale"):
         st.session_state.cart = []
+        st.session_state.sale_data = None
         st.session_state.show_receipt = False
         st.rerun()
-
