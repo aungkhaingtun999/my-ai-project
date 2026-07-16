@@ -12,7 +12,9 @@ if 'sale_processed' not in st.session_state:
 
 supabase = get_supabase()
 
-# ၄။ အရောင်းပြီးနောက် Receipt ပြခြင်း (အပေါ်ပိုင်းတွင် ထားရှိမှသာ UI မှန်ကန်မည်)
+# =========================
+# အရောင်းပြီးနောက် Receipt ပြခြင်း
+# =========================
 if st.session_state.sale_processed:
     st.success(f"Sale completed successfully!")
     st.markdown("---")
@@ -30,18 +32,20 @@ if st.session_state.sale_processed:
     if st.button("New Sale"):
         st.session_state.sale_processed = False
         st.rerun()
-    st.stop() # Receipt ပြနေချိန်တွင် အောက်ပါ POS UI ကို မပြစေရန်
+    st.stop() # Receipt ပြနေချိန်တွင် အောက်ပါ POS UI ကို ရပ်ထားမည်
 
 # =========================
-# POS UI (အရောင်းမလုပ်ခင် ပုံစံ)
+# POS UI (အရောင်းမလုပ်ခင်)
 # =========================
 st.title("🛒 Enterprise POS")
 
+# ၁။ Product များထုတ်ယူခြင်း
 products = supabase.table("products").select("*").execute().data or []
 if not products:
     st.error("No products available")
     st.stop()
 
+# Search Feature
 search_query = st.text_input("🔍 Search by Name, SKU or Barcode")
 filtered_products = [
     p for p in products 
@@ -56,7 +60,9 @@ if not filtered_products:
 product_map = {f"{p.get('name', 'Unknown')} ({p.get('sku', '')})": p for p in filtered_products}
 selected_key = st.selectbox("Select product:", list(product_map.keys()))
 qty = st.number_input("Quantity", min_value=1, value=1)
-payment_method = st.radio("Payment Method", ["Cash", "Card", "Mobile Banking", "Credit"])
+
+# Payment Methods (Cash, Card, Mobile Banking, Credit, Installment)
+payment_method = st.radio("Payment Method", ["Cash", "Card", "Mobile Banking", "Credit", "Installment"])
 
 product = product_map[selected_key]
 price = float(product.get("selling_price") or 0)
@@ -66,24 +72,31 @@ st.markdown("---")
 st.write(f"**Item:** {product.get('name', 'N/A')}")
 st.write(f"**Grand Total:** {line_total:,.2f} MMK")
 
+# ငွေသားပေးချေမှုတွက်ချက်ခြင်း
 amount_given = line_total
 change_due = 0.0
 
 if payment_method == "Cash":
     amount_given = st.number_input("Amount Received (ပေးငွေ)", min_value=0.0, value=line_total)
-    change_due = amount_given - line_total
-    st.info(f"💰 Change to return (ပြန်အမ်းငွေ): {max(0, change_due):,.2f} MMK")
+    change_due = max(0, amount_given - line_total)
+    st.info(f"💰 Change to return (ပြန်အမ်းငွေ): {change_due:,.2f} MMK")
+else:
+    st.write(f"✅ Selected: {payment_method}")
 
+# ၃။ အရောင်းလုပ်ဆောင်ခြင်း
 if st.button("Process Sale"):
     try:
         if payment_method == "Cash" and amount_given < line_total:
-            st.error("Error: Insufficient payment received!")
+            st.error("Error: Insufficient cash provided!")
             st.stop()
 
         now = datetime.datetime.now()
         invoice_no = f"INV-{now.strftime('%Y%m%d%H%M%S')}"
-        payment_status = "pending" if payment_method == "Credit" else "paid"
+        
+        # Credit နှင့် Installment ဆိုရင် pending၊ ကျန်တာ paid
+        payment_status = "pending" if payment_method in ["Credit", "Installment"] else "paid"
 
+        # A. အရောင်းခေါင်းစဉ် ဖန်တီးခြင်း
         sale_header = supabase.table("sales").insert({
             "invoice_no": invoice_no,
             "subtotal": line_total,
@@ -94,6 +107,7 @@ if st.button("Process Sale"):
             "created_at": now.isoformat()
         }).execute().data[0]
         
+        # B. ပစ္စည်းအသေးစိတ် ထည့်ခြင်း
         supabase.table("sale_items").insert({
             "sale_id": sale_header["id"],           
             "product_id": product["id"],  
@@ -102,12 +116,12 @@ if st.button("Process Sale"):
             "total": line_total           
         }).execute()
 
-        # Session State သို့ သိမ်းဆည်းခြင်း
+        # Session State သိမ်းဆည်းခြင်း (Receipt အတွက်)
         st.session_state.sale_processed = True
         st.session_state.last_invoice = invoice_no
         st.session_state.last_total = line_total
         st.session_state.last_method = payment_method
-        st.session_state.last_change = max(0, change_due)
+        st.session_state.last_change = change_due
         st.rerun() 
         
     except Exception as e:
