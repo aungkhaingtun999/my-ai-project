@@ -1,5 +1,5 @@
-# ==========================================
-# database.py (ERP ENTERPRISE WORLD CLASS v5 - OPTIMIZED)
+ # ==========================================
+# database.py (ERP ENTERPRISE WORLD CLASS v5 - FULL VERSION)
 # ==========================================
 
 from supabase import create_client, Client
@@ -18,6 +18,7 @@ def log_error(err: Exception):
 # Singleton Connection
 @st.cache_resource
 def get_supabase() -> Client:
+    # streamlit secrets ကို သေချာစစ်ဆေးပါ
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = get_supabase()
@@ -48,14 +49,15 @@ def checkout_sale_rpc(cart: List[Dict[str, Any]], paid_amount: float, cashier_id
         if not result.data:
             return {"error": "Database မှ တုံ့ပြန်ချက်မရရှိပါ"}
             
-        # RPC က success: true နှင့် receipt_no ပြန်ပေးရန် သေချာပါစေ
         sale_data = result.data
         if not sale_data.get("success"):
             return {"error": sale_data.get("error", "Unknown DB Error")}
             
+        # အောင်မြင်ပါက sale_id နှင့် receipt_no ကို ပြန်ပေးသည်
         return {
             "success": True, 
-            "receipt_no": sale_data.get("receipt_no")
+            "receipt_no": sale_data.get("receipt_no"),
+            "sale_id": sale_data.get("sale_id")
         }
 
     except Exception as e:
@@ -77,8 +79,10 @@ def get_products(active_only: bool = True):
         return []
 
 def get_receipt(receipt_no: str):
+    """
+    receipt_no (invoice_no) ဖြင့် sales table မှ ရှာဖွေခြင်း
+    """
     try:
-        # sales table ထဲက invoice_no ကို ရှာဖွေခြင်း (receipt_no နှင့် တူညီပါက)
         result = supabase.table("sales").select("*").eq("invoice_no", receipt_no).single().execute()
         return result.data
     except Exception as e:
@@ -86,6 +90,9 @@ def get_receipt(receipt_no: str):
         return None
 
 def get_sale_items(sale_id: str):
+    """
+    sale_id ဖြင့် ဆက်စပ်နေသော Items များကို ရှာဖွေခြင်း
+    """
     try:
         result = supabase.table("sale_items").select("*").eq("sale_id", sale_id).execute()
         return result.data
