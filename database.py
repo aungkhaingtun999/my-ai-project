@@ -1,7 +1,7 @@
 # ==========================================
 # database.py
-# ERP ENTERPRISE WORLD CLASS v9
-# RECEIPT + CHECKOUT + SEARCH STABLE
+# ERP ENTERPRISE WORLD CLASS v10
+# RECEIPT + CHECKOUT + SEARCH + SETTINGS STABLE
 # ==========================================
 
 from supabase import create_client, Client
@@ -81,20 +81,61 @@ def money(value):
 def validate_uuid(value):
 
     if not value:
-
         return None
 
     try:
 
         return str(
-            uuid.UUID(
-                str(value)
-            )
+            uuid.UUID(str(value))
         )
 
     except:
 
         return None
+
+
+
+# ==========================================
+# SETTINGS
+# ==========================================
+
+def get_setting(
+    key: str,
+    default=None
+):
+
+    try:
+
+        result = (
+            supabase
+            .table("settings")
+            .select(
+                "value"
+            )
+            .eq(
+                "key",
+                key
+            )
+            .maybe_single()
+            .execute()
+        )
+
+
+        if result.data:
+
+            return result.data.get(
+                "value"
+            )
+
+
+        return default
+
+
+    except Exception as e:
+
+        log_error(e)
+
+        return default
 
 
 
@@ -111,7 +152,8 @@ def checkout_sale_rpc(
     if not cart:
 
         return {
-            "error": "Cart is empty"
+            "error":
+            "Cart is empty"
         }
 
 
@@ -119,15 +161,21 @@ def checkout_sale_rpc(
 
         payload = {
 
-            "p_cart": cart,
+            "p_cart":
+            cart,
+
 
             "p_paid_amount":
-                money(paid_amount),
+            money(
+                paid_amount
+            ),
+
 
             "p_cashier_id":
-                validate_uuid(
-                    cashier_id
-                )
+            validate_uuid(
+                cashier_id
+            )
+
         }
 
 
@@ -152,40 +200,55 @@ def checkout_sale_rpc(
             }
 
 
+
         if isinstance(data, dict):
+
 
             if data.get("success"):
 
                 return {
 
-                    "success": True,
+                    "success":
+                    True,
+
 
                     "receipt_no":
-                        data.get("invoice_no")
-                        or
-                        data.get("receipt_no"),
+                    data.get(
+                        "invoice_no"
+                    )
+                    or
+                    data.get(
+                        "receipt_no"
+                    ),
+
 
                     "sale_id":
-                        data.get("sale_id")
+                    data.get(
+                        "sale_id"
+                    )
+
                 }
 
 
             return {
 
                 "error":
-                    data.get(
-                        "error",
-                        "Checkout failed"
-                    )
+                data.get(
+                    "error",
+                    "Checkout Failed"
+                )
+
             }
+
 
 
         return {
 
             "error":
-            "Invalid RPC response"
+            "Invalid RPC Response"
 
         }
+
 
 
     except Exception as e:
@@ -201,7 +264,6 @@ def checkout_sale_rpc(
 
 
 
-
 # ==========================================
 # PRODUCTS
 # ==========================================
@@ -213,7 +275,6 @@ def get_products(
     try:
 
         query = (
-
             supabase
             .table("products")
             .select(
@@ -261,12 +322,12 @@ def get_products(
 # ==========================================
 
 def get_receipt(
-    receipt_no: str
+    receipt_no:str
 ):
 
     try:
 
-        return (
+        result = (
 
             supabase
             .table("sales")
@@ -275,11 +336,13 @@ def get_receipt(
                 "invoice_no",
                 receipt_no.strip()
             )
-            .single()
+            .maybe_single()
             .execute()
-            .data
 
         )
+
+
+        return result.data
 
 
     except Exception as e:
@@ -290,13 +353,12 @@ def get_receipt(
 
 
 
-
 # ==========================================
-# RECEIPT SEARCH PARTIAL
+# RECEIPT SEARCH
 # ==========================================
 
 def get_receipts_search(
-    keyword: str
+    keyword:str
 ):
 
     try:
@@ -353,7 +415,7 @@ def get_receipts_search(
 # ==========================================
 
 def get_receipt_detail(
-    receipt_no: str
+    receipt_no:str
 ):
 
     try:
@@ -381,7 +443,6 @@ def get_receipt_detail(
         log_error(e)
 
         return None
-
 
 
 
@@ -431,8 +492,13 @@ def get_sale_items(
         log_error(e)
 
         return []
-# # ==========================================
+
+
+
+# ==========================================
 # DATABASE MODULE STATUS
 # ==========================================
 
-logging.info("DATABASE v9 LOADED SUCCESS")
+logging.info(
+    "DATABASE v10 LOADED SUCCESS"
+        )
