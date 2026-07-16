@@ -5,11 +5,14 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from database import get_products, checkout_sale_rpc
 from auth import is_authenticated
+
+# Print utilities (Error မတက်အောင် import)
 try:
     from utils.thermal_receipt import print_thermal
     from utils.receipt_pdf import generate_pdf
 except ImportError:
-    pass
+    def print_thermal(data): st.warning("Thermal printer utility not found.")
+    def generate_pdf(data): st.warning("PDF utility not found.")
 
 def get_mst_now():
     return datetime.now(ZoneInfo("Asia/Yangon")).strftime("%Y-%m-%d %H:%M:%S")
@@ -22,6 +25,7 @@ if not is_authenticated():
 
 if "cart" not in st.session_state: st.session_state.cart = []
 if "show_receipt" not in st.session_state: st.session_state.show_receipt = False
+if "sale_data" not in st.session_state: st.session_state.sale_data = None
 
 products = get_products() or []
 
@@ -88,13 +92,13 @@ if st.session_state.cart and not st.session_state.show_receipt:
         else:
             prepared_cart = [{"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])} for i in st.session_state.cart]
             
-            # Database သို့ ပို့ပေးခြင်း (payment_method ကို မပို့တော့ပါ)
             c_id = st.session_state.get("user_id")
             res = checkout_sale_rpc(prepared_cart, float(final_total), c_id)
             
             if res and isinstance(res, dict) and res.get("success"):
                 st.session_state.sale_data = {
                     "receipt_no": res.get("receipt_no"),
+                    "sale_id": res.get("sale_id"), # sale_id အရေးကြီးသည်
                     "total": final_total,
                     "method": payment_method,
                     "change": change_due,
@@ -109,6 +113,14 @@ if st.session_state.cart and not st.session_state.show_receipt:
 if st.session_state.show_receipt:
     data = st.session_state.sale_data
     st.success(f"✅ Sale Successful! Receipt: {data.get('receipt_no', 'N/A')}")
+    
+    # Print ခလုတ်များ ပြန်လည်ထည့်သွင်းခြင်း
+    c1, c2 = st.columns(2)
+    if c1.button("🖨 Thermal Print"):
+        print_thermal(data)
+    if c2.button("📄 Generate PDF"):
+        generate_pdf(data)
+    
     st.write(f"**Method:** {data.get('method', 'N/A')} | **Change:** {data.get('change', 0.0):,.0f} MMK")
     
     if st.button("🔄 New Sale"):
@@ -116,4 +128,4 @@ if st.session_state.show_receipt:
         st.session_state.sale_data = None
         st.session_state.show_receipt = False
         st.rerun()
-        
+                    
