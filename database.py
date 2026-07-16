@@ -1,5 +1,5 @@
 # ==========================================
-# database.py (ERP ENTERPRISE WORLD CLASS v5 - CLEANED)
+# database.py (ERP ENTERPRISE WORLD CLASS v5 - OPTIMIZED)
 # ==========================================
 
 from supabase import create_client, Client
@@ -18,7 +18,6 @@ def log_error(err: Exception):
 # Singleton Connection
 @st.cache_resource
 def get_supabase() -> Client:
-    # streamlit secrets ကို သေချာစစ်ဆေးပါ
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = get_supabase()
@@ -36,34 +35,28 @@ def checkout_sale_rpc(cart: List[Dict[str, Any]], paid_amount: float, cashier_id
         return {"error": "ခြင်းတောင်း ဗလာဖြစ်နေပါသည်"}
 
     try:
+        # RPC အတွက် Payload
         payload = {
             "p_cart": cart, 
             "p_paid_amount": money(paid_amount),
             "p_cashier_id": cashier_id
         }
         
+        # RPC ခေါ်ဆိုခြင်း
         result = supabase.rpc("checkout_sale_rpc", payload).execute()
         
         if not result.data:
-            return {"error": "Database returned no response"}
+            return {"error": "Database မှ တုံ့ပြန်ချက်မရရှိပါ"}
             
+        # RPC က success: true နှင့် receipt_no ပြန်ပေးရန် သေချာပါစေ
         sale_data = result.data
-        sale_id = sale_data.get("sale_id")
-        
-        # Calculate total for receipt if not provided by RPC
-        total_amount = money(sale_data.get("total", sum(i["selling_price"] * i["qty"] for i in cart)))
-        
-        receipt = {
-            "receipt_no": f"RCP-{sale_id}",
-            "sale_id": sale_id,
-            "total": total_amount,
-            "paid_amount": money(paid_amount),
-            "change_amount": money(paid_amount - total_amount)
+        if not sale_data.get("success"):
+            return {"error": sale_data.get("error", "Unknown DB Error")}
+            
+        return {
+            "success": True, 
+            "receipt_no": sale_data.get("receipt_no")
         }
-        
-        supabase.table("receipts").insert(receipt).execute()
-        
-        return {"success": True, "sale_id": sale_id, "receipt_no": receipt["receipt_no"]}
 
     except Exception as e:
         log_error(e)
@@ -84,23 +77,19 @@ def get_products(active_only: bool = True):
         return []
 
 def get_receipt(receipt_no: str):
-    """
-    Receipt ID ဖြင့် Database မှ ရှာဖွေခြင်း
-    """
     try:
-        result = supabase.table("receipts").select("*").eq("receipt_no", receipt_no).single().execute()
+        # sales table ထဲက invoice_no ကို ရှာဖွေခြင်း (receipt_no နှင့် တူညီပါက)
+        result = supabase.table("sales").select("*").eq("invoice_no", receipt_no).single().execute()
         return result.data
     except Exception as e:
         log_error(e)
         return None
 
 def get_sale_items(sale_id: str):
-    """
-    Sale ID ဖြင့် ဆက်စပ်နေသော Items များကို ရှာဖွေခြင်း
-    """
     try:
         result = supabase.table("sale_items").select("*").eq("sale_id", sale_id).execute()
         return result.data
     except Exception as e:
         log_error(e)
         return []
+        
