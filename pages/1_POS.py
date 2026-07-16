@@ -1,131 +1,538 @@
+# ==========================================
+# pages/1_POS.py
+# ERP ENTERPRISE POS v4
+# PART 1/2
+# ==========================================
+
 import streamlit as st
-import sys
-import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
 from database import get_products, checkout_sale_rpc
 from auth import is_authenticated
 
-# Print utilities (Error မတက်အောင် import)
+# ===============================
+# PRINT MODULES
+# ===============================
+
 try:
     from utils.thermal_receipt import print_thermal
+except ImportError:
+    def print_thermal(data):
+        st.warning("Thermal printer utility missing.")
+
+
+try:
     from utils.receipt_pdf import generate_pdf
 except ImportError:
-    def print_thermal(data): st.warning("Thermal printer utility not found.")
-    def generate_pdf(data): st.warning("PDF utility not found.")
+    def generate_pdf(data):
+        st.warning("PDF utility missing.")
 
-def get_mst_now():
-    return datetime.now(ZoneInfo("Asia/Yangon")).strftime("%Y-%m-%d %H:%M:%S")
 
-st.set_page_config(page_title="Enterprise POS", layout="wide", page_icon="🛒")
+# ===============================
+# PAGE CONFIG
+# ===============================
+
+st.set_page_config(
+    page_title="Enterprise POS",
+    page_icon="🛒",
+    layout="wide"
+)
+
+
+# ===============================
+# AUTH
+# ===============================
 
 if not is_authenticated():
-    st.error("ကျေးဇူးပြု၍ Login အရင်ဝင်ပေးပါ။")
+    st.error("ကျေးဇူးပြု၍ Login အရင်ဝင်ပါ။")
     st.stop()
 
-if "cart" not in st.session_state: st.session_state.cart = []
-if "show_receipt" not in st.session_state: st.session_state.show_receipt = False
-if "sale_data" not in st.session_state: st.session_state.sale_data = None
+
+# ===============================
+# SESSION STATE
+# ===============================
+
+defaults = {
+    "cart": [],
+    "show_receipt": False,
+    "sale_data": None
+}
+
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+
+
+# ===============================
+# TIME
+# ===============================
+
+def get_mst_now():
+    return datetime.now(
+        ZoneInfo("Asia/Yangon")
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+
+# ===============================
+# LOAD PRODUCTS
+# ===============================
 
 products = get_products() or []
 
-st.subheader("🛒 Enterprise POS")
 
-# Search & Add to Cart
-col_s1, col_s2 = st.columns(2)
-name_query = col_s1.text_input("🔍 Search by Name", key="name_search")
-code_query = col_s2.text_input("🔍 Search by SKU or Barcode", key="code_search")
+st.title("🛒 Enterprise POS")
+
+
+# ===============================
+# PRODUCT SEARCH
+# ===============================
+
+col1, col2 = st.columns(2)
+
+name_search = col1.text_input(
+    "🔍 Search Product Name"
+)
+
+code_search = col2.text_input(
+    "🔍 Barcode / SKU"
+)
+
 
 selected_product = None
-if name_query:
-    matches = [p for p in products if name_query.lower() in p['name'].lower()]
-    if matches: selected_product = st.selectbox("Select product:", matches, format_func=lambda x: f"{x['name']} ({x['sku']})")
-elif code_query:
-    matches = [p for p in products if code_query.lower() in str(p.get('barcode', '')).lower() or code_query.lower() in str(p.get('sku', '')).lower()]
-    if matches: selected_product = matches[0]
+
+
+if name_search:
+
+    matches = [
+        p for p in products
+        if name_search.lower()
+        in p["name"].lower()
+    ]
+
+    if matches:
+        selected_product = st.selectbox(
+            "Choose Product",
+            matches,
+            format_func=lambda x:
+            f"{x['name']} | {x.get('sku','')}"
+        )
+
+
+elif code_search:
+
+    matches = [
+        p for p in products
+        if code_search.lower()
+        in str(p.get("barcode","")).lower()
+        or code_search.lower()
+        in str(p.get("sku","")).lower()
+    ]
+
+    if matches:
+        selected_product = matches[0]
+
+
+# ===============================
+# ADD CART
+# ===============================
 
 if selected_product:
-    qty = st.number_input("Quantity", min_value=1, value=1)
-    if st.button("➕ Add to Cart", type="primary"):
-        existing = next((item for item in st.session_state.cart if item["id"] == selected_product["id"]), None)
-        if existing: existing["qty"] += qty
-        else: st.session_state.cart.append({**selected_product, "qty": qty})
-        st.rerun()
 
-# Cart Management & Payment
-if st.session_state.cart and not st.session_state.show_receipt:
-    st.divider()
-    subtotal = 0
-    for i, item in enumerate(st.session_state.cart):
-        c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
-        c1.write(f"**{item['name']}**")
-        qty = c2.number_input("Qty", 1, 99, item['qty'], key=f"q_{item['id']}")
-        st.session_state.cart[i]['qty'] = qty
-        row_total = float(item['selling_price']) * qty
-        c3.write(f"{row_total:,.0f} MMK")
-        if c4.button("🗑", key=f"del_{item['id']}"):
-            st.session_state.cart.pop(i)
-            st.rerun()
-        subtotal += row_total
+    qty = st.number_input(
+        "Quantity",
+        min_value=1,
+        value=1
+    )
 
-    col1, col2 = st.columns(2)
-    tax_rate = col1.number_input("Tax %", 0.0, 100.0, 0.0)
-    discount = col2.number_input("Total Discount", 0.0, 100000.0, 0.0)
-    
-    final_total = (subtotal - discount) * (1 + tax_rate / 100)
-    st.markdown(f"### Grand Total: {final_total:,.0f} MMK")
 
-    st.divider()
-    st.subheader("💳 Payment Details")
-    payment_method = st.radio("Payment Method", ["Cash", "Card", "Mobile Banking", "Credit", "Installment"])
-    
-    amount_given = final_total
-    change_due = 0.0
-    if payment_method == "Cash":
-        amount_given = st.number_input("Amount Received (ပေးငွေ)", min_value=0.0, value=float(final_total))
-        change_due = max(0, amount_given - final_total)
-        st.info(f"💰 Change to return: {change_due:,.0f} MMK")
+    if st.button(
+        "➕ Add To Cart",
+        type="primary"
+    ):
 
-    if st.button("✅ Confirm Sale", type="primary"):
-        if payment_method == "Cash" and amount_given < final_total:
-            st.error("❌ ပေးငွေ မလုံလောက်ပါ။")
+        existing = next(
+            (
+                x for x in st.session_state.cart
+                if x["id"] == selected_product["id"]
+            ),
+            None
+        )
+
+
+        if existing:
+
+            existing["qty"] += int(qty)
+
         else:
-            prepared_cart = [{"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])} for i in st.session_state.cart]
-            
-            c_id = st.session_state.get("user_id")
-            res = checkout_sale_rpc(prepared_cart, float(final_total), c_id)
-            
-            if res and isinstance(res, dict) and res.get("success"):
-                st.session_state.sale_data = {
-                    "receipt_no": res.get("receipt_no"),
-                    "sale_id": res.get("sale_id"), # sale_id အရေးကြီးသည်
-                    "total": final_total,
-                    "method": payment_method,
-                    "change": change_due,
-                    "timestamp": get_mst_now()
-                }
-                st.session_state.show_receipt = True
-                st.rerun()
-            else:
-                st.error(f"❌ Checkout Failed: {res.get('error', 'Unknown Error')}")
 
-# Receipt Module
-if st.session_state.show_receipt:
-    data = st.session_state.sale_data
-    st.success(f"✅ Sale Successful! Receipt: {data.get('receipt_no', 'N/A')}")
-    
-    # Print ခလုတ်များ ပြန်လည်ထည့်သွင်းခြင်း
-    c1, c2 = st.columns(2)
-    if c1.button("🖨 Thermal Print"):
-        print_thermal(data)
-    if c2.button("📄 Generate PDF"):
-        generate_pdf(data)
-    
-    st.write(f"**Method:** {data.get('method', 'N/A')} | **Change:** {data.get('change', 0.0):,.0f} MMK")
-    
-    if st.button("🔄 New Sale"):
-        st.session_state.cart = []
-        st.session_state.sale_data = None
-        st.session_state.show_receipt = False
+            st.session_state.cart.append(
+                {
+                    "id": selected_product["id"],
+                    "name": selected_product["name"],
+                    "selling_price": float(
+                        selected_product["selling_price"]
+                    ),
+                    "qty": int(qty),
+                    "stock": selected_product["stock"]
+                }
+            )
+
+
         st.rerun()
-                    
+        # ==========================================
+# PART 2/2
+# CART + CHECKOUT + RECEIPT
+# ==========================================
+
+
+# ===============================
+# CART VIEW
+# ===============================
+
+if st.session_state.cart and not st.session_state.show_receipt:
+
+    st.divider()
+    st.subheader("🛒 Shopping Cart")
+
+
+    subtotal = 0.0
+
+
+    for index, item in enumerate(
+        st.session_state.cart.copy()
+    ):
+
+        c1, c2, c3, c4 = st.columns(
+            [4, 1, 2, 1]
+        )
+
+
+        c1.write(
+            f"**{item['name']}**"
+        )
+
+
+        new_qty = c2.number_input(
+            "Qty",
+            min_value=1,
+            max_value=999,
+            value=int(item["qty"]),
+            key=f"qty_{item['id']}"
+        )
+
+
+        st.session_state.cart[index]["qty"] = int(new_qty)
+
+
+        item_total = (
+            float(item["selling_price"])
+            *
+            int(new_qty)
+        )
+
+
+        c3.write(
+            f"{item_total:,.0f} MMK"
+        )
+
+
+        if c4.button(
+            "🗑",
+            key=f"delete_{item['id']}"
+        ):
+
+            st.session_state.cart.pop(index)
+            st.rerun()
+
+
+        subtotal += item_total
+
+
+
+    # ===============================
+    # TAX DISCOUNT
+    # ===============================
+
+    st.divider()
+
+
+    c1, c2 = st.columns(2)
+
+
+    tax_rate = c1.number_input(
+        "Tax (%)",
+        min_value=0.0,
+        value=0.0
+    )
+
+
+    discount = c2.number_input(
+        "Discount (MMK)",
+        min_value=0.0,
+        value=0.0
+    )
+
+
+    tax_amount = (
+        subtotal
+        *
+        tax_rate
+        /
+        100
+    )
+
+
+    final_total = (
+        subtotal
+        -
+        discount
+        +
+        tax_amount
+    )
+
+
+    if final_total < 0:
+        final_total = 0
+
+
+
+    st.markdown(
+        f"""
+        ### 💰 Total
+        **{final_total:,.0f} MMK**
+        """
+    )
+
+
+
+    # ===============================
+    # PAYMENT
+    # ===============================
+
+    st.divider()
+
+    st.subheader(
+        "💳 Payment"
+    )
+
+
+    payment_method = st.radio(
+        "Payment Method",
+        [
+            "Cash",
+            "Card",
+            "Mobile Banking",
+            "Credit"
+        ],
+        horizontal=True
+    )
+
+
+    paid_amount = final_total
+    change_amount = 0
+
+
+
+    if payment_method == "Cash":
+
+        paid_amount = st.number_input(
+            "Received Amount",
+            min_value=0.0,
+            value=float(final_total)
+        )
+
+
+        change_amount = max(
+            0,
+            paid_amount - final_total
+        )
+
+
+        st.info(
+            f"Change: {change_amount:,.0f} MMK"
+        )
+
+
+
+    # ===============================
+    # CHECKOUT
+    # ===============================
+
+    if st.button(
+        "✅ Confirm Sale",
+        type="primary"
+    ):
+
+
+        if paid_amount < final_total:
+
+            st.error(
+                "Payment amount is not enough."
+            )
+
+            st.stop()
+
+
+
+        # RPC JSON PAYLOAD
+        prepared_cart = []
+
+
+        for item in st.session_state.cart:
+
+            prepared_cart.append(
+                {
+                    "id": item["id"],
+                    "qty": int(item["qty"]),
+                    "selling_price":
+                        float(item["selling_price"])
+                }
+            )
+
+
+
+        # Get logged user id
+        cashier_id = st.session_state.get(
+            "user_id"
+        )
+
+
+
+        result = checkout_sale_rpc(
+            prepared_cart,
+            float(paid_amount),
+            cashier_id
+        )
+
+
+
+        if (
+            result
+            and result.get("success")
+        ):
+
+
+            st.session_state.sale_data = {
+
+                "receipt_no":
+                    result.get("receipt_no"),
+
+                "sale_id":
+                    result.get("sale_id"),
+
+                "items":
+                    st.session_state.cart.copy(),
+
+                "subtotal":
+                    subtotal,
+
+                "discount":
+                    discount,
+
+                "tax":
+                    tax_amount,
+
+                "total":
+                    final_total,
+
+                "method":
+                    payment_method,
+
+                "paid":
+                    paid_amount,
+
+                "change":
+                    change_amount,
+
+                "timestamp":
+                    get_mst_now()
+            }
+
+
+
+            st.session_state.show_receipt = True
+
+            st.rerun()
+
+
+
+        else:
+
+            st.error(
+                f"Checkout Failed: {result.get('error')}"
+            )
+
+
+
+
+
+# ===============================
+# RECEIPT
+# ===============================
+
+
+if st.session_state.show_receipt:
+
+
+    data = st.session_state.sale_data
+
+
+    st.success(
+        f"✅ Sale Completed\n\n"
+        f"Receipt : {data.get('receipt_no','N/A')}"
+    )
+
+
+
+    st.write(
+        f"""
+        **Payment:** {data['method']}
+
+        **Total:** {data['total']:,.0f} MMK
+
+        **Paid:** {data['paid']:,.0f} MMK
+
+        **Change:** {data['change']:,.0f} MMK
+
+        **Time:** {data['timestamp']}
+        """
+    )
+
+
+
+    c1, c2 = st.columns(2)
+
+
+
+    if c1.button(
+        "🖨 Thermal Print"
+    ):
+
+        print_thermal(data)
+
+
+
+    if c2.button(
+        "📄 Generate PDF"
+    ):
+
+        generate_pdf(data)
+
+
+
+    st.divider()
+
+
+
+    if st.button(
+        "🔄 New Sale"
+    ):
+
+        st.session_state.cart = []
+
+        st.session_state.sale_data = None
+
+        st.session_state.show_receipt = False
+
+        st.rerun()
