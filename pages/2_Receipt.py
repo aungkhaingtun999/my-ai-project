@@ -1,76 +1,318 @@
+# ==========================================
+# pages/6_Receipt.py
+# ERP ENTERPRISE RECEIPT VIEWER v2
+# ==========================================
+
 import streamlit as st
-from database import get_receipt
+
+from database import (
+    get_receipt,
+    get_sale_items
+)
+
+
+# =========================
+# PAGE
+# =========================
 
 st.title("🧾 Receipt Viewer (ERP Level)")
+
 
 # =========================
 # INPUT
 # =========================
-receipt_no = st.text_input("Enter Receipt No (e.g. RCP-1)")
+
+receipt_no = st.text_input(
+    "Enter Receipt No (e.g. INV-20260716120000)"
+)
+
+
 
 # =========================
-# LOAD
+# LOAD RECEIPT
 # =========================
-if st.button("🔍 Load Receipt"):
 
-    if not receipt_no:
-        st.warning("Please enter receipt number")
+if st.button(
+    "🔍 Load Receipt",
+    type="primary"
+):
+
+    if not receipt_no.strip():
+
+        st.warning(
+            "Please enter receipt number"
+        )
+
+        st.stop()
+
+
+
+    # =========================
+    # GET SALE HEADER
+    # =========================
+
+    receipt = get_receipt(
+        receipt_no.strip()
+    )
+
+
+
+    if not receipt:
+
+        st.error(
+            "❌ Receipt not found"
+        )
+
+        st.stop()
+
+
+
+    st.success(
+        "✅ Receipt Found"
+    )
+
+
+
+    sale_id = receipt.get(
+        "id"
+    )
+
+
+
+    # =========================
+    # GET ITEMS
+    # =========================
+
+    items = []
+
+    if sale_id:
+
+        items = get_sale_items(
+            str(sale_id)
+        )
+
+
+
+    # =========================
+    # SUMMARY
+    # =========================
+
+    st.divider()
+
+    st.subheader(
+        "🧾 Receipt Summary"
+    )
+
+
+    col1, col2, col3 = st.columns(3)
+
+
+
+    with col1:
+
+        st.metric(
+            "Invoice No",
+            receipt.get(
+                "invoice_no",
+                "-"
+            )
+        )
+
+
+    with col2:
+
+        st.metric(
+            "Total",
+            f"{receipt.get('total',0):,.0f} MMK"
+        )
+
+
+    with col3:
+
+        st.metric(
+            "Status",
+            receipt.get(
+                "sale_status",
+                receipt.get(
+                    "status",
+                    "-"
+                )
+            )
+        )
+
+
+
+    col1, col2, col3 = st.columns(3)
+
+
+    with col1:
+
+        st.metric(
+            "Paid",
+            f"{receipt.get('paid_amount',0):,.0f}"
+            " MMK"
+        )
+
+
+    with col2:
+
+        st.metric(
+            "Change",
+            f"{receipt.get('change_amount',0):,.0f}"
+            " MMK"
+        )
+
+
+    with col3:
+
+        st.metric(
+            "Payment",
+            receipt.get(
+                "payment_method",
+                "-"
+            )
+        )
+
+
+
+    # =========================
+    # ITEMS TABLE
+    # =========================
+
+    st.divider()
+
+    st.subheader(
+        "🛒 Items"
+    )
+
+
+    if items:
+
+
+        table = []
+
+
+        for item in items:
+
+            table.append(
+                {
+                    "Product ID":
+                        item.get(
+                            "product_id"
+                        ),
+
+                    "Qty":
+                        item.get(
+                            "quantity"
+                        ),
+
+                    "Price":
+                        item.get(
+                            "unit_price"
+                        ),
+
+                    "Total":
+                        item.get(
+                            "total"
+                        )
+                }
+            )
+
+
+        st.dataframe(
+            table,
+            use_container_width=True
+        )
+
 
     else:
-        result = get_receipt(receipt_no)
 
-        if not result or not result.data:
-            st.error("❌ Receipt not found")
+        st.info(
+            "No sale items found"
+        )
 
-        else:
-            r = result.data
 
-            st.success("✅ Receipt Found")
 
-            # =========================
-            # HEADER CARD
-            # =========================
-            st.subheader("🧾 Receipt Summary")
+    # =========================
+    # FINANCIAL DETAIL
+    # =========================
 
-            col1, col2 = st.columns(2)
+    st.divider()
 
-            with col1:
-                st.metric("Receipt No", r.get("receipt_no", "-"))
-                st.metric("Total", f"{r.get('total',0):,.0f} MMK")
+    st.subheader(
+        "💰 Financial Details"
+    )
 
-            with col2:
-                st.metric("Paid", f"{r.get('paid_amount',0):,.0f} MMK")
-                st.metric("Change", f"{r.get('change_amount',0):,.0f} MMK")
 
-            # =========================
-            # EXTRA INFO
-            # =========================
-            st.divider()
+    c1, c2 = st.columns(2)
 
-            st.subheader("📌 Details")
 
-            st.write("🧾 Receipt No:", r.get("receipt_no"))
-            st.write("💰 Total:", r.get("total"))
-            st.write("💵 Paid:", r.get("paid_amount"))
-            st.write("🔄 Change:", r.get("change_amount"))
+    with c1:
 
-            # created_at may not exist depending schema
-            if "created_at" in r:
-                st.write("📅 Date:", r["created_at"])
+        st.write(
+            "Subtotal:",
+            f"{receipt.get('subtotal',0):,.0f}"
+        )
 
-            # =========================
-            # ACTIONS
-            # =========================
-            st.divider()
+        st.write(
+            "Discount:",
+            f"{receipt.get('discount',0):,.0f}"
+        )
 
-            col1, col2 = st.columns(2)
 
-            with col1:
-                st.info("🖨️ Print / PDF feature will be added next step")
+    with c2:
 
-            with col2:
-                st.download_button(
-                    label="⬇ Export (future PDF)",
-                    data=str(r),
-                    file_name=f"{receipt_no}.txt"
-                )
+        st.write(
+            "Tax:",
+            f"{receipt.get('tax',0):,.0f}"
+        )
+
+        st.write(
+            "Grand Total:",
+            f"{receipt.get('total',0):,.0f} MMK"
+        )
+
+
+
+    if receipt.get(
+        "created_at"
+    ):
+
+        st.write(
+            "📅 Date:",
+            receipt["created_at"]
+        )
+
+
+
+    # =========================
+    # ACTIONS
+    # =========================
+
+    st.divider()
+
+    c1, c2 = st.columns(2)
+
+
+
+    with c1:
+
+        st.info(
+            "🖨 Thermal Reprint / PDF Reprint "
+            "can be connected here."
+        )
+
+
+
+    with c2:
+
+        st.download_button(
+
+            label="⬇ Export Receipt Data",
+
+            data=str(receipt),
+
+            file_name=
+            f"{receipt_no}.txt"
+
+        )
