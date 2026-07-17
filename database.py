@@ -1,5 +1,5 @@
 # ==========================================
-# database.py (ERP ENTERPRISE v14.5 - STABLE)
+# database.py (ERP ENTERPRISE v14.6 - FINAL)
 # ==========================================
 
 import streamlit as st
@@ -36,57 +36,35 @@ def validate_uuid(value):
     except: return None
 
 # ==========================================
-# DATA FETCHERS
-# ==========================================
-# ==========================================
-# SETTINGS
+# SETTINGS & DATA FETCHERS
 # ==========================================
 
 def get_setting(key: str, default=None):
-
     try:
-
-        res = (
-            db()
-            .table("erp_settings")
-            .select("value")
-            .eq("key", key)
-            .maybe_single()
-            .execute()
-        )
-
-        if res.data:
-            return res.data.get("value")
-
-        return default
-
-
+        res = db().table("erp_settings").select("value").eq("key", key).maybe_single().execute()
+        return res.data.get("value") if res.data else default
     except Exception as e:
-
         log_error(e)
-
         return default
+
 def get_products(active_only=True):
     try:
         query = db().table("products").select("id, barcode, sku, name, purchase_price, selling_price, stock, is_active")
         if active_only: query = query.eq("is_active", True)
         return query.execute().data or []
     except Exception as e: 
-        log_error(e)
-        return []
+        log_error(e); return []
 
 def get_suppliers():
     try: return db().table("suppliers").select("id,name,phone").execute().data or []
     except Exception as e: 
-        log_error(e)
-        return []
+        log_error(e); return []
 
 def get_warehouses():
     try:
         return db().table("warehouses").select("id, code, name, branch").eq("is_active", True).execute().data or []
     except Exception as e: 
-        log_error(e)
-        return []
+        log_error(e); return []
 
 # ==========================================
 # RPC & AUDIT LOG
@@ -104,11 +82,10 @@ def purchase_receive_rpc(p_id: int, s_id: int, w_id: int, qty: int, price: float
         log_error(e)
         return {"success": False, "message": str(e)}
 
-def transfer_stock_rpc(p_id: int, from_w: int, to_w: int, qty: int, uid: str):
+def checkout_sale_rpc(cart, paid_amount, cashier_id=None):
     try:
-        res = db().rpc("transfer_stock_rpc", {
-            "p_product_id": p_id, "p_from_w": from_w, "p_to_w": to_w, "p_qty": qty, "p_user_id": validate_uuid(uid)
-        }).execute()
+        payload = {"p_cart": cart, "p_paid_amount": money(paid_amount), "p_cashier_id": validate_uuid(cashier_id)}
+        res = db().rpc("checkout_sale_rpc", payload).execute()
         return res.data
     except Exception as e:
         log_error(e)
@@ -117,111 +94,29 @@ def transfer_stock_rpc(p_id: int, from_w: int, to_w: int, qty: int, uid: str):
 def create_audit_log(user_id, action, details):
     try:
         res = db().table("audit_logs").insert({
-            "user_id": validate_uuid(user_id),
-            "action": action,
-            "details": details
+            "user_id": validate_uuid(user_id), "action": action, "details": details
         }).execute()
         return {"success": True, "data": res.data}
     except Exception as e:
         log_error(e)
         return {"success": False, "message": str(e)}
 
-print("DATABASE v14.5 IMPORT SUCCESS")
-# # ==========================================
-# POS SALES MODULE
-# ==========================================
-
-def checkout_sale_rpc(
-    cart,
-    paid_amount,
-    cashier_id=None
-):
-
-    try:
-
-        payload = {
-            "p_cart": cart,
-            "p_paid_amount": money(paid_amount),
-            "p_cashier_id": validate_uuid(cashier_id)
-        }
-
-
-        result = (
-            db()
-            .rpc(
-                "checkout_sale_rpc",
-                payload
-            )
-            .execute()
-        )
-
-
-        return result.data
-
-
-    except Exception as e:
-
-        log_error(e)
-
-        return {
-            "success": False,
-            "message": str(e)
-        }
-
-
-
 # ==========================================
 # RECEIPT
 # ==========================================
 
 def get_receipt(invoice_no):
-
     try:
-
-        result = (
-            db()
-            .table("sales")
-            .select("*")
-            .eq(
-                "invoice_no",
-                invoice_no
-            )
-            .maybe_single()
-            .execute()
-        )
-
-        return result.data
-
-
+        res = db().table("sales").select("*").eq("invoice_no", invoice_no).maybe_single().execute()
+        return res.data
     except Exception as e:
-
-        log_error(e)
-
-        return None
-
-
+        log_error(e); return None
 
 def get_sale_items(sale_id):
-
     try:
-
-        result = (
-            db()
-            .table("sale_items")
-            .select("*")
-            .eq(
-                "sale_id",
-                sale_id
-            )
-            .execute()
-        )
-
-
-        return result.data or []
-
-
+        res = db().table("sale_items").select("*").eq("sale_id", sale_id).execute()
+        return res.data or []
     except Exception as e:
+        log_error(e); return []
 
-        log_error(e)
-
-        return []
+print("DATABASE v14.6 IMPORT SUCCESS")
