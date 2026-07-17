@@ -1,6 +1,6 @@
 # ==========================================
 # database.py
-# ERP ENTERPRISE v14.10 - PRODUCTION HARDENED
+# ERP ENTERPRISE v14.11 - PRODUCTION FINAL
 # ==========================================
 
 import streamlit as st
@@ -74,19 +74,29 @@ def get_setting(key, default=None):
 # ==========================================
 
 def get_products(warehouse_id=None):
-    """
-    Performance Optimized: Fetches data from pos_products_view
-    to avoid N+1 query overhead.
-    """
+    """Fetches data from pos_products_view."""
     try:
         query = db().table("pos_products_view").select("*")
-        
         if warehouse_id is not None:
-            query = query.eq("warehouse_id", warehouse_id)
-        
-        data = query.execute().data or []
-        return data
-        
+            query = query.eq("warehouse_id", int(warehouse_id))
+        return query.execute().data or []
+    except Exception as e:
+        log_error(e)
+        return []
+
+# ==========================================
+# INVENTORY (Inventory.py Optimized)
+# ==========================================
+
+def get_inventory_view(warehouse_id=None, search=None):
+    """Optimized for pages/2_Inventory.py"""
+    try:
+        query = db().table("pos_products_view").select("*")
+        if warehouse_id:
+            query = query.eq("warehouse_id", int(warehouse_id))
+        if search:
+            query = query.ilike("name", f"%{search}%")
+        return query.execute().data or []
     except Exception as e:
         log_error(e)
         return []
@@ -104,16 +114,8 @@ def get_warehouses():
 
 def get_default_warehouse():
     try:
-        result = (
-            db()
-            .table("warehouses")
-            .select("id,name")
-            .eq("is_active", True)
-            .order("id")
-            .limit(1)
-            .execute()
-        )
-        return result.data[0] if result.data else None
+        res = db().table("warehouses").select("id,name").eq("is_active", True).order("id").limit(1).execute()
+        return res.data[0] if res.data else None
     except Exception as e:
         log_error(e)
         return None
@@ -135,9 +137,9 @@ def get_suppliers():
 
 def purchase_receive_rpc(p_id, s_id, w_id, qty, price, notes="", uid=None):
     payload = {
-        "p_product_id": p_id,
-        "p_supplier_id": s_id,
-        "p_warehouse_id": w_id,
+        "p_product_id": int(p_id),
+        "p_supplier_id": int(s_id),
+        "p_warehouse_id": int(w_id),
         "p_qty": int(qty),
         "p_price": money(price),
         "p_notes": notes,
@@ -159,18 +161,15 @@ def checkout_sale_rpc(cart, paid_amount, warehouse_id, cashier_id=None, counter_
         payload = {
             "p_cart": cart,
             "p_paid_amount": money(paid_amount),
-            "p_warehouse_id": warehouse_id,
-            "p_counter_id": counter_id,
+            "p_warehouse_id": int(warehouse_id),
+            "p_counter_id": int(counter_id),
             "p_cashier_id": validate_uuid(cashier_id)
         }
         res = db().rpc("checkout_sale_rpc", payload).execute()
-        
         data = res.data
         if isinstance(data, list):
             data = data[0]
-            
-        return data or {"success": False, "message": "No response from RPC"}
-        
+        return data or {"success": False, "message": "No response"}
     except Exception as e:
         log_error(e)
         return {"success": False, "message": str(e)}
@@ -205,5 +204,5 @@ def get_sale_items(sale_id):
         log_error(e)
         return []
 
-print("DATABASE v14.10 IMPORT SUCCESS")
+print("DATABASE v14.11 LOADED")
         
