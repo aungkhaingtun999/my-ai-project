@@ -38,7 +38,34 @@ def validate_uuid(value):
 # ==========================================
 # DATA FETCHERS
 # ==========================================
+# ==========================================
+# SETTINGS
+# ==========================================
 
+def get_setting(key: str, default=None):
+
+    try:
+
+        res = (
+            db()
+            .table("erp_settings")
+            .select("value")
+            .eq("key", key)
+            .maybe_single()
+            .execute()
+        )
+
+        if res.data:
+            return res.data.get("value")
+
+        return default
+
+
+    except Exception as e:
+
+        log_error(e)
+
+        return default
 def get_products(active_only=True):
     try:
         query = db().table("products").select("id, barcode, sku, name, purchase_price, selling_price, stock, is_active")
