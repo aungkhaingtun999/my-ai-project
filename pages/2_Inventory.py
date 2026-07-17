@@ -1,43 +1,23 @@
+# ==============================================================================
+# pages/2_Inventory.py
+# ERP ENTERPRISE PRODUCT MASTER v4.1 - PRODUCTION HARDENED
+# ==============================================================================
+
 import streamlit as st
 import pandas as pd
-from database import db
+from database import db, get_inventory_view, get_warehouses
 
-st.set_page_config(page_title="Enterprise Product Master v4.0", layout="wide")
+st.set_page_config(page_title="Enterprise Product Master v4.1", layout="wide")
 
-# --- 1. Data Fetching & Filtering ---
-def get_inventory_data(selected_wh_id, search_term=None):
-    query = db().table("products").select("""
-        id, name, sku, barcode, purchase_price, selling_price, category, unit, minimum_stock,
-        warehouse_stock!inner(qty)
-    """).eq("warehouse_stock.warehouse_id", selected_wh_id).eq("is_active", True)
-    
-    if search_term:
-        query = query.or_(f"name.ilike.%{search_term}%,sku.ilike.%{search_term}%,barcode.ilike.%{search_term}%")
-    
-    return query.execute().data or []
-
-# --- 2. Analytics Calculation ---
-def get_enterprise_metrics(products):
-    df = pd.DataFrame([{
-        **p, 
-        'qty': p['warehouse_stock'][0]['qty']
-    } for p in products])
-    
-    total_products = len(df)
-    total_qty = df['qty'].sum()
-    inventory_cost = (df['qty'] * df['purchase_price']).sum()
-    inventory_value = (df['qty'] * df['selling_price']).sum()
-    gross_profit = inventory_value - inventory_cost
-    low_stock = len(df[df['qty'] <= df['minimum_stock']])
-    out_of_stock = len(df[df['qty'] == 0])
-    
-    return total_products, total_qty, inventory_cost, inventory_value, gross_profit, low_stock, out_of_stock
-
-# --- 3. UI Implementation ---
-st.title("🏭 Enterprise Product Master v4.0")
+# --- 1. UI Implementation ---
+st.title("🏭 Enterprise Product Master v4.1")
 
 # Warehouse Selection
-warehouses = db().table("warehouses").select("*").eq("is_active", True).execute().data
+warehouses = get_warehouses()
+if not warehouses:
+    st.error("No active warehouses found. Please check database.")
+    st.stop()
+
 wh_map = {w['name']: w['id'] for w in warehouses}
 selected_wh_name = st.selectbox("📍 Select Warehouse", list(wh_map.keys()))
 selected_wh_id = wh_map[selected_wh_name]
@@ -47,14 +27,18 @@ tab1, tab2, tab3 = st.tabs(["📋 Product Master", "➕ Add Product", "📊 Ente
 
 with tab1:
     search = st.text_input("🔍 Search Products (Name, SKU, Barcode)", key="search_bar")
-    products = get_inventory_data(selected_wh_id, search)
     
-    # Flattened DataFrame
-    display_df = pd.DataFrame([{
-        'Name': p['name'], 'SKU': p['sku'], 'Barcode': p['barcode'], 
-        'Qty': p['warehouse_stock'][0]['qty'], 'Cost': p['purchase_price'], 'Price': p['selling_price']
-    } for p in products])
-    st.dataframe(display_df, use_container_width=True)
+    # Using Optimized View instead of complex JOINs
+    products = get_inventory_view(warehouse_id=selected_wh_id, search=search)
+    
+    if products:
+        display_df = pd.DataFrame([{
+            'Name': p['name'], 'SKU': p['sku'], 'Barcode': p['barcode'], 
+            'Qty': p['qty'], 'Cost': p.get('purchase_price', 0), 'Price': p['selling_price']
+        } for p in products])
+        st.dataframe(display_df, use_container_width=True)
+    else:
+        st.info("No products found in this warehouse.")
 
 with tab2:
     with st.form("add_product_form"):
@@ -72,26 +56,50 @@ with tab2:
         init_qty = st.number_input("Initial Stock", min_value=0)
         
         if st.form_submit_button("Save Product"):
-            res = db().rpc("create_product_full", {
-                "p_data": data, 
-                "p_warehouse_id": selected_wh_id, 
-                "p_initial_qty": int(init_qty)
-            }).execute()
-            
-            if res.data[0]['response_json']['status'] == 'success':
-                st.success("Product created successfully!")
-            else:
-                st.error(f"Error: {res.data[0]['response_json']['message']}")
+            try:
+                res = db().rpc("create_product_full", {
+                    "p_data": data, 
+                    "p_warehouse_id": int(selected_wh_id), 
+                    "p_initial_qty": int(init_qty)
+                }).execute()
+                
+                # RPC response handling
+                if res.data and res.data[0].get('status') == 'success':
+                    st.success("Product created successfully!")
+                else:
+                    st.error(f"Error: {res.data[0].get('message', 'Unknown Error')}")
+            except Exception as e:
+                st.error(f"Transaction failed: {str(e)}")
 
 with tab3:
     if products:
+        # --- Analytics Calculation ---
+        df = pd.DataFrame(products)
+        
+        total_p = len(df)
+        total_q = df['qty'].sum()
+        # Ensure numeric types
+        df['purchase_price'] = pd.to_numeric(df.get('purchase_price', 0))
+        df['selling_price'] = pd.to_numeric(df['selling_price'])
+        
+        inventory_cost = (df['qty'] * df['purchase_price']).sum()
+        inventory_value = (df['qty'] * df['selling_price']).sum()
+        gross_profit = inventory_value - inventory_cost
+        
+        # Alerts
+        low_stock = len(df[df['qty'] <= df.get('minimum_stock', 5)])
+        out_of_stock = len(df[df['qty'] == 0])
+        
+        # UI Metrics
         m1, m2, m3, m4 = st.columns(4)
-        total_p, total_q, cost, val, profit, low, out = get_enterprise_metrics(products)
         m1.metric("Total Products", total_p)
         m2.metric("Stock Qty", total_q)
-        m3.metric("Inventory Cost", f"${cost:,.2f}")
-        m4.metric("Gross Profit", f"${profit:,.2f}")
+        m3.metric("Inventory Cost", f"{inventory_cost:,.2f}")
+        m4.metric("Gross Profit", f"{gross_profit:,.2f}")
         
         m5, m6 = st.columns(2)
-        m5.metric("Low Stock Alert", low, delta_color="inverse")
-        m6.metric("Out of Stock", out, delta_color="inverse")
+        m5.metric("Low Stock Alert", low_stock, delta_color="inverse")
+        m6.metric("Out of Stock", out_of_stock, delta_color="inverse")
+    else:
+        st.write("No data available for dashboard.")
+        
