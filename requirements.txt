@@ -4,3 +4,4 @@ pandas
 streamlit-searchbox
 python-escpos
 reportlab
+openpyxl
