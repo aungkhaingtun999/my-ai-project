@@ -1,6 +1,6 @@
 # ==============================================================================
 # pages/1_POS.py
-# ERP ENTERPRISE POS v4.3 - STABLE & ROBUST
+# ERP ENTERPRISE POS v4.4 - STABLE & ROBUST (i18n READY)
 # ==============================================================================
 
 import streamlit as st
@@ -124,7 +124,6 @@ if st.session_state.cart and not st.session_state.show_receipt:
     
     st.success(f"{t('payment.total')} : {total:,.0f} MMK")
     
-    # Payment Mapping for DB consistency
     payment_map = {
         t("payment.cash"): "cash",
         t("payment.card"): "card",
@@ -150,17 +149,26 @@ if st.session_state.cart and not st.session_state.show_receipt:
                 st.session_state.sale_data = {
                     "receipt_no": result.get("invoice_no"),
                     "sale_id": result.get("sale_id"),
+                    
+                    # Items
                     "items": st.session_state.cart.copy(),
+                    
+                    # Financial
                     "subtotal": float(subtotal),
                     "discount": float(discount),
                     "tax_rate": float(tax_rate),
-"tax": float(tax_amount),
-"total": float(total),
+                    "tax": float(tax_amount),
                     "total": float(total),
                     "paid": float(paid),
                     "change": float(paid - total),
-                    "method": payment_code, # Stored as DB code
-                    "cashier_name": st.session_state.get("username", "Admin"), # Ensure matches auth.py key
+                    
+                    # Payment
+                    "method": payment_code,
+                    
+                    # User
+                    "cashier_name": st.session_state.get("username", "Admin"),
+                    
+                    # Time
                     "timestamp": get_mst_now()
                 }
                 st.session_state.show_receipt = True
@@ -184,4 +192,4 @@ if st.session_state.show_receipt:
         st.session_state.sale_data = None
         st.session_state.show_receipt = False
         st.rerun()
-    
+
