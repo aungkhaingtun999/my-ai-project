@@ -1,12 +1,20 @@
+# ==========================================
+# pages/7_Purchase.py
+# ERP ENTERPRISE PURCHASE RECEIVE v2
+# ==========================================
+
 import streamlit as st
 import sys
 import os
+from decimal import Decimal
+
 
 sys.path.append(
     os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..")
     )
 )
+
 
 from database import (
     get_suppliers,
@@ -19,28 +27,33 @@ from database import (
 from auth import is_authenticated
 
 
+# ==========================================
+# PAGE CONFIG
+# ==========================================
+
 st.set_page_config(
     page_title="Purchase Receive",
-    layout="centered",
-    page_icon="📦"
+    page_icon="📦",
+    layout="wide"
 )
 
 
-# ==============================
-# AUTH CHECK
-# ==============================
+# ==========================================
+# AUTH
+# ==========================================
 
 if not is_authenticated():
     st.error("ကျေးဇူးပြု၍ Login အရင်ဝင်ပါ။")
     st.stop()
 
 
+
 st.title("📦 Purchase Receive")
 
 
-# ==============================
+# ==========================================
 # LOAD DATA
-# ==============================
+# ==========================================
 
 suppliers = get_suppliers()
 warehouses = get_warehouses()
@@ -51,9 +64,11 @@ if not suppliers:
     st.error("Supplier မရှိပါ")
     st.stop()
 
+
 if not warehouses:
     st.error("Warehouse မရှိပါ")
     st.stop()
+
 
 if not products:
     st.error("Product မရှိပါ")
@@ -61,21 +76,20 @@ if not products:
 
 
 
-# ==============================
-# SESSION STATE
-# ==============================
+# ==========================================
+# SESSION
+# ==========================================
 
 if "purchase_cart" not in st.session_state:
     st.session_state.purchase_cart = []
 
 
-if "purchase_supplier" not in st.session_state:
-    st.session_state.purchase_supplier = None
+if "purchase_supplier_id" not in st.session_state:
+    st.session_state.purchase_supplier_id = None
 
 
-if "purchase_warehouse" not in st.session_state:
-    st.session_state.purchase_warehouse = None
-
+if "purchase_warehouse_id" not in st.session_state:
+    st.session_state.purchase_warehouse_id = None
 
 
 cart_exists = len(
@@ -84,28 +98,30 @@ cart_exists = len(
 
 
 
-# ==============================
+# ==========================================
 # SUPPLIER / WAREHOUSE
-# ==============================
+# ==========================================
+
+st.subheader("🏭 Purchase Information")
 
 
-st.subheader("Supplier & Warehouse")
+supplier_ids = [
+    x["id"] for x in suppliers
+]
 
 
-if cart_exists:
-    st.warning(
-        "Cart ထဲတွင် Item ရှိပါသည်။ "
-        "Supplier/Warehouse မပြောင်းနိုင်ပါ။"
+warehouse_ids = [
+    x["id"] for x in warehouses
+]
+
+
+if st.session_state.purchase_supplier_id in supplier_ids:
+    supplier_index = supplier_ids.index(
+        st.session_state.purchase_supplier_id
     )
+else:
+    supplier_index = 0
 
-
-supplier_index = 0
-
-if st.session_state.purchase_supplier:
-
-    for i,s in enumerate(suppliers):
-        if s["id"] == st.session_state.purchase_supplier["id"]:
-            supplier_index=i
 
 
 selected_supplier = st.selectbox(
@@ -117,13 +133,13 @@ selected_supplier = st.selectbox(
 )
 
 
-warehouse_index = 0
 
-if st.session_state.purchase_warehouse:
-
-    for i,w in enumerate(warehouses):
-        if w["id"] == st.session_state.purchase_warehouse["id"]:
-            warehouse_index=i
+if st.session_state.purchase_warehouse_id in warehouse_ids:
+    warehouse_index = warehouse_ids.index(
+        st.session_state.purchase_warehouse_id
+    )
+else:
+    warehouse_index = 0
 
 
 
@@ -132,7 +148,7 @@ selected_warehouse = st.selectbox(
     warehouses,
     index=warehouse_index,
     format_func=lambda x:
-        f'{x["name"]} - {x["branch"]}',
+        f"{x['name']} - {x.get('branch','')}",
     disabled=cart_exists
 )
 
@@ -140,15 +156,19 @@ selected_warehouse = st.selectbox(
 
 if not cart_exists:
 
-    st.session_state.purchase_supplier = selected_supplier
-    st.session_state.purchase_warehouse = selected_warehouse
+    st.session_state.purchase_supplier_id = (
+        selected_supplier["id"]
+    )
+
+    st.session_state.purchase_warehouse_id = (
+        selected_warehouse["id"]
+    )
 
 
 
-# ==============================
-# ADD PRODUCT
-# ==============================
-
+# ==========================================
+# ADD ITEM
+# ==========================================
 
 st.divider()
 
@@ -161,7 +181,7 @@ with st.container(border=True):
         "Product",
         products,
         format_func=lambda x:
-            f'{x["name"]} ({x.get("sku","")})'
+        f"{x['name']} ({x.get('sku','')})"
     )
 
 
@@ -171,7 +191,6 @@ with st.container(border=True):
     qty = c1.number_input(
         "Quantity",
         min_value=1,
-        value=1,
         step=1
     )
 
@@ -180,10 +199,11 @@ with st.container(border=True):
         "Cost Price",
         min_value=0.0,
         value=float(
-            product.get("purchase_price") or 0
+            product.get(
+                "purchase_price"
+            ) or 0
         )
     )
-
 
 
     if st.button(
@@ -191,7 +211,8 @@ with st.container(border=True):
         use_container_width=True
     ):
 
-        found=False
+
+        exist = False
 
 
         for item in st.session_state.purchase_cart:
@@ -199,37 +220,55 @@ with st.container(border=True):
             if item["product_id"] == product["id"]:
 
 
-                old_qty=item["qty"]
-                old_cost=item["cost"]
+                old_qty = item["qty"]
+
+                old_cost = Decimal(
+                    str(item["cost"])
+                )
 
 
-                new_qty = old_qty + qty
-
-
-                # Weighted Average Cost
-
-                item["cost"] = (
-                    (old_qty*old_cost)
+                new_qty = (
+                    old_qty
                     +
-                    (qty*cost)
+                    qty
+                )
+
+
+                new_cost = (
+                    (
+                        old_cost
+                        *
+                        old_qty
+                    )
+                    +
+                    (
+                        Decimal(str(cost))
+                        *
+                        qty
+                    )
                 ) / new_qty
 
 
-                item["qty"]=new_qty
+                item["qty"] = new_qty
 
-                found=True
+                item["cost"] = float(
+                    new_cost
+                )
+
+
+                exist=True
                 break
 
 
 
-        if not found:
+        if not exist:
 
             st.session_state.purchase_cart.append(
                 {
                     "product_id":product["id"],
                     "name":product["name"],
-                    "qty":qty,
-                    "cost":cost
+                    "qty":int(qty),
+                    "cost":float(cost)
                 }
             )
 
@@ -238,10 +277,9 @@ with st.container(border=True):
 
 
 
-# ==============================
+# ==========================================
 # CART
-# ==============================
-
+# ==========================================
 
 if st.session_state.purchase_cart:
 
@@ -251,48 +289,47 @@ if st.session_state.purchase_cart:
     st.subheader("🛒 Purchase Cart")
 
 
-    total=0
+    total = 0
 
 
     for item in st.session_state.purchase_cart:
 
 
-        subtotal = (
+        amount = (
             item["qty"]
             *
             item["cost"]
         )
 
-        total += subtotal
+
+        total += amount
 
 
         st.write(
             f"""
-            **{item['name']}**
+**{item['name']}**
 
-            Qty : {item['qty']}
+Qty : {item['qty']}
 
-            Cost : {item['cost']:,.0f}
+Cost : {item['cost']:,.0f}
 
-            Amount : {subtotal:,.0f}
+Amount : {amount:,.0f}
 
-            ---
-            """
+---
+"""
         )
 
 
-
     st.metric(
-        "Total Amount MMK",
-        f"{total:,.0f}"
+        "Total Purchase Amount",
+        f"{total:,.0f} MMK"
     )
 
 
 
-    # ==============================
-    # CONFIRM
-    # ==============================
-
+    # ==================================
+    # SAVE
+    # ==================================
 
     if st.button(
         "✅ Confirm Purchase Receive",
@@ -311,7 +348,7 @@ if st.session_state.purchase_cart:
 
 
         with st.spinner(
-            "Saving Purchase..."
+            "Processing Purchase..."
         ):
 
 
@@ -337,25 +374,14 @@ if st.session_state.purchase_cart:
 
 
 
-                # Accept different RPC return styles
-
                 if isinstance(result,dict):
 
-                    if (
-                        result.get("success")
-                        or
-                        result.get("purchase_no")
-                        or
-                        result.get("id")
-                    ):
+                    if result.get("success"):
 
-
-                        po = (
-                            result.get("purchase_no")
-                            or
-                            str(result.get("id"))
+                        po = result.get(
+                            "purchase_no",
+                            "SUCCESS"
                         )
-
 
                         success.append(po)
 
@@ -363,21 +389,22 @@ if st.session_state.purchase_cart:
                         create_audit_log(
                             user_id,
                             "PURCHASE_RECEIVE",
-                            f"{po} - {item['name']}"
+                            f"{po} {item['name']}"
                         )
 
 
                     else:
 
                         errors.append(
-                            f"{item['name']} : {result.get('message')}"
+                            f"{item['name']} : "
+                            f"{result.get('message','Unknown Error')}"
                         )
 
 
                 else:
 
                     errors.append(
-                        f"{item['name']} : RPC Error"
+                        f"{item['name']} RPC Return Error"
                     )
 
 
@@ -391,8 +418,10 @@ if st.session_state.purchase_cart:
             )
 
             st.session_state.purchase_cart=[]
-            st.session_state.purchase_supplier=None
-            st.session_state.purchase_warehouse=None
+
+            st.session_state.purchase_supplier_id=None
+
+            st.session_state.purchase_warehouse_id=None
 
             st.rerun()
 
@@ -412,7 +441,9 @@ if st.session_state.purchase_cart:
     ):
 
         st.session_state.purchase_cart=[]
-        st.session_state.purchase_supplier=None
-        st.session_state.purchase_warehouse=None
+
+        st.session_state.purchase_supplier_id=None
+
+        st.session_state.purchase_warehouse_id=None
 
         st.rerun()
