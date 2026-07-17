@@ -1,504 +1,105 @@
 # ==========================================
-# database.py
-# ERP ENTERPRISE WORLD CLASS v10
-# RECEIPT + CHECKOUT + SEARCH + SETTINGS STABLE
+# database.py (ERP ENTERPRISE v14.2 - FINAL)
 # ==========================================
 
-from supabase import create_client, Client
 import streamlit as st
-
-from typing import List, Dict, Any, Optional
-from decimal import Decimal, ROUND_HALF_UP
-
 import logging
 import uuid
+from decimal import Decimal, ROUND_HALF_UP
+from typing import List, Dict, Any, Optional
+from supabase import create_client, Client
 
+logging.basicConfig(filename="erp_db.log", level=logging.ERROR, format="%(asctime)s %(levelname)s %(message)s")
 
-# ==========================================
-# LOGGING
-# ==========================================
-
-logging.basicConfig(
-    filename="erp_db.log",
-    level=logging.ERROR,
-    format="%(asctime)s %(levelname)s %(message)s"
-)
-
-
-def log_error(err):
-
-    logging.error(str(err))
-
-    print(
-        "DB ERROR:",
-        err
-    )
-
-
-# ==========================================
-# SUPABASE CONNECTION
-# ==========================================
+def log_error(err: Exception):
+    logging.error(f"Error: {str(err)}")
 
 @st.cache_resource
 def get_supabase() -> Client:
-
-    return create_client(
-        st.secrets["SUPABASE_URL"],
-        st.secrets["SUPABASE_KEY"]
-    )
-
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = get_supabase()
 
-
-
-# ==========================================
-# MONEY
-# ==========================================
-
-def money(value):
-
-    try:
-
-        return float(
-            Decimal(str(value))
-            .quantize(
-                Decimal("0.01"),
-                rounding=ROUND_HALF_UP
-            )
-        )
-
-    except:
-
-        return 0.0
-
-
-
-# ==========================================
-# UUID VALIDATOR
-# ==========================================
+def money(value) -> float:
+    try: return float(Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    except: return 0.0
 
 def validate_uuid(value):
-
-    if not value:
-        return None
-
-    try:
-
-        return str(
-            uuid.UUID(str(value))
-        )
-
-    except:
-
-        return None
-
-
+    try: return str(uuid.UUID(str(value)))
+    except: return None
 
 # ==========================================
-# SETTINGS
+# SECURITY & DATA FETCHERS
 # ==========================================
 
-def get_setting(
-    key: str,
-    default=None
-):
-
+def get_current_user_role(user_id: str):
     try:
-
-        result = (
-            supabase
-            .table("settings")
-            .select(
-                "value"
-            )
-            .eq(
-                "key",
-                key
-            )
-            .maybe_single()
-            .execute()
-        )
-
-
-        if result.data:
-
-            return result.data.get(
-                "value"
-            )
-
-
-        return default
-
-
+        res = supabase.table("users").select("roles(role_name)").eq("id", user_id).single().execute()
+        return res.data.get("roles", {}).get("role_name", "staff") if res.data else "staff"
     except Exception as e:
+        log_error(e); return "staff"
 
-        log_error(e)
-
-        return default
-
-
-
-# ==========================================
-# CHECKOUT RPC
-# ==========================================
-
-def checkout_sale_rpc(
-    cart: List[Dict[str, Any]],
-    paid_amount: float,
-    cashier_id: Optional[str] = None
-):
-
-    if not cart:
-
-        return {
-            "error":
-            "Cart is empty"
-        }
-
-
+def create_audit_log(user_id: str, action: str, details: str):
     try:
+        supabase.table("audit_logs").insert({
+            "user_id": validate_uuid(user_id), 
+            "action": action, 
+            "details": details
+        }).execute()
+    except Exception as e: log_error(e)
 
-        payload = {
-
-            "p_cart":
-            cart,
-
-
-            "p_paid_amount":
-            money(
-                paid_amount
-            ),
-
-
-            "p_cashier_id":
-            validate_uuid(
-                cashier_id
-            )
-
-        }
-
-
-        response = (
-            supabase
-            .rpc(
-                "checkout_sale_rpc",
-                payload
-            )
-            .execute()
-        )
-
-
-        data = response.data
-
-
-        if not data:
-
-            return {
-                "error":
-                "No database response"
-            }
-
-
-
-        if isinstance(data, dict):
-
-
-            if data.get("success"):
-
-                return {
-
-                    "success":
-                    True,
-
-
-                    "receipt_no":
-                    data.get(
-                        "invoice_no"
-                    )
-                    or
-                    data.get(
-                        "receipt_no"
-                    ),
-
-
-                    "sale_id":
-                    data.get(
-                        "sale_id"
-                    )
-
-                }
-
-
-            return {
-
-                "error":
-                data.get(
-                    "error",
-                    "Checkout Failed"
-                )
-
-            }
-
-
-
-        return {
-
-            "error":
-            "Invalid RPC Response"
-
-        }
-
-
-
-    except Exception as e:
-
-        log_error(e)
-
-        return {
-
-            "error":
-            f"Checkout Failed: {e}"
-
-        }
-
-
-
-# ==========================================
-# PRODUCTS
-# ==========================================
-
-def get_products(
-    active_only=True
-):
-
+def get_products(active_only=True):
     try:
+        query = supabase.table("products").select("id, barcode, sku, name, purchase_price, selling_price, stock, is_active")
+        if active_only: query = query.eq("is_active", True)
+        return query.execute().data or []
+    except Exception as e: log_error(e); return []
 
-        query = (
-            supabase
-            .table("products")
-            .select(
-                """
-                id,
-                barcode,
-                sku,
-                name,
-                selling_price,
-                tax_rate,
-                discount_allowed,
-                stock,
-                is_active
-                """
-            )
-        )
+def get_suppliers():
+    try: return supabase.table("suppliers").select("id,name,phone").execute().data or []
+    except Exception as e: log_error(e); return []
 
-
-        if active_only:
-
-            query = query.eq(
-                "is_active",
-                True
-            )
-
-
+def get_warehouses():
+    try:
         return (
-            query
+            supabase
+            .table("warehouses")
+            .select("id, code, name, branch")
+            .eq("is_active", True)
             .execute()
             .data
             or []
         )
-
-
     except Exception as e:
-
-        log_error(e)
-
-        return []
-
-
+        log_error(e); return []
 
 # ==========================================
-# RECEIPT HEADER
+# PURCHASE & TRANSFER RPC (v14.2 Standardized)
 # ==========================================
 
-def get_receipt(
-    receipt_no:str
-):
-
+def purchase_receive_rpc(p_id: int, s_id: int, w_id: int, qty: int, price: float, notes="", uid=None):
+    payload = {
+        "p_product_id": p_id, 
+        "p_supplier_id": s_id, 
+        "p_warehouse_id": w_id, 
+        "p_qty": qty, 
+        "p_price": money(price), 
+        "p_notes": notes, 
+        "p_created_by": validate_uuid(uid)
+    }
     try:
-
-        result = (
-
-            supabase
-            .table("sales")
-            .select("*")
-            .eq(
-                "invoice_no",
-                receipt_no.strip()
-            )
-            .maybe_single()
-            .execute()
-
-        )
-
-
-        return result.data
-
-
+        res = supabase.rpc("purchase_receive_rpc", payload).execute()
+        return res.data
     except Exception as e:
-
         log_error(e)
+        return {"success": False, "message": str(e)}
 
-        return None
-
-
-
-# ==========================================
-# RECEIPT SEARCH
-# ==========================================
-
-def get_receipts_search(
-    keyword:str
-):
-
+def transfer_stock_rpc(p_id: int, from_w: int, to_w: int, qty: int, uid: str):
     try:
-
-        if not keyword:
-
-            return []
-
-
-        return (
-
-            supabase
-            .table("sales")
-            .select(
-                """
-                id,
-                invoice_no,
-                total,
-                paid_amount,
-                change_amount,
-                payment_method,
-                sale_status,
-                status,
-                created_at
-                """
-            )
-            .ilike(
-                "invoice_no",
-                f"%{keyword.strip()}%"
-            )
-            .order(
-                "created_at",
-                desc=True
-            )
-            .limit(50)
-            .execute()
-            .data
-
-            or []
-
-        )
-
-
+        res = supabase.rpc("transfer_stock_rpc", {
+            "p_product_id": p_id, "p_from_w": from_w, "p_to_w": to_w, "p_qty": qty, "p_user_id": validate_uuid(uid)
+        }).execute()
+        return res.data
     except Exception as e:
-
         log_error(e)
-
-        return []
-
-
-
-# ==========================================
-# RECEIPT DETAIL
-# ==========================================
-
-def get_receipt_detail(
-    receipt_no:str
-):
-
-    try:
-
-        sale = get_receipt(
-            receipt_no
-        )
-
-
-        if not sale:
-
-            return None
-
-
-        sale["items"] = get_sale_items(
-            sale["id"]
-        )
-
-
-        return sale
-
-
-    except Exception as e:
-
-        log_error(e)
-
-        return None
-
-
-
-# ==========================================
-# SALE ITEMS
-# ==========================================
-
-def get_sale_items(
-    sale_id
-):
-
-    try:
-
-        return (
-
-            supabase
-            .table("sale_items")
-            .select(
-                """
-                id,
-                product_id,
-                quantity,
-                unit_price,
-                discount,
-                total,
-                products(
-                    name,
-                    barcode,
-                    sku
-                )
-                """
-            )
-            .eq(
-                "sale_id",
-                sale_id
-            )
-            .execute()
-            .data
-
-            or []
-
-        )
-
-
-    except Exception as e:
-
-        log_error(e)
-
-        return []
-
-
-
-# ==========================================
-# DATABASE MODULE STATUS
-# ==========================================
-
-logging.info(
-    "DATABASE v10 LOADED SUCCESS"
-        )
+        return {"success": False, "message": str(e)}
