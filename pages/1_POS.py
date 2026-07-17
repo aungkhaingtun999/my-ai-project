@@ -479,43 +479,33 @@ if st.session_state.cart and not st.session_state.show_receipt:
             ):
 
 
+st.session_state.sale_data = {
 
-                st.session_state.sale_data={
+    "receipt_no": result.get("invoice_no"),
 
+    "sale_id": result.get("sale_id"),
 
-                    "receipt_no":
-                    result.get("invoice_no"),
+    "items": st.session_state.cart.copy(),
 
+    # Financial
+    "subtotal": float(subtotal),
+    "discount": float(discount),
+    "tax": float(tax_amount),
+    "total": float(total),
 
-                    "sale_id":
-                    result.get("sale_id"),
+    # Payment
+    "paid": float(paid),
+    "change": float(change),
+    "method": payment,
 
+    # User
+    "cashier_name": st.session_state.get(
+        "username",
+        "Admin"
+    ),
 
-                    "items":
-                    st.session_state.cart.copy(),
-
-
-                    "total":
-                    total,
-
-
-                    "paid":
-                    paid,
-
-
-                    "change":
-                    change,
-
-
-                    "method":
-                    payment,
-
-
-                    "timestamp":
-                    get_mst_now()
-
-                }
-
+    "timestamp": get_mst_now()
+}
 
                 st.session_state.show_receipt=True
 
