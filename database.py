@@ -100,3 +100,82 @@ def create_audit_log(user_id, action, details):
         return {"success": False, "message": str(e)}
 
 print("DATABASE v14.5 IMPORT SUCCESS")
+# ==========================================
+# POS SALES MODULE
+# ==========================================
+
+def checkout_sale_rpc(
+    cart,
+    paid_amount,
+    cashier_id=None
+):
+
+    payload = {
+        "p_cart": cart,
+        "p_paid_amount": money(paid_amount),
+        "p_cashier_id": validate_uuid(cashier_id)
+    }
+
+    try:
+        res = db().rpc(
+            "checkout_sale_rpc",
+            payload
+        ).execute()
+
+        return res.data
+
+    except Exception as e:
+        log_error(e)
+
+        return {
+            "success": False,
+            "message": str(e)
+        }
+
+
+
+def get_receipt(invoice_no):
+
+    try:
+
+        return (
+            db()
+            .table("sales")
+            .select("*")
+            .eq(
+                "invoice_no",
+                invoice_no
+            )
+            .maybe_single()
+            .execute()
+            .data
+        )
+
+    except Exception as e:
+
+        log_error(e)
+        return None
+
+
+
+def get_sale_items(sale_id):
+
+    try:
+
+        return (
+            db()
+            .table("sale_items")
+            .select("*")
+            .eq(
+                "sale_id",
+                sale_id
+            )
+            .execute()
+            .data
+            or []
+        )
+
+    except Exception as e:
+
+        log_error(e)
+        return []
