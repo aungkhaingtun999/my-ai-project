@@ -63,7 +63,7 @@ def print_thermal(data):
     # Financials
     subtotal = float(receipt.get("subtotal") or 0)
     discount = float(receipt.get("discount") or 0)
-    tax = float(receipt.get("tax") or 0)
+    tax_rate = float(receipt.get("tax_rate") or 0)
     total = float(receipt.get("total") or 0)
     paid = float(receipt.get("paid") or 0)
     change = float(receipt.get("change") or 0)
@@ -107,7 +107,12 @@ def print_thermal(data):
         # Financial Details
         p.text(line("Subtotal:", f"{subtotal:,.0f}"))
         p.text(line("Discount:", f"{discount:,.0f}"))
-        p.text(line("Tax:", f"{tax:,.0f}"))
+        p.text(
+    line(
+        f"Tax ({tax_rate:.2f}%):",
+        f"{tax:,.0f}"
+    )
+        )
         p.text(line("Paid:", f"{paid:,.0f}"))
         p.text(line("Change:", f"{change:,.0f}"))
         
