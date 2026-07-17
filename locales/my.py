@@ -1,84 +1,171 @@
-# =========================
-# INTERNATIONALIZATION SYSTEM
-# =========================
+# ==========================================
+# locales/my.py
+# ERP ENTERPRISE MYANMAR LANGUAGE PACK
+# ==========================================
 
-LANG = "mm"   # default language
 
 TEXT = {
-    "en": {
-        "app": {
-            "pos_system": "POS System",
-            "products": "Products",
-            "cart": "Cart",
-            "checkout": "Checkout",
-            "dashboard": "Admin Dashboard"
-        },
-        "payment": {
-            "paid_amount": "Paid Amount",
-            "pay": "Pay",
-            "total": "Total"
-        },
-        "inventory": {
-            "stock": "Stock",
-            "low_stock": "Low Stock Alerts"
-        },
-        "actions": {
-            "add": "Add",
-            "remove": "Remove"
-        }
+
+    "app": {
+
+        "pos_system":
+        "Enterprise POS အရောင်းစနစ်",
+
+        "products":
+        "ကုန်ပစ္စည်းများ",
+
+        "cart":
+        "စျေးခြင်းတောင်း",
+
+        "checkout":
+        "ငွေရှင်းခြင်း",
+
+        "dashboard":
+        "စီမံခန့်ခွဲမှု Dashboard",
+
+        "no_product":
+        "ကုန်ပစ္စည်း မရှိပါ"
     },
 
-    "mm": {
-        "app": {
-            "pos_system": "အရောင်းစနစ်",
-            "products": "ကုန်ပစ္စည်းများ",
-            "cart": "စျေးဝယ်ခြင်း",
-            "checkout": "ငွေရှင်းရန်",
-            "dashboard": "စီမံခန့်ခွဲမှု Dashboard"
-        },
-        "payment": {
-            "paid_amount": "ပေးချေသောငွေပမာဏ",
-            "pay": "ငွေရှင်းမည်",
-            "total": "စုစုပေါင်း"
-        },
-        "inventory": {
-            "stock": "လက်ကျန်",
-            "low_stock": "လက်ကျန်နည်း သတိပေးချက်"
-        },
-        "actions": {
-            "add": "ထည့်မည်",
-            "remove": "ဖျက်မည်"
-        }
+
+    "auth": {
+
+        "login_required":
+        "ကျေးဇူးပြု၍ Login ဝင်ပါ"
+    },
+
+
+    "search": {
+
+        "product_name":
+        "ကုန်ပစ္စည်းအမည်",
+
+        "barcode":
+        "Barcode / SKU",
+
+        "choose":
+        "ကုန်ပစ္စည်းရွေးပါ"
+    },
+
+
+    "cart": {
+
+        "title":
+        "စျေးခြင်းတောင်း",
+
+        "qty":
+        "အရေအတွက်",
+
+        "qty_short":
+        "Qty",
+
+        "add":
+        "ထည့်မည်"
+    },
+
+
+    "payment": {
+
+        "paid_amount":
+        "ပေးချေသောငွေပမာဏ",
+
+        "pay":
+        "ငွေရှင်းမည်",
+
+        "total":
+        "စုစုပေါင်း",
+
+        "tax_rate":
+        "အခွန် %",
+
+        "discount":
+        "လျှော့ငွေ",
+
+        "method":
+        "ငွေပေးချေမှု",
+
+        "cash":
+        "ငွေသား",
+
+        "card":
+        "ကတ်",
+
+        "mobile":
+        "Mobile Banking",
+
+        "credit":
+        "အကြွေး",
+
+        "received":
+        "လက်ခံရရှိငွေ",
+
+        "change":
+        "ပြန်အမ်းငွေ",
+
+        "confirm":
+        "ရောင်းချမှု အတည်ပြု"
+    },
+
+
+    "inventory": {
+
+        "stock":
+        "လက်ကျန်",
+
+        "low_stock":
+        "လက်ကျန်နည်း သတိပေးချက်"
+    },
+
+
+    "actions": {
+
+        "add":
+        "ထည့်မည်",
+
+        "remove":
+        "ဖယ်ရှားမည်",
+
+        "delete":
+        "ဖျက်မည်"
+    },
+
+
+    "error": {
+
+        "insufficient":
+        "ပေးချေငွေ မလုံလောက်ပါ",
+
+        "checkout_failed":
+        "ရောင်းချမှု မအောင်မြင်ပါ"
+    },
+
+
+    "receipt": {
+
+        "success":
+        "ရောင်းချမှု အောင်မြင်ပါသည်",
+
+        "no":
+        "ဘောက်ချာနံပါတ်",
+
+        "print":
+        "ဘောက်ချာထုတ်မည်",
+
+        "pdf":
+        "PDF Download",
+
+        "new_sale":
+        "အသစ်ပြန်ရောင်းမည်"
+    },
+
+
+    "stock": {
+
+        "not_enough":
+        "လက်ကျန် မလုံလောက်ပါ",
+
+        "available":
+        "လက်ကျန်"
     }
+
 }
-
-# =========================
-# TRANSLATION FUNCTION
-# =========================
-def t(key: str, lang: str = LANG):
-    """
-    Usage:
-        t("app.pos_system")
-        t("payment.total")
-    """
-
-    keys = key.split(".")
-
-    # get language pack
-    value = TEXT.get(lang, TEXT["en"])
-
-    # traverse nested keys
-    for k in keys:
-        if isinstance(value, dict):
-            value = value.get(k)
-        else:
-            value = None
-
-        if value is None:
-            # fallback to English
-            fallback = TEXT["en"]
-            for k in keys:
-                fallback = fallback.get(k, key)
-            return fallback
-
-    return value
