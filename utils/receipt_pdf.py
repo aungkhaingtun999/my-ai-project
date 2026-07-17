@@ -43,7 +43,7 @@ def generate_pdf(data):
         # Financial Values
         subtotal = float(receipt.get("subtotal") or 0)
         discount = float(receipt.get("discount") or 0)
-        tax = float(receipt.get("tax") or 0)
+        tax_rate = float(receipt.get("tax_rate") or 0)
         total = float(receipt.get("total") or 0)
         paid = float(receipt.get("paid") or 0)
         change = float(receipt.get("change") or 0)
@@ -132,7 +132,11 @@ def generate_pdf(data):
         y -= 18
         pdf.drawRightString(550, y, f"Discount : {discount:,.0f} MMK")
         y -= 18
-        pdf.drawRightString(550, y, f"Tax : {tax:,.0f} MMK")
+        pdf.drawRightString(
+    550,
+    y,
+    f"Tax ({tax_rate:.2f}%) : {tax:,.0f} MMK"
+        )
         y -= 18
         pdf.drawRightString(550, y, f"Paid : {paid:,.0f} MMK")
         y -= 18
