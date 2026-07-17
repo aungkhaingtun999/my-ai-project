@@ -1,104 +1,295 @@
+# ==============================================================================
+# pages/2_Inventory.py
+# ERP INVENTORY MANAGEMENT v1.0
+# SUPABASE READY
+# ==============================================================================
+
 import streamlit as st
 from datetime import datetime
 
-st.title("📦 Inventory Management System (ERP Ready)")
+from database import db
 
-# =========================
-# INIT SESSION STORAGE
-# =========================
-if "inventory" not in st.session_state:
-    st.session_state.inventory = []
 
-# =========================
-# FORM INPUT
-# =========================
+st.set_page_config(
+    page_title="Inventory Management",
+    layout="wide"
+)
+
+
+st.title("📦 Inventory Management System")
+
+
+# ==============================================================================
+# LOAD PRODUCTS
+# ==============================================================================
+
+def load_products():
+
+    try:
+        result = (
+            db()
+            .table("products")
+            .select("*")
+            .order("id")
+            .execute()
+        )
+
+        return result.data or []
+
+    except Exception as e:
+        st.error(e)
+        return []
+
+
+
+# ==============================================================================
+# ADD PRODUCT
+# ==============================================================================
+
 st.subheader("➕ Add New Product")
 
-col1, col2 = st.columns(2)
 
-with col1:
-    name = st.text_input("Product Name")
+c1,c2 = st.columns(2)
 
-with col2:
-    price = st.number_input("Selling Price", min_value=0)
+with c1:
 
-col3, col4 = st.columns(2)
+    name = st.text_input(
+        "Product Name"
+    )
 
-with col3:
-    purchase_price = st.number_input("Purchase Price", min_value=0)
+    sku = st.text_input(
+        "SKU"
+    )
 
-with col4:
-    stock = st.number_input("Stock Quantity", min_value=0, step=1)
+    barcode = st.text_input(
+        "Barcode"
+    )
 
-# =========================
-# ADD PRODUCT
-# =========================
-if st.button("➕ Add Product"):
+
+with c2:
+
+    purchase_price = st.number_input(
+        "Purchase Price",
+        min_value=0
+    )
+
+    selling_price = st.number_input(
+        "Selling Price",
+        min_value=0
+    )
+
+    stock = st.number_input(
+        "Opening Stock",
+        min_value=0,
+        step=1
+    )
+
+
+minimum_stock = st.number_input(
+    "Minimum Stock Alert",
+    min_value=0,
+    value=5
+)
+
+
+
+if st.button(
+    "➕ Save Product",
+    type="primary"
+):
 
     if not name:
-        st.error("Product name is required")
+
+        st.error(
+            "Product name required"
+        )
 
     else:
-        product = {
-            "id": len(st.session_state.inventory) + 1,
-            "name": name,
-            "selling_price": price,
-            "purchase_price": purchase_price,
-            "stock": stock,
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
 
-        st.session_state.inventory.append(product)
-        st.success(f"{name} added successfully!")
-        st.rerun()
+        try:
 
-# =========================
-# INVENTORY LIST
-# =========================
-st.divider()
-st.subheader("📋 Inventory List")
+            db().table(
+                "products"
+            ).insert({
 
-if not st.session_state.inventory:
-    st.info("No products yet")
+                "name": name,
 
-total_value = 0
+                "sku": sku,
 
-for item in st.session_state.inventory:
+                "barcode": barcode,
 
-    col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 2, 1])
+                "purchase_price": purchase_price,
 
-    with col1:
-        st.write(f"🛒 {item['name']}")
+                "selling_price": selling_price,
 
-    with col2:
-        st.write(f"Selling: {item['selling_price']}")
+                "stock": stock,
 
-    with col3:
-        st.write(f"Cost: {item['purchase_price']}")
+                "minimum_stock": minimum_stock,
 
-    with col4:
-        st.write(f"Stock: {item['stock']}")
+                "is_active": True
 
-    with col5:
-        if st.button("❌", key=f"del_{item['id']}"):
-            st.session_state.inventory = [
-                i for i in st.session_state.inventory
-                if i["id"] != item["id"]
-            ]
+            }).execute()
+
+
+            st.success(
+                "Product added successfully"
+            )
+
             st.rerun()
 
-    total_value += item["purchase_price"] * item["stock"]
 
-# =========================
-# INVENTORY SUMMARY
-# =========================
+        except Exception as e:
+
+            st.error(e)
+
+
+
+# ==============================================================================
+# INVENTORY LIST
+# ==============================================================================
+
 st.divider()
-st.subheader("📊 Summary")
 
-st.metric("Total Products", len(st.session_state.inventory))
-st.metric("Stock Value (Cost Price)", f"{total_value:,.0f} MMK")
+st.subheader(
+    "📋 Inventory List"
+)
 
-# =========================
-# EXPORT NOTE (READY FOR DB)
-# =========================
-st.info("💡 This structure is ready to connect with Supabase products table later.")
+
+products = load_products()
+
+
+total_cost = 0
+total_sell = 0
+low_stock = 0
+
+
+
+for p in products:
+
+
+    col1,col2,col3,col4,col5 = st.columns(
+        [3,2,2,2,1]
+    )
+
+
+    with col1:
+
+        st.write(
+            f"🛒 {p['name']}"
+        )
+
+
+    with col2:
+
+        st.write(
+            f"Cost: {p['purchase_price']:,.0f}"
+        )
+
+
+    with col3:
+
+        st.write(
+            f"Sell: {p['selling_price']:,.0f}"
+        )
+
+
+    with col4:
+
+        stock = p.get(
+            "stock",
+            0
+        )
+
+        if stock <= p.get(
+            "minimum_stock",
+            5
+        ):
+
+            st.warning(
+                f"Stock: {stock}"
+            )
+
+            low_stock += 1
+
+        else:
+
+            st.write(
+                f"Stock: {stock}"
+            )
+
+
+    with col5:
+
+        if st.button(
+            "❌",
+            key=f"del_{p['id']}"
+        ):
+
+            db().table(
+                "products"
+            ).update({
+
+                "is_active":False
+
+            }).eq(
+                "id",
+                p["id"]
+
+            ).execute()
+
+
+            st.rerun()
+
+
+
+    total_cost += (
+        p["purchase_price"]
+        *
+        p["stock"]
+    )
+
+
+    total_sell += (
+        p["selling_price"]
+        *
+        p["stock"]
+    )
+
+
+
+# ==============================================================================
+# SUMMARY
+# ==============================================================================
+
+st.divider()
+
+st.subheader(
+    "📊 Inventory Summary"
+)
+
+
+a,b,c = st.columns(3)
+
+
+a.metric(
+    "Total Products",
+    len(products)
+)
+
+
+b.metric(
+    "Stock Cost Value",
+    f"{total_cost:,.0f} MMK"
+)
+
+
+c.metric(
+    "Stock Selling Value",
+    f"{total_sell:,.0f} MMK"
+)
+
+
+
+st.info(
+    f"⚠️ Low Stock Items: {low_stock}"
+)
