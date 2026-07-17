@@ -100,7 +100,7 @@ def create_audit_log(user_id, action, details):
         return {"success": False, "message": str(e)}
 
 print("DATABASE v14.5 IMPORT SUCCESS")
-# ==========================================
+# # ==========================================
 # POS SALES MODULE
 # ==========================================
 
@@ -110,21 +110,30 @@ def checkout_sale_rpc(
     cashier_id=None
 ):
 
-    payload = {
-        "p_cart": cart,
-        "p_paid_amount": money(paid_amount),
-        "p_cashier_id": validate_uuid(cashier_id)
-    }
-
     try:
-        res = db().rpc(
-            "checkout_sale_rpc",
-            payload
-        ).execute()
 
-        return res.data
+        payload = {
+            "p_cart": cart,
+            "p_paid_amount": money(paid_amount),
+            "p_cashier_id": validate_uuid(cashier_id)
+        }
+
+
+        result = (
+            db()
+            .rpc(
+                "checkout_sale_rpc",
+                payload
+            )
+            .execute()
+        )
+
+
+        return result.data
+
 
     except Exception as e:
+
         log_error(e)
 
         return {
@@ -134,11 +143,15 @@ def checkout_sale_rpc(
 
 
 
+# ==========================================
+# RECEIPT
+# ==========================================
+
 def get_receipt(invoice_no):
 
     try:
 
-        return (
+        result = (
             db()
             .table("sales")
             .select("*")
@@ -148,12 +161,15 @@ def get_receipt(invoice_no):
             )
             .maybe_single()
             .execute()
-            .data
         )
+
+        return result.data
+
 
     except Exception as e:
 
         log_error(e)
+
         return None
 
 
@@ -162,7 +178,7 @@ def get_sale_items(sale_id):
 
     try:
 
-        return (
+        result = (
             db()
             .table("sale_items")
             .select("*")
@@ -171,11 +187,14 @@ def get_sale_items(sale_id):
                 sale_id
             )
             .execute()
-            .data
-            or []
         )
+
+
+        return result.data or []
+
 
     except Exception as e:
 
         log_error(e)
+
         return []
