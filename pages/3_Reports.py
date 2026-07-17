@@ -1,17 +1,18 @@
 # ==============================================================================
 # pages/3_Reports.py
-# ERP EXECUTIVE REPORTS v3.1 - STABLE EXPORT ENGINE
+# ERP EXECUTIVE REPORTS v3.2 - STABLE EXPORT ENGINE (FIXED)
 # ==============================================================================
 
 import streamlit as st
 import pandas as pd
+import json
 from datetime import date, timedelta
 from io import BytesIO
-from database import db # database.py မှ db() function ကို သုံးပါ
+from database import db 
 
-st.set_page_config(page_title="ERP Reports v3.1", layout="wide")
+st.set_page_config(page_title="ERP Reports v3.2", layout="wide")
 
-st.title("📊 ERP Executive Reports v3.1")
+st.title("📊 ERP Executive Reports v3.2")
 
 # =====================================================
 # DATE FILTER
@@ -29,7 +30,6 @@ end_iso = (end_date + timedelta(days=1)).isoformat()
 @st.cache_data(ttl=60)
 def get_sales(start_iso, end_iso):
     try:
-        # db() function ကို သုံး၍ query ဆွဲပါ
         return db().table("sales").select("*").gte("created_at", start_iso).lt("created_at", end_iso).order("created_at", desc=True).execute().data or []
     except Exception as e:
         st.error(f"Error fetching data: {e}")
@@ -47,9 +47,10 @@ if df.empty:
 # =====================================================
 numeric_cols = ["total", "total_amount", "discount", "tax", "subtotal", "paid_amount"]
 for col in numeric_cols:
-    if col not in df.columns:
+    if col in df.columns:
+        df[col] = pd.to_numeric(df[col].fillna(0))
+    else:
         df[col] = 0
-    df[col] = pd.to_numeric(df[col].fillna(0))
 
 df["created_at"] = pd.to_datetime(df["created_at"])
 
@@ -98,10 +99,19 @@ with tab4:
     
     # --- DATA CLEANING FOR EXCEL ---
     export_df = df.copy()
-    # Datetime များကို string သို့ ပြောင်းပါ (ValueError မတက်စေရန်)
+    
+    # 1. Complex Objects (Dicts/Lists) များကို JSON String သို့ပြောင်းခြင်း
+    for col in export_df.columns:
+        if export_df[col].dtype == 'object':
+            export_df[col] = export_df[col].apply(
+                lambda x: json.dumps(x) if isinstance(x, (dict, list)) else x
+            )
+            
+    # 2. Datetime များကို string သို့ ပြောင်းပါ
     for col in export_df.select_dtypes(include=['datetime64', 'timedelta64']).columns:
         export_df[col] = export_df[col].astype(str)
-    # NaN တန်ဖိုးများကို empty string သို့ ပြောင်းပါ
+        
+    # 3. NaN တန်ဖိုးများကို empty string သို့ ပြောင်းပါ
     export_df = export_df.fillna('')
 
     # CSV Download
@@ -109,15 +119,19 @@ with tab4:
     st.download_button("⬇ Download CSV", csv, "sales_report.csv", "text/csv")
 
     # Excel Download
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        export_df.to_excel(writer, index=False, sheet_name="Sales")
-    
-    st.download_button(
-        "⬇ Download Excel",
-        output.getvalue(),
-        "ERP_Sales_Report.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    try:
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            export_df.to_excel(writer, index=False, sheet_name="Sales")
+        
+        st.download_button(
+            "⬇ Download Excel",
+            output.getvalue(),
+            "ERP_Sales_Report.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        st.error(f"Excel Export Error: {e}")
 
-st.success("ERP Reports Engine v3.1 Ready 🚀")
+st.success("ERP Reports Engine v3.2 Ready 🚀")
+    
