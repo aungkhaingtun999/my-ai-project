@@ -475,3 +475,9 @@ def get_sale_items(sale_id):
 
 
 print("DATABASE v14.7 IMPORT SUCCESS")
+# ==========================================
+# GLOBAL SUPABASE INSTANCE
+# Compatibility Layer
+# ==========================================
+
+supabase = get_supabase()
