@@ -1,13 +1,19 @@
 # ==========================================
 # language.py
+# ERP ENTERPRISE i18n ENGINE v2
 # Production Ready Multi-Language System
 # ==========================================
 
+
 import streamlit as st
 
+
 from config import DEFAULT_LANGUAGE
+
 from locales.en import TEXT as EN
+
 from locales.my import TEXT as MY
+
 
 
 # ==========================================
@@ -15,9 +21,13 @@ from locales.my import TEXT as MY
 # ==========================================
 
 LANGUAGES = {
+
     "English": EN,
+
     "မြန်မာ": MY
+
 }
+
 
 
 # ==========================================
@@ -25,8 +35,11 @@ LANGUAGES = {
 # ==========================================
 
 def init_language():
+
     if "language" not in st.session_state:
+
         st.session_state.language = DEFAULT_LANGUAGE
+
 
 
 # ==========================================
@@ -34,8 +47,11 @@ def init_language():
 # ==========================================
 
 def set_language(lang: str):
+
     if lang in LANGUAGES:
+
         st.session_state.language = lang
+
 
 
 # ==========================================
@@ -43,20 +59,74 @@ def set_language(lang: str):
 # ==========================================
 
 def get_language():
+
     init_language()
+
     return st.session_state.language
+
 
 
 # ==========================================
 # TRANSLATION FUNCTION
 # ==========================================
+# Usage:
+#
+# t("app.pos_system")
+# t("payment.total")
+#
+# ==========================================
 
 def t(key: str):
+
     init_language()
+
 
     lang = st.session_state.language
 
-    return LANGUAGES.get(lang, EN).get(key, key)
+
+    data = LANGUAGES.get(
+        lang,
+        EN
+    )
+
+
+    keys = key.split(".")
+
+
+    try:
+
+        for k in keys:
+
+            data = data[k]
+
+
+        return data
+
+
+    except Exception:
+
+
+        # ==============================
+        # FALLBACK TO ENGLISH
+        # ==============================
+
+        data = EN
+
+
+        try:
+
+            for k in keys:
+
+                data = data[k]
+
+
+            return data
+
+
+        except Exception:
+
+            return key
+
 
 
 # ==========================================
@@ -64,4 +134,41 @@ def t(key: str):
 # ==========================================
 
 def get_languages():
-    return list(LANGUAGES.keys())
+
+    return list(
+        LANGUAGES.keys()
+    )
+
+
+
+# ==========================================
+# LANGUAGE DISPLAY HELPER
+# ==========================================
+
+def language_selector():
+
+    init_language()
+
+
+    current = st.session_state.language
+
+
+    selected = st.sidebar.selectbox(
+
+        "🌐 Language",
+
+        get_languages(),
+
+        index=
+        get_languages().index(current)
+        if current in get_languages()
+        else 0
+
+    )
+
+
+    if selected != current:
+
+        set_language(selected)
+
+        st.rerun()
