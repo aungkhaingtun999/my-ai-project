@@ -48,9 +48,6 @@ roles_resp = (
     .execute()
 )
 
-st.write(roles_resp)
-st.write(roles_resp.data)
-
 
 roles = roles_resp.data or []
 
@@ -455,4 +452,4 @@ c3.metric(
 
 st.success(
     "✔ Enterprise User Management Active"
-                    )
+)
