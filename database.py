@@ -169,7 +169,7 @@ def get_receipt(invoice_no):
     try:
 
         response = (
-            supabase
+    db()
             .table("sales")
             .select("*")
             .eq(
@@ -195,7 +195,7 @@ def get_sale_items(sale_id):
     try:
 
         response = (
-            supabase
+    db()
             .table("sale_items")
             .select("*")
             .eq(
@@ -210,6 +210,42 @@ def get_sale_items(sale_id):
 
 
     except Exception:
+
+        return []
+        # =========================================================
+# RECEIPT SEARCH SUPPORT
+# =========================================================
+
+def search_receipts(keyword, limit=10):
+
+    try:
+
+        response = (
+            db()
+            .table("sales")
+            .select(
+                "id,invoice_no,total,created_at"
+            )
+            .ilike(
+                "invoice_no",
+                f"%{keyword}%"
+            )
+            .order(
+                "created_at",
+                desc=True
+            )
+            .limit(limit)
+            .execute()
+        )
+
+        return response.data or []
+
+    except Exception as e:
+
+        log_error(
+            msg="search_receipts failed",
+            exception=e
+        )
 
         return []
     
