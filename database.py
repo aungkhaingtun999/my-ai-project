@@ -1,7 +1,8 @@
 # ==============================================================================
-# database.py
-# ERP ENTERPRISE v15.2.3 LTS - FINAL PRODUCTION FREEZE
+# database.py v15.2.5 LTS - IMPORT DEBUGGING VERSION
 # ==============================================================================
+
+print("DATABASE.PY START LOADING")
 
 import streamlit as st
 import logging
@@ -46,6 +47,15 @@ def validate_uuid(value):
     try: return str(uuid.UUID(str(value)))
     except: return None
 
+# --- ERP Settings ---
+def get_setting(key, default=None):
+    try:
+        res = db().table("erp_settings").select("value").eq("key", key).maybe_single().execute()
+        return res.data.get("value") if res.data else default
+    except Exception as e:
+        log_error(msg="get_setting failed", exception=e)
+        return default
+
 # --- Warehouse & Products ---
 @st.cache_data(ttl=300)
 def get_default_warehouse_id():
@@ -59,7 +69,6 @@ def get_default_warehouse_id():
 def get_products(warehouse_id=None, offset=0, limit=DEFAULT_PAGE_SIZE):
     try:
         query = db().table("pos_products_view").select(PRODUCT_FIELDS).order("name")
-        # Fixed warehouse_id bug: Check for None explicitly
         if warehouse_id is not None:
             query = query.eq("warehouse_id", int(warehouse_id))
         return query.range(offset, offset + limit - 1).execute().data or []
@@ -109,7 +118,6 @@ def execute_rpc(rpc_name, payload):
             
         except APIError as e:
             last_error = e
-            # Only retry if it's not a logic error (function/column)
             if "function" not in str(e).lower() and "column" not in str(e).lower() and attempt < 2:
                 time.sleep(0.5)
                 continue
@@ -124,5 +132,5 @@ def execute_rpc(rpc_name, payload):
     log_error(msg="RPC Failed", rpc_name=rpc_name, payload=payload, exception=last_error)
     return {"success": False, "message": str(last_error) if last_error else "RPC Failed", "data": None}
 
-print("DATABASE v15.2.3 LTS - FINAL PRODUCTION FREEZE LOADED")
+print("DATABASE.PY FINISHED LOADING")
 
