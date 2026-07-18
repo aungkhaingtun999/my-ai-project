@@ -48,6 +48,9 @@ roles_resp = (
     .execute()
 )
 
+st.write(roles_resp)
+st.write(roles_resp.data)
+
 
 roles = roles_resp.data or []
 
