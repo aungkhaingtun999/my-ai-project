@@ -1,9 +1,11 @@
 # ==========================================
 # pages/6_Receipt.py
-# ERP ENTERPRISE RECEIPT VIEWER v2
+# ERP ENTERPRISE RECEIPT VIEWER v3
+# AUTOCOMPLETE + AUTO LOAD ENGINE
 # ==========================================
 
 import streamlit as st
+import pandas as pd
 
 from database import (
     get_receipt,
@@ -12,39 +14,62 @@ from database import (
 )
 
 
-# =========================
-# PAGE
-# =========================
+# ==========================================
+# PAGE CONFIG
+# ==========================================
 
-st.title("🧾 Receipt Viewer (ERP Level)")
-
-
-# =========================
-# INPUT
-# =========================
-if "selected_receipt" in st.session_state:
-
-    receipt_no = (
-        st.session_state.selected_receipt
-    )
-receipt_no = st.text_input(
-    "🔎 Search Receipt"
+st.set_page_config(
+    page_title="ERP Receipt Viewer",
+    layout="wide"
 )
 
 
-# =========================
-# FLOATING SEARCH RESULT
-# =========================
-
-if receipt_no:
+st.title(
+    "🧾 ERP Enterprise Receipt Viewer"
+)
 
 
-    suggestions = search_receipts(
-        receipt_no
+# ==========================================
+# SESSION STATE
+# ==========================================
+
+if "selected_receipt" not in st.session_state:
+    st.session_state.selected_receipt = None
+
+
+if "receipt_data" not in st.session_state:
+    st.session_state.receipt_data = None
+
+
+
+# ==========================================
+# SEARCH INPUT
+# ==========================================
+
+search_text = st.text_input(
+    "🔎 Search Receipt No",
+    value=(
+        st.session_state.selected_receipt
+        or ""
+    ),
+    placeholder="Type INV number..."
+)
+
+
+
+# ==========================================
+# FLOATING AUTOCOMPLETE RESULT
+# ==========================================
+
+if search_text:
+
+
+    results = search_receipts(
+        search_text
     )
 
 
-    if suggestions:
+    if results:
 
 
         st.caption(
@@ -52,316 +77,384 @@ if receipt_no:
         )
 
 
-        for r in suggestions:
+        for r in results:
+
+
+            invoice = r.get(
+                "invoice_no",
+                "-"
+            )
+
+
+            total = r.get(
+                "total",
+                0
+            )
+
+
+            date = r.get(
+                "created_at",
+                ""
+            )
 
 
             label = (
-                f"🧾 {r.get('invoice_no')}"
+                f"🧾 {invoice}"
                 f" | "
-                f"{r.get('total',0):,.0f} MMK"
+                f"{total:,.0f} MMK"
                 f" | "
-                f"{r.get('created_at','')}"
+                f"{date}"
             )
 
 
             if st.button(
                 label,
-                key=f"receipt_{r['id']}"
+                key=f"receipt_{r.get('id')}"
             ):
 
-                st.session_state.selected_receipt = (
-                    r["invoice_no"]
+
+                st.session_state.selected_receipt = invoice
+
+
+                receipt = get_receipt(
+                    invoice
                 )
+
+
+                st.session_state.receipt_data = receipt
+
 
                 st.rerun()
 
 
 
-# =========================
-# LOAD RECEIPT
-# =========================
+# ==========================================
+# MANUAL LOAD SUPPORT
+# ==========================================
 
-if st.button(
-    "🔍 Load Receipt",
-    type="primary"
+if (
+    st.session_state.receipt_data is None
+    and st.session_state.selected_receipt
 ):
 
-    if not receipt_no.strip():
-
-        st.warning(
-            "Please enter receipt number"
-        )
-
-        st.stop()
-
-
-
-    # =========================
-    # GET SALE HEADER
-    # =========================
 
     receipt = get_receipt(
-        receipt_no.strip()
+        st.session_state.selected_receipt
+    )
+
+
+    if receipt:
+
+        st.session_state.receipt_data = receipt
+
+
+
+# ==========================================
+# RECEIPT DISPLAY
+# ==========================================
+
+receipt = st.session_state.receipt_data
+
+
+
+if not receipt:
+
+
+    st.info(
+        "🔎 Search and select receipt"
+    )
+
+    st.stop()
+
+
+
+# ==========================================
+# LOAD ITEMS
+# ==========================================
+
+sale_id = receipt.get(
+    "id"
+)
+
+
+items = []
+
+
+if sale_id:
+
+
+    items = get_sale_items(
+        str(sale_id)
     )
 
 
 
-    if not receipt:
+# ==========================================
+# HEADER SUMMARY
+# ==========================================
 
-        st.error(
-            "❌ Receipt not found"
+st.divider()
+
+
+st.subheader(
+    "🧾 Receipt Summary"
+)
+
+
+c1, c2, c3 = st.columns(3)
+
+
+
+with c1:
+
+    st.metric(
+        "Invoice No",
+        receipt.get(
+            "invoice_no",
+            "-"
         )
-
-        st.stop()
-
-
-
-    st.success(
-        "✅ Receipt Found"
     )
 
 
 
-    sale_id = receipt.get(
-        "id"
+with c2:
+
+    st.metric(
+        "Total",
+        f"{receipt.get('total',0):,.0f} MMK"
     )
 
 
 
-    # =========================
-    # GET ITEMS
-    # =========================
+with c3:
 
-    items = []
-
-    if sale_id:
-
-        items = get_sale_items(
-            str(sale_id)
+    st.metric(
+        "Status",
+        receipt.get(
+            "status",
+            "-"
         )
-
-
-
-    # =========================
-    # SUMMARY
-    # =========================
-
-    st.divider()
-
-    st.subheader(
-        "🧾 Receipt Summary"
     )
 
 
-    col1, col2, col3 = st.columns(3)
+
+c1, c2, c3 = st.columns(3)
 
 
 
-    with col1:
+with c1:
 
-        st.metric(
-            "Invoice No",
-            receipt.get(
-                "invoice_no",
-                "-"
-            )
-        )
-
-
-    with col2:
-
-        st.metric(
-            "Total",
-            f"{receipt.get('total',0):,.0f} MMK"
-        )
-
-
-    with col3:
-
-        st.metric(
-            "Status",
-            receipt.get(
-                "sale_status",
-                receipt.get(
-                    "status",
-                    "-"
-                )
-            )
-        )
-
-
-
-    col1, col2, col3 = st.columns(3)
-
-
-    with col1:
-
-        st.metric(
-            "Paid",
-            f"{receipt.get('paid_amount',0):,.0f}"
-            " MMK"
-        )
-
-
-    with col2:
-
-        st.metric(
-            "Change",
-            f"{receipt.get('change_amount',0):,.0f}"
-            " MMK"
-        )
-
-
-    with col3:
-
-        st.metric(
-            "Payment",
-            receipt.get(
-                "payment_method",
-                "-"
-            )
-        )
-
-
-
-    # =========================
-    # ITEMS TABLE
-    # =========================
-
-    st.divider()
-
-    st.subheader(
-        "🛒 Items"
+    st.metric(
+        "Paid",
+        f"{receipt.get('paid_amount',0):,.0f} MMK"
     )
 
 
-    if items:
 
+with c2:
 
-        table = []
-
-
-        for item in items:
-
-            table.append(
-                {
-                    "Product ID":
-                        item.get(
-                            "product_id"
-                        ),
-
-                    "Qty":
-                        item.get(
-                            "quantity"
-                        ),
-
-                    "Price":
-                        item.get(
-                            "unit_price"
-                        ),
-
-                    "Total":
-                        item.get(
-                            "total"
-                        )
-                }
-            )
-
-
-        st.dataframe(
-            table,
-            use_container_width=True
-        )
-
-
-    else:
-
-        st.info(
-            "No sale items found"
-        )
-
-
-
-    # =========================
-    # FINANCIAL DETAIL
-    # =========================
-
-    st.divider()
-
-    st.subheader(
-        "💰 Financial Details"
+    st.metric(
+        "Change",
+        f"{receipt.get('change_amount',0):,.0f} MMK"
     )
 
 
-    c1, c2 = st.columns(2)
+
+with c3:
+
+    st.metric(
+        "Payment",
+        receipt.get(
+            "payment_method",
+            "-"
+        )
+    )
 
 
-    with c1:
 
-        st.write(
-            "Subtotal:",
-            f"{receipt.get('subtotal',0):,.0f}"
+# ==========================================
+# ITEMS
+# ==========================================
+
+st.divider()
+
+
+st.subheader(
+    "🛒 Sale Items"
+)
+
+
+
+if items:
+
+
+    rows = []
+
+
+    for item in items:
+
+
+        rows.append(
+
+            {
+
+                "Product ID":
+                    item.get(
+                        "product_id"
+                    ),
+
+
+                "Qty":
+                    item.get(
+                        "quantity"
+                    ),
+
+
+                "Unit Price":
+                    item.get(
+                        "unit_price"
+                    ),
+
+
+                "Total":
+                    item.get(
+                        "total"
+                    )
+
+            }
+
         )
 
-        st.write(
-            "Discount:",
-            f"{receipt.get('discount',0):,.0f}"
-        )
+
+    st.dataframe(
+        pd.DataFrame(rows),
+        use_container_width=True,
+        hide_index=True
+    )
 
 
-    with c2:
+else:
 
-        st.write(
-            "Tax:",
-            f"{receipt.get('tax',0):,.0f}"
-        )
 
-        st.write(
-            "Grand Total:",
-            f"{receipt.get('total',0):,.0f} MMK"
-        )
+    st.warning(
+        "No items found"
+    )
 
 
 
-    if receipt.get(
-        "created_at"
+# ==========================================
+# FINANCIAL
+# ==========================================
+
+st.divider()
+
+
+st.subheader(
+    "💰 Financial Details"
+)
+
+
+
+col1, col2 = st.columns(2)
+
+
+
+with col1:
+
+
+    st.write(
+        "Subtotal:",
+        f"{receipt.get('subtotal',0):,.0f} MMK"
+    )
+
+
+    st.write(
+        "Discount:",
+        f"{receipt.get('discount',0):,.0f} MMK"
+    )
+
+
+
+with col2:
+
+
+    st.write(
+        "Tax:",
+        f"{receipt.get('tax',0):,.0f} MMK"
+    )
+
+
+    st.write(
+        "Grand Total:",
+        f"{receipt.get('total',0):,.0f} MMK"
+    )
+
+
+
+if receipt.get(
+    "created_at"
+):
+
+    st.write(
+        "📅 Date:",
+        receipt["created_at"]
+    )
+
+
+
+# ==========================================
+# ACTION AREA
+# ==========================================
+
+st.divider()
+
+
+c1, c2, c3 = st.columns(3)
+
+
+
+with c1:
+
+    st.button(
+        "🖨 Reprint",
+        disabled=True
+    )
+
+
+
+with c2:
+
+    st.button(
+        "📄 PDF",
+        disabled=True
+    )
+
+
+
+with c3:
+
+    if st.button(
+        "🆕 Clear"
     ):
 
-        st.write(
-            "📅 Date:",
-            receipt["created_at"]
-        )
+        st.session_state.selected_receipt = None
+
+        st.session_state.receipt_data = None
+
+        st.rerun()
 
 
 
-    # =========================
-    # ACTIONS
-    # =========================
+# ==========================================
+# EXPORT
+# ==========================================
 
-    st.divider()
+st.download_button(
 
-    c1, c2 = st.columns(2)
+    label="⬇ Export Receipt Data",
 
+    data=str(receipt),
 
+    file_name=f"{receipt.get('invoice_no','receipt')}.txt"
 
-    with c1:
-
-        st.info(
-            "🖨 Thermal Reprint / PDF Reprint "
-            "can be connected here."
-        )
-
-
-
-    with c2:
-
-        st.download_button(
-
-            label="⬇ Export Receipt Data",
-
-            data=str(receipt),
-
-            file_name=
-            f"{receipt_no}.txt"
-
-        )
+    )
