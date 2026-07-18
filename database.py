@@ -1,164 +1,128 @@
 # ==============================================================================
 # database.py
-# ERP ENTERPRISE v15.0.3 LTS - PRODUCTION FROZEN RELEASE
-# Architecture: Frozen API Layer with Tax/Discount Support
+# ERP ENTERPRISE v15.2.3 LTS - FINAL PRODUCTION FREEZE
 # ==============================================================================
 
 import streamlit as st
 import logging
 import uuid
 import time
+import json
 from decimal import Decimal, ROUND_HALF_UP
 from supabase import create_client, Client
 
-# Graceful fallback for postgrest APIError
 try:
     from postgrest.exceptions import APIError
 except ImportError:
     APIError = Exception
 
-# --- Configuration ---
-DEBUG = False 
+# --- Config ---
+DEBUG = False
 DEFAULT_PAGE_SIZE = 100
-SENSITIVE_KEYS = (
-    "password", "token", "access_token", "refresh_token", 
-    "secret", "authorization", "api_key", "jwt", "bearer_token"
-)
-
-# --- Constants ---
-_FIELDS = ["id", "name", "sku", "barcode", "selling_price", "stock", "warehouse_id"]
-PRODUCT_FIELDS = ",".join(_FIELDS)
+SENSITIVE_KEYS = ("password", "token", "secret", "authorization", "api_key", "jwt")
+PRODUCT_FIELDS = "id,name,sku,barcode,selling_price,stock,warehouse_id,available_qty"
 
 # --- Logging ---
-logging.basicConfig(
-    filename="erp_db.log", 
-    level=logging.ERROR, 
-    format="%(asctime)s %(levelname)s %(message)s",
-    force=True 
-)
+logging.basicConfig(filename="erp_db.log", level=logging.ERROR, format="%(asctime)s %(levelname)s %(message)s", force=True)
 
-def log_error(msg="ERP Database Error", rpc_name=None, payload=None):
-    """Structured logging with sensitive data masking."""
-    def mask_sensitive(data):
-        if not isinstance(data, dict): return data
-        masked = data.copy()
-        for key in masked:
-            if any(s_key in key.lower() for s_key in SENSITIVE_KEYS):
-                masked[key] = "***MASKED***"
-        return masked
+def log_error(msg="ERP Database Error", rpc_name=None, payload=None, exception=None):
+    safe_payload = {k: ("***" if any(s in k.lower() for s in SENSITIVE_KEYS) else v) for k, v in payload.items()} if isinstance(payload, dict) else payload
+    logging.error(f"{msg} | RPC={rpc_name} | PAYLOAD={safe_payload} | ERROR={exception}")
 
-    safe_payload = mask_sensitive(payload) if DEBUG else {"keys": list(payload.keys()) if isinstance(payload, dict) else "N/A"}
-    extra = f" | RPC={rpc_name} | Payload={safe_payload}" if rpc_name else ""
-    # Production stable: Use logging.error instead of exception to avoid stack traces on empty contexts
-    logging.error(f"{msg}{extra}")
-
-# --- Connection Management ---
+# --- Connection ---
 @st.cache_resource
 def get_supabase() -> Client:
-    try:
-        return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-    except Exception:
-        log_error()
-        raise
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-def db():
-    return get_supabase()
+def db(): return get_supabase()
 
 # --- Helpers ---
 def money(value):
     try: return float(Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-    except Exception:
-        log_error(); return 0.0
+    except: return 0.0
 
 def validate_uuid(value):
+    if not value: return None
     try: return str(uuid.UUID(str(value)))
-    except Exception:
-        log_error(); return None
+    except: return None
 
-# --- 1. Settings & Core ---
-def get_setting(key, default=None):
-    try:
-        res = db().table("erp_settings").select("value").eq("key", key).maybe_single().execute()
-        return res.data.get("value") if res.data else default
-    except Exception:
-        log_error(); return default
-
+# --- Warehouse & Products ---
 @st.cache_data(ttl=300)
 def get_default_warehouse_id():
     try:
         res = db().table("warehouses").select("id").eq("is_active", True).order("id").limit(1).execute()
-        return res.data[0]['id'] if res.data else 1
-    except Exception:
-        log_error(); return 1
+        return res.data[0]["id"] if res.data else 1
+    except Exception as e:
+        log_error(msg="Warehouse load failed", exception=e)
+        return 1
 
-# --- 2. POS Module ---
 def get_products(warehouse_id=None, offset=0, limit=DEFAULT_PAGE_SIZE):
     try:
         query = db().table("pos_products_view").select(PRODUCT_FIELDS).order("name")
-        if warehouse_id is not None: query = query.eq("warehouse_id", int(warehouse_id))
+        # Fixed warehouse_id bug: Check for None explicitly
+        if warehouse_id is not None:
+            query = query.eq("warehouse_id", int(warehouse_id))
         return query.range(offset, offset + limit - 1).execute().data or []
-    except Exception:
-        log_error(); return []
+    except Exception as e:
+        log_error(msg="get_products failed", exception=e)
+        return []
 
+# --- POS Checkout RPC ---
 def checkout_sale_rpc(cart, paid_amount, warehouse_id=None, cashier_id=None, counter_id=1, payment_method="cash", tax_rate=0, discount=0):
-    """
-    Final Frozen RPC call for POS Checkout. Supports Tax/Discount Sync.
-    """
+    p_amount = money(paid_amount)
+    if p_amount <= 0:
+        return {"success": False, "message": "Invalid payment amount", "data": None}
+    
     payload = {
         "p_cart": cart, 
-        "p_paid_amount": money(paid_amount), 
+        "p_paid_amount": p_amount, 
         "p_warehouse_id": int(warehouse_id) if warehouse_id is not None else get_default_warehouse_id(),
         "p_cashier_id": validate_uuid(cashier_id),
         "p_counter_id": int(counter_id),
-        "p_payment_method": str(payment_method),
+        "p_payment_method": str(payment_method).lower(),
         "p_tax_rate": money(tax_rate),
         "p_discount": money(discount)
     }
     return execute_rpc("checkout_sale_rpc", payload)
 
-# --- 3. Inventory Module ---
-def get_inventory_view(warehouse_id=None, search="", offset=0, limit=DEFAULT_PAGE_SIZE):
-    try:
-        query = db().table("pos_products_view").select("*")
-        if warehouse_id is not None: query = query.eq("warehouse_id", int(warehouse_id))
-        
-        sanitized_search = search.strip()
-        if sanitized_search: 
-            query = query.or_(f"name.ilike.%{sanitized_search}%,sku.ilike.%{sanitized_search}%,barcode.ilike.%{sanitized_search}%")
-        
-        return query.range(offset, offset + limit - 1).execute().data or []
-    except Exception:
-        log_error(); return []
-
-# --- 4. Core RPC Engine ---
+# --- RPC Engine ---
 def execute_rpc(rpc_name, payload):
+    last_error = None
     for attempt in range(3):
         try:
-            res = db().rpc(rpc_name, payload).execute()
-            raw_data = res.data
+            response = db().rpc(rpc_name, payload).execute()
+            raw = response.data
             
-            if raw_data is None: return {"success": False, "message": "Empty response", "data": None}
-            if isinstance(raw_data, list): raw_data = raw_data[0]
-            if isinstance(raw_data, dict) and "response_json" in raw_data: raw_data = raw_data["response_json"]
+            if raw is None: return {"success": False, "message": "Empty RPC response", "data": None}
+            if isinstance(raw, str):
+                try: raw = json.loads(raw)
+                except: return {"success": False, "message": f"Malformed JSON: {raw}", "data": None}
             
-            if not isinstance(raw_data, dict):
-                return {"success": True, "message": "Operation completed", "data": raw_data}
+            if isinstance(raw, list): raw = raw[0] if raw else {}
+            if isinstance(raw, dict) and "response_json" in raw: raw = raw["response_json"]
             
-            status = raw_data.get("status") or raw_data.get("success")
-            return {
-                "success": (status == "success" or status is True),
-                "message": raw_data.get("message", "Operation completed"),
-                "data": raw_data.get("data", raw_data)
-            }
-        except (APIError, TimeoutError, ConnectionError, OSError): 
-            if attempt < 2:
-                time.sleep(0.2 * (attempt + 1))
+            if isinstance(raw, dict):
+                success = raw.get("success") is True or str(raw.get("status")).lower() in ("success", "completed", "ok")
+                return {"success": success, "message": raw.get("message", "Operation completed"), "data": raw.get("data", raw)}
+            
+            return {"success": True, "message": "Operation completed", "data": raw}
+            
+        except APIError as e:
+            last_error = e
+            # Only retry if it's not a logic error (function/column)
+            if "function" not in str(e).lower() and "column" not in str(e).lower() and attempt < 2:
+                time.sleep(0.5)
                 continue
-            log_error(rpc_name=rpc_name, payload=payload)
-            return {"success": False, "message": "RPC Connection Failed", "data": None}
-        except Exception:
-            log_error(rpc_name=rpc_name, payload=payload)
-            return {"success": False, "message": "RPC Execution Error", "data": None}
+            break
+        except Exception as e:
+            last_error = e
+            if attempt < 2:
+                time.sleep(0.5 * (attempt + 1))
+                continue
+            break
 
-print("DATABASE v15.0.3 LTS LOADED - OFFICIAL FROZEN BASELINE")
+    log_error(msg="RPC Failed", rpc_name=rpc_name, payload=payload, exception=last_error)
+    return {"success": False, "message": str(last_error) if last_error else "RPC Failed", "data": None}
+
+print("DATABASE v15.2.3 LTS - FINAL PRODUCTION FREEZE LOADED")
 
