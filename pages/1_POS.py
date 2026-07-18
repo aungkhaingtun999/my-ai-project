@@ -1,5 +1,5 @@
 # ==============================================================================
-# pages/1_POS.py v4.7.4 - PRODUCTION MASTER
+# pages/1_POS.py v4.7.5 - FINAL RECEIPT FIX
 # ==============================================================================
 import sys
 import os
@@ -35,7 +35,7 @@ products = get_products(warehouse_id=warehouse_id)
 
 st.title(f"🛒 {t('app.pos_system')}")
 
-# --- 2. Product Search & Add to Cart (SKU/Barcode Ready) ---
+# --- 2. Product Search ---
 col1, col2 = st.columns(2)
 with col1:
     name_search = st.text_input(t("search.product_name"))
@@ -54,7 +54,6 @@ if matches:
     qty = st.number_input(t("cart.qty"), min_value=1, value=1)
     
     if st.button(t("cart.add")):
-        # Stock Validation Bug Fix
         current_in_cart = sum(item["qty"] for item in st.session_state.cart if item["id"] == selected["id"])
         if current_in_cart + int(qty) > selected["stock"]:
             st.error(f"Insufficient stock! Available: {selected['stock']}")
@@ -66,14 +65,10 @@ if matches:
                     found = True
                     break
             if not found:
-                # Adding price and selling_price for Receipt compatibility
                 price = float(selected["selling_price"])
                 st.session_state.cart.append({
-                    "id": selected["id"],
-                    "name": selected["name"],
-                    "price": price,
-                    "selling_price": price,
-                    "qty": int(qty)
+                    "id": selected["id"], "name": selected["name"],
+                    "price": price, "selling_price": price, "qty": int(qty)
                 })
             st.rerun()
 
@@ -81,8 +76,6 @@ if matches:
 if st.session_state.cart and not st.session_state.show_receipt:
     st.divider()
     subtotal = sum(i["selling_price"] * i["qty"] for i in st.session_state.cart)
-    
-    # Persistent Tax Rate
     st.session_state.tax_rate = st.number_input("Tax Rate (%)", min_value=0.0, value=st.session_state.tax_rate, step=0.5)
     discount = st.number_input(t("payment.discount"), min_value=0.0, value=0.0)
     
@@ -101,28 +94,26 @@ if st.session_state.cart and not st.session_state.show_receipt:
             cart_payload = [{"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])} for i in st.session_state.cart]
             
             result = checkout_sale_rpc(
-                cart=cart_payload,
-                paid_amount=received,
-                warehouse_id=warehouse_id,
-                cashier_id=st.session_state.get("user_id"),
-                payment_method=payment_code,
-                tax_rate=st.session_state.tax_rate,
-                discount=discount
+                cart=cart_payload, paid_amount=received, warehouse_id=warehouse_id,
+                cashier_id=st.session_state.get("user_id"), payment_method=payment_code,
+                tax_rate=st.session_state.tax_rate, discount=discount
             )
             
             if result.get("success"):
                 raw_data = result.get("data", {})
-                inv = raw_data.get("invoice_no") or raw_data.get("invoice", "INV-PENDING")
+                inv = raw_data.get("invoice_no") or raw_data.get("invoice") or "INV-PENDING"
                 
+                # Receipt Data Structure (Compatible with all engines)
                 st.session_state.sale_data = {
-                    "invoice_no": inv, "invoice": inv,
+                    "invoice_no": inv, "receipt_no": inv,
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "sale_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "cashier": st.session_state.get("username", "Admin"),
-                    "items": list(st.session_state.cart), "cart": list(st.session_state.cart),
+                    "cashier_name": st.session_state.get("username", "Admin"),
+                    "items": list(st.session_state.cart),
                     "subtotal": subtotal, "discount": discount,
                     "tax_rate": st.session_state.tax_rate,
-                    "tax_amount": tax_amount,
+                    "tax_amount": tax_amount, "tax": tax_amount,
                     "total": total, "grand_total": total,
                     "paid": received, "change": max(0, received - total)
                 }
@@ -144,4 +135,5 @@ if st.session_state.show_receipt:
     if col_c.button("🆕 New Sale"):
         st.session_state.update({"cart": [], "show_receipt": False, "processing": False, "sale_data": None})
         st.rerun()
-                
+
+
