@@ -22,6 +22,34 @@ TIMEZONE = "Asia/Yangon"
 DATE_FORMAT = "%d-%m-%Y"
 
 DATETIME_FORMAT = "%d-%m-%Y %H:%M:%S"
+# ==========================================
+# TIMEZONE MANAGEMENT
+# ==========================================
+
+TIMEZONE_OPTIONS = {
+
+    "Myanmar 🇲🇲": "Asia/Yangon",
+
+    "Thailand 🇹🇭": "Asia/Bangkok",
+
+    "Mongolia 🇲🇳": "Asia/Ulaanbaatar",
+
+    "Japan 🇯🇵": "Asia/Tokyo",
+
+    "Singapore 🇸🇬": "Asia/Singapore",
+
+    "China 🇨🇳": "Asia/Shanghai",
+
+    "UTC 🌐": "UTC"
+
+}
+
+
+DEFAULT_TIMEZONE = "Asia/Yangon"
+
+
+# Auto browser/device timezone
+AUTO_TIMEZONE = True
 
 # ==========================================
 # ROOT PATH
