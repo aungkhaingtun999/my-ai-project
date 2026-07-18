@@ -1,119 +1,455 @@
+# ==============================================================================
+# pages/4_Users.py
+# ERP ENTERPRISE USER MANAGEMENT v5.0
+# Compatible:
+# public.users
+# roles
+# ==============================================================================
+
 import streamlit as st
 from database import get_supabase
+import hashlib
+from datetime import datetime
+
 
 supabase = get_supabase()
 
-st.set_page_config(page_title="User Management", layout="wide")
+
+st.set_page_config(
+    page_title="User Management",
+    layout="wide"
+)
+
 
 st.title("👥 User Management (Admin Panel)")
-st.caption("Control users, roles, and access rights")
+st.caption("Control users, roles and access rights")
 
-# =========================
-# LOAD USERS
-# =========================
-users_resp = supabase.table("users").select("*").execute()
-users = users_resp.data or []
 
-# =========================
-# SEARCH
-# =========================
-search = st.text_input("🔍 Search user (name / email / role)")
+# ==================================================
+# PASSWORD HASH
+# ==================================================
 
-if search:
-    users = [
-        u for u in users
-        if search.lower() in str(u.get("name", "")).lower()
-        or search.lower() in str(u.get("email", "")).lower()
-        or search.lower() in str(u.get("role", "")).lower()
-    ]
+def hash_password(password):
 
-# =========================
-# CREATE USER SECTION
-# =========================
-st.subheader("➕ Create New User")
+    return hashlib.sha256(
+        password.encode("utf-8")
+    ).hexdigest()
 
-with st.form("create_user"):
-    name = st.text_input("Name")
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
-    role = st.selectbox("Role", ["admin", "staff", "cashier"])
 
-    submit = st.form_submit_button("Create User")
 
-    if submit:
-        if not name or not email or not password:
-            st.error("All fields required")
-        else:
-            result = supabase.table("users").insert({
-                "name": name,
-                "email": email,
-                "password": password,  # NOTE: ideally hashed in backend
-                "role": role
-            }).execute()
+# ==================================================
+# LOAD ROLES
+# ==================================================
 
-            if result.data:
-                st.success("User created successfully")
-                st.rerun()
-            else:
-                st.error("Failed to create user")
+roles_resp = (
+    supabase
+    .table("roles")
+    .select("*")
+    .execute()
+)
 
-st.divider()
 
-# =========================
-# USERS TABLE
-# =========================
-st.subheader("📋 All Users")
+roles = roles_resp.data or []
 
-if not users:
-    st.warning("No users found")
+
+if not roles:
+
+    st.error(
+        "Roles table is empty. Please create roles first."
+    )
+
     st.stop()
 
-for u in users:
 
-    col1, col2, col3, col4, col5 = st.columns([2, 3, 2, 2, 2])
 
-    with col1:
-        st.write(f"👤 {u.get('name','-')}")
+role_map = {
 
-    with col2:
-        st.write(u.get("email", "-"))
+    r["name"]: r["id"]
 
-    with col3:
-        role = u.get("role", "staff")
-        st.write(f"🛡 {role}")
+    for r in roles
 
-    with col4:
-        new_role = st.selectbox(
-            "Change Role",
-            ["admin", "staff", "cashier"],
-            index=["admin", "staff", "cashier"].index(role),
-            key=f"role_{u['id']}"
-        )
+}
 
-        if new_role != role:
-            supabase.table("users").update({"role": new_role}).eq("id", u["id"]).execute()
-            st.rerun()
 
-    with col5:
-        if st.button("🗑 Delete", key=f"del_{u['id']}"):
-            supabase.table("users").delete().eq("id", u["id"]).execute()
-            st.warning("User deleted")
-            st.rerun()
+role_names = list(role_map.keys())
+
+
+
+# ==================================================
+# LOAD USERS
+# ==================================================
+
+users_resp = (
+    supabase
+    .table("users")
+    .select(
+        """
+        id,
+        username,
+        full_name,
+        role_id,
+        is_active
+        """
+    )
+    .execute()
+)
+
+
+users = users_resp.data or []
+
+
+
+# ==================================================
+# SEARCH
+# ==================================================
+
+search = st.text_input(
+    "🔍 Search User"
+)
+
+
+if search:
+
+    search = search.lower()
+
+
+    users = [
+
+        u for u in users
+
+        if
+
+        search in str(
+            u.get("username","")
+        ).lower()
+
+        or
+
+        search in str(
+            u.get("full_name","")
+        ).lower()
+
+    ]
+
+
+
+# ==================================================
+# CREATE USER
+# ==================================================
+
+st.subheader(
+    "➕ Create New User"
+)
+
+
+
+with st.form(
+    "create_user_form"
+):
+
+
+    username = st.text_input(
+        "Username"
+    )
+
+
+    full_name = st.text_input(
+        "Full Name"
+    )
+
+
+    password = st.text_input(
+        "Password",
+        type="password"
+    )
+
+
+    selected_role = st.selectbox(
+        "Role",
+        role_names
+    )
+
+
+    active = st.checkbox(
+        "Active",
+        value=True
+    )
+
+
+    submit = st.form_submit_button(
+        "Create User"
+    )
+
+
+
+    if submit:
+
+
+        if not username or not password:
+
+            st.error(
+                "Username and password required"
+            )
+
+
+        else:
+
+
+            try:
+
+
+                result = (
+
+                    supabase
+                    .table("users")
+                    .insert({
+
+                        "username":
+                            username,
+
+                        "full_name":
+                            full_name,
+
+                        "password_hash":
+                            hash_password(password),
+
+                        "role_id":
+                            role_map[selected_role],
+
+                        "is_active":
+                            active
+
+                    })
+                    .execute()
+
+                )
+
+
+                if result.data:
+
+
+                    st.success(
+                        "User created successfully"
+                    )
+
+                    st.rerun()
+
+
+                else:
+
+                    st.error(
+                        "Create user failed"
+                    )
+
+
+
+            except Exception as e:
+
+
+                st.error(
+                    str(e)
+                )
+
+
+
 
 st.divider()
 
-# =========================
-# SYSTEM INFO PANEL
-# =========================
-st.subheader("📊 System Summary")
 
-total_users = len(users)
-admins = len([u for u in users if u.get("role") == "admin"])
-staff = len([u for u in users if u.get("role") == "staff"])
 
-col1, col2, col3 = st.columns(3)
-col1.metric("👥 Total Users", total_users)
-col2.metric("🛡 Admins", admins)
-col3.metric("🧑‍💼 Staff", staff)
+# ==================================================
+# USER LIST
+# ==================================================
 
-st.success("✔ User management system is active")
+st.subheader(
+    "📋 Users"
+)
+
+
+
+if not users:
+
+    st.info(
+        "No users found"
+    )
+
+else:
+
+
+    for u in users:
+
+
+        role_name = next(
+
+            (
+                r["name"]
+                for r in roles
+                if r["id"] == u["role_id"]
+            ),
+
+            "Unknown"
+
+        )
+
+
+
+        c1,c2,c3,c4,c5 = st.columns(
+            [2,3,2,2,1]
+        )
+
+
+        with c1:
+
+            st.write(
+                "👤",
+                u.get(
+                    "username",
+                    "-"
+                )
+            )
+
+
+
+        with c2:
+
+            st.write(
+                u.get(
+                    "full_name",
+                    "-"
+                )
+            )
+
+
+
+        with c3:
+
+            st.write(
+                "🛡",
+                role_name
+            )
+
+
+
+        with c4:
+
+
+            new_role = st.selectbox(
+
+                "Role",
+
+                role_names,
+
+                index=role_names.index(role_name)
+                if role_name in role_names
+                else 0,
+
+                key=f"role_{u['id']}"
+
+            )
+
+
+
+            if new_role != role_name:
+
+
+                supabase.table(
+                    "users"
+                ).update({
+
+                    "role_id":
+                    role_map[new_role]
+
+                }).eq(
+                    "id",
+                    u["id"]
+                ).execute()
+
+
+                st.success(
+                    "Role updated"
+                )
+
+                st.rerun()
+
+
+
+        with c5:
+
+
+            if st.button(
+                "🗑",
+                key=f"delete_{u['id']}"
+            ):
+
+
+                supabase.table(
+                    "users"
+                ).delete().eq(
+                    "id",
+                    u["id"]
+                ).execute()
+
+
+                st.warning(
+                    "User deleted"
+                )
+
+                st.rerun()
+
+
+
+st.divider()
+
+
+
+# ==================================================
+# DASHBOARD
+# ==================================================
+
+st.subheader(
+    "📊 System Summary"
+)
+
+
+total = len(users)
+
+
+active = len(
+
+    [
+        u for u in users
+        if u.get("is_active")
+    ]
+
+)
+
+
+inactive = total - active
+
+
+
+c1,c2,c3 = st.columns(3)
+
+
+c1.metric(
+    "👥 Total Users",
+    total
+)
+
+
+c2.metric(
+    "✅ Active",
+    active
+)
+
+
+c3.metric(
+    "⛔ Disabled",
+    inactive
+)
+
+
+
+st.success(
+    "✔ Enterprise User Management Active"
+                    )
