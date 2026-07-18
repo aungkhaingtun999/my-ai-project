@@ -160,4 +160,56 @@ def execute_rpc(rpc_name, payload):
     return {"success": False, "message": str(last_error) if last_error else "RPC Failed", "data": None}
 
 print("DATABASE.PY FINISHED LOADING")
+# =========================================================
+# RECEIPT VIEWER SUPPORT
+# =========================================================
+
+def get_receipt(invoice_no):
+
+    try:
+
+        response = (
+            supabase
+            .table("sales")
+            .select("*")
+            .eq(
+                "invoice_no",
+                invoice_no
+            )
+            .single()
+            .execute()
+        )
+
+
+        return response.data
+
+
+    except Exception:
+
+        return None
+
+
+
+def get_sale_items(sale_id):
+
+    try:
+
+        response = (
+            supabase
+            .table("sale_items")
+            .select("*")
+            .eq(
+                "sale_id",
+                sale_id
+            )
+            .execute()
+        )
+
+
+        return response.data or []
+
+
+    except Exception:
+
+        return []
     
