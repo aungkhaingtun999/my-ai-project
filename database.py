@@ -1,7 +1,7 @@
 # ==============================================================================
 # database.py
-# ERP ENTERPRISE v15.0.1 LTS - PRODUCTION STABLE
-# Architecture: Frozen API Layer (Official Enterprise Baseline)
+# ERP ENTERPRISE v15.0.3 LTS - PRODUCTION FROZEN RELEASE
+# Architecture: Frozen API Layer with Tax/Discount Support
 # ==============================================================================
 
 import streamlit as st
@@ -10,7 +10,12 @@ import uuid
 import time
 from decimal import Decimal, ROUND_HALF_UP
 from supabase import create_client, Client
-from postgrest.exceptions import APIError
+
+# Graceful fallback for postgrest APIError
+try:
+    from postgrest.exceptions import APIError
+except ImportError:
+    APIError = Exception
 
 # --- Configuration ---
 DEBUG = False 
@@ -33,7 +38,7 @@ logging.basicConfig(
 )
 
 def log_error(msg="ERP Database Error", rpc_name=None, payload=None):
-    """Structured logging with comprehensive sensitive data masking."""
+    """Structured logging with sensitive data masking."""
     def mask_sensitive(data):
         if not isinstance(data, dict): return data
         masked = data.copy()
@@ -44,7 +49,8 @@ def log_error(msg="ERP Database Error", rpc_name=None, payload=None):
 
     safe_payload = mask_sensitive(payload) if DEBUG else {"keys": list(payload.keys()) if isinstance(payload, dict) else "N/A"}
     extra = f" | RPC={rpc_name} | Payload={safe_payload}" if rpc_name else ""
-    logging.exception(f"{msg}{extra}")
+    # Production stable: Use logging.error instead of exception to avoid stack traces on empty contexts
+    logging.error(f"{msg}{extra}")
 
 # --- Connection Management ---
 @st.cache_resource
@@ -57,13 +63,6 @@ def get_supabase() -> Client:
 
 def db():
     return get_supabase()
-
-def ping_database():
-    try:
-        db().table("warehouses").select("id").limit(1).execute()
-        return True
-    except Exception:
-        return False
 
 # --- Helpers ---
 def money(value):
@@ -101,9 +100,9 @@ def get_products(warehouse_id=None, offset=0, limit=DEFAULT_PAGE_SIZE):
     except Exception:
         log_error(); return []
 
-def checkout_sale_rpc(cart, paid_amount, warehouse_id=None, cashier_id=None, counter_id=1, payment_method="cash"):
+def checkout_sale_rpc(cart, paid_amount, warehouse_id=None, cashier_id=None, counter_id=1, payment_method="cash", tax_rate=0, discount=0):
     """
-    Final Frozen RPC call for POS Checkout.
+    Final Frozen RPC call for POS Checkout. Supports Tax/Discount Sync.
     """
     payload = {
         "p_cart": cart, 
@@ -111,7 +110,9 @@ def checkout_sale_rpc(cart, paid_amount, warehouse_id=None, cashier_id=None, cou
         "p_warehouse_id": int(warehouse_id) if warehouse_id is not None else get_default_warehouse_id(),
         "p_cashier_id": validate_uuid(cashier_id),
         "p_counter_id": int(counter_id),
-        "p_payment_method": str(payment_method)
+        "p_payment_method": str(payment_method),
+        "p_tax_rate": money(tax_rate),
+        "p_discount": money(discount)
     }
     return execute_rpc("checkout_sale_rpc", payload)
 
@@ -149,7 +150,7 @@ def execute_rpc(rpc_name, payload):
                 "message": raw_data.get("message", "Operation completed"),
                 "data": raw_data.get("data", raw_data)
             }
-        except (APIError, TimeoutError, ConnectionError, OSError): # Transient errors
+        except (APIError, TimeoutError, ConnectionError, OSError): 
             if attempt < 2:
                 time.sleep(0.2 * (attempt + 1))
                 continue
@@ -159,5 +160,5 @@ def execute_rpc(rpc_name, payload):
             log_error(rpc_name=rpc_name, payload=payload)
             return {"success": False, "message": "RPC Execution Error", "data": None}
 
-print("DATABASE v15.0.1 LTS LOADED - OFFICIAL FROZEN BASELINE")
-                                                      
+print("DATABASE v15.0.3 LTS LOADED - OFFICIAL FROZEN BASELINE")
+
