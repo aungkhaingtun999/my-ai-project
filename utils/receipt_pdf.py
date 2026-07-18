@@ -4,6 +4,8 @@
 # FINAL PRODUCTION RECEIPT PDF ENGINE
 # ==============================================================================
 
+from utils.timezone import format_datetime
+
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
@@ -12,7 +14,6 @@ import json
 import os
 import re
 import streamlit as st
-
 
 # ==============================================================================
 # SHOP CONFIG
