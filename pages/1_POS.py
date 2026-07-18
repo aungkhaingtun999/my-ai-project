@@ -881,12 +881,7 @@ if (
                     invoice_no,
 
 
-                    "date":
-                    datetime.now().strftime(
-
-                        "%Y-%m-%d %H:%M:%S"
-
-                    ),
+                    "date": format_datetime(),
 
 
                     "cashier":
