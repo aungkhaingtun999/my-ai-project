@@ -334,4 +334,31 @@ def purchase_receive_rpc(
         "purchase_receive_rpc",
         payload
     )
+    # =========================================================
+# PURCHASE RECEIVE RPC
+# =========================================================
+
+def purchase_receive_rpc(
+    product_id,
+    supplier_id,
+    warehouse_id,
+    qty,
+    cost,
+    remarks="",
+    user_id=None
+):
+    payload = {
+        "p_product_id": int(product_id),
+        "p_supplier_id": int(supplier_id),
+        "p_warehouse_id": int(warehouse_id),
+        "p_qty": int(qty),
+        "p_price": money(cost),              # <-- p_cost → p_price
+        "p_notes": str(remarks),             # <-- p_remarks → p_notes
+        "p_created_by": validate_uuid(user_id)  # <-- p_user_id → p_created_by
+    }
+
+    return execute_rpc(
+        "purchase_receive_rpc",
+        payload
+    )
     
