@@ -7,7 +7,8 @@ import streamlit as st
 
 from database import (
     get_receipt,
-    get_sale_items
+    get_sale_items,
+    search_receipts
 )
 
 
@@ -21,10 +22,58 @@ st.title("🧾 Receipt Viewer (ERP Level)")
 # =========================
 # INPUT
 # =========================
+if "selected_receipt" in st.session_state:
 
+    receipt_no = (
+        st.session_state.selected_receipt
+    )
 receipt_no = st.text_input(
-    "Enter Receipt No (e.g. INV-20260716120000)"
+    "🔎 Search Receipt"
 )
+
+
+# =========================
+# FLOATING SEARCH RESULT
+# =========================
+
+if receipt_no:
+
+
+    suggestions = search_receipts(
+        receipt_no
+    )
+
+
+    if suggestions:
+
+
+        st.caption(
+            "Matching Receipts"
+        )
+
+
+        for r in suggestions:
+
+
+            label = (
+                f"🧾 {r.get('invoice_no')}"
+                f" | "
+                f"{r.get('total',0):,.0f} MMK"
+                f" | "
+                f"{r.get('created_at','')}"
+            )
+
+
+            if st.button(
+                label,
+                key=f"receipt_{r['id']}"
+            ):
+
+                st.session_state.selected_receipt = (
+                    r["invoice_no"]
+                )
+
+                st.rerun()
 
 
 
