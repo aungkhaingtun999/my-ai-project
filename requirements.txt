@@ -5,3 +5,7 @@ streamlit-searchbox
 python-escpos
 reportlab
 openpyxl
+streamlit
+python-dotenv
+bcrypt
+qrcode
