@@ -1,21 +1,20 @@
 import streamlit as st
+import hashlib
+import bcrypt
+import hmac
+import time
+from datetime import datetime, timezone, timedelta
 from database import get_supabase
 
 supabase = get_supabase()
 
 # ==================================================
-# SESSION INITIALIZER
+# SECURITY & CONSTANTS
 # ==================================================
-def init_auth():
-    if "user" not in st.session_state:
-        st.session_state.user = None
+SESSION_IDLE_TIMEOUT = 1800  # 30 minutes
+MAX_FAILED_ATTEMPTS = 5
+LOCK_DURATION_MINUTES = 15
 
-
-init_auth()
-
-# ==================================================
-# ROLE MAP
-# ==================================================
 ROLE_MAP = {
     1: "Admin",
     2: "Manager",
@@ -23,241 +22,140 @@ ROLE_MAP = {
 }
 
 # ==================================================
-# SAFE USER FETCH
+# AUDIT LOGGING
 # ==================================================
-def get_user(username: str):
-
+def log_auth_event(user_id, event_type, status="success"):
     try:
-
-        response = (
-            supabase
-            .table("users")
-            .select("*")
-            .eq("username", username.strip())
-            .eq("is_active", True)
-            .limit(1)
-            .execute()
-        )
-
-        data = response.data or []
-
-        if len(data) == 0:
-            return None
-
-        return data[0]
-
-    except Exception as e:
-
-        st.error("Database Error")
-        st.exception(e)
-        return None
-
+        supabase.table("auth_logs").insert({
+            "user_id": user_id,
+            "event": event_type,
+            "status": status,
+            "ip_address": "system-detected"
+        }).execute()
+    except Exception:
+        pass
 
 # ==================================================
-# PASSWORD VERIFY
+# PASSWORD VERIFICATION (v15 Final)
 # ==================================================
 def verify_password(user, password):
+    stored = user.get("password_hash")
+    if not stored: return False
+    stored = str(stored).strip()
+    
+    # 1. bcrypt check
+    if stored.startswith("$2"):
+        if bcrypt.checkpw(password.encode("utf-8"), stored.encode("utf-8")):
+            return True
+        return False
+        
+    # 2. SHA256 / Plain text check (Migration)
+    sha256_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    if hmac.compare_digest(stored, sha256_hash) or hmac.compare_digest(stored, password):
+        upgrade_password(user["id"], password)
+        return True
+        
+    return False
 
-    stored = str(user.get("password_hash", ""))
-
-    # Future
-    # bcrypt.checkpw(...)
-
-    return stored == password
-
+def upgrade_password(user_id, password):
+    try:
+        new_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode()
+        supabase.table("users").update({"password_hash": new_hash}).eq("id", user_id).execute()
+    except Exception:
+        pass # Password upgrade shouldn't stop login
 
 # ==================================================
-# BUILD SESSION
+# CORE AUTH FUNCTIONS
 # ==================================================
+def get_user(username):
+    try:
+        response = supabase.table("users").select("*").eq("username", username.strip()).eq("is_active", True).limit(1).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        st.error("Authentication Database Error")
+        return None
+
+def login_user(username, password):
+    user = get_user(username)
+    if not user: return False, "User not found."
+
+    locked_until = user.get("locked_until")
+    if locked_until:
+        lock_time = datetime.fromisoformat(locked_until.replace('Z', '+00:00'))
+        if datetime.now(timezone.utc) < lock_time:
+            return False, "Account locked. Try again later."
+
+    if verify_password(user, password):
+        supabase.table("users").update({"failed_attempts": 0, "locked_until": None}).eq("id", user["id"]).execute()
+        build_session(user)
+        log_auth_event(user["id"], "login")
+        return True, "Success"
+    else:
+        new_attempts = user.get("failed_attempts", 0) + 1
+        update_data = {"failed_attempts": new_attempts}
+        if new_attempts >= MAX_FAILED_ATTEMPTS:
+            update_data["locked_until"] = (datetime.now(timezone.utc) + timedelta(minutes=LOCK_DURATION_MINUTES)).isoformat()
+        
+        supabase.table("users").update(update_data).eq("id", user["id"]).execute()
+        log_auth_event(user["id"], "login", "failed")
+        return False, "Invalid password."
+
 def build_session(user):
-
-    role_id = int(user.get("role_id", 3))
-
-    role_name = ROLE_MAP.get(role_id, "Cashier")
-
     st.session_state.user = {
-
         "id": user["id"],
-
         "username": user["username"],
-
-        "full_name": user.get(
-            "full_name",
-            user["username"]
-        ),
-
-        "role_id": role_id,
-
-        "role": role_name,
-
-        "is_active": bool(user.get("is_active", True))
+        "full_name": user.get("full_name", user["username"]),
+        "role_id": int(user.get("role_id", 3)),
+        "role": ROLE_MAP.get(int(user.get("role_id", 3)), "Cashier"),
+        "is_active": bool(user.get("is_active", True)),
+        "last_activity": time.time()
     }
 
-
 # ==================================================
-# LOGIN PAGE
-# ==================================================
-def login_page():
-
-    st.title("🔐 ERP Enterprise Login")
-
-    st.caption("Secure Authentication Layer")
-
-    username = st.text_input("Username")
-
-    password = st.text_input(
-        "Password",
-        type="password"
-    )
-
-    login = st.button(
-        "Login",
-        use_container_width=True
-    )
-
-    if not login:
-        return
-
-    if username.strip() == "" or password == "":
-
-        st.warning("Please enter username and password.")
-
-        return
-
-    user = get_user(username)
-
-    if user is None:
-
-        st.error("User not found.")
-
-        return
-
-    if not verify_password(user, password):
-
-        st.error("Invalid password.")
-
-        return
-
-    build_session(user)
-
-    st.success(
-        f"Welcome {st.session_state.user['full_name']}"
-    )
-
-    st.rerun()
-
-
-# ==================================================
-# LOGOUT
-# ==================================================
-def logout():
-
-    keep = {}
-
-    st.session_state.clear()
-
-    st.session_state.user = None
-
-    st.rerun()
-
-
-# ==================================================
-# LOGIN CHECK
+# GUARDS & HELPERS
 # ==================================================
 def is_authenticated():
-
     user = st.session_state.get("user")
-
-    if not isinstance(user, dict):
+    if not user or not user.get("is_active"): return False
+    
+    if (time.time() - user["last_activity"]) > SESSION_IDLE_TIMEOUT:
+        logout()
         return False
-
-    if not user.get("id"):
-        return False
-
-    if not user.get("is_active", False):
-        return False
-
+    user["last_activity"] = time.time()
     return True
 
-
-# ==================================================
-# REQUIRE LOGIN
-# ==================================================
 def require_login():
-
     if not is_authenticated():
-
         login_page()
-
         st.stop()
-
     return st.session_state.user
 
-
-# ==================================================
-# REQUIRE ADMIN
-# ==================================================
-def require_admin():
-
+def require_role(role_id):
     user = require_login()
-
-    if user["role_id"] != 1:
-
-        st.error("⛔ Admin Only")
-
+    if user["role_id"] != role_id:
+        st.error(f"⛔ Access Denied: Requires {ROLE_MAP.get(role_id)}")
         st.stop()
-
     return user
 
+def logout():
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.rerun()
 
-# ==================================================
-# CURRENT USER
-# ==================================================
-def current_user():
+def login_page():
+    st.title("🔐 ERP Enterprise Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login", use_container_width=True):
+        success, msg = login_user(username, password)
+        if success: st.rerun()
+        else: st.error(msg)
 
-    return st.session_state.get("user")
-
-
-# ==================================================
-# CURRENT ROLE
-# ==================================================
-def current_role():
-
-    user = current_user()
-
-    if not user:
-        return "Guest"
-
-    return user["role"]
-
-
-# ==================================================
-# SIDEBAR USER CARD
-# ==================================================
 def auth_sidebar():
+    if is_authenticated():
+        user = st.session_state.user
+        with st.sidebar:
+            st.success(f"👤 {user['full_name']}")
+            st.caption(f"Role: {user['role']}")
+            if st.button("🚪 Logout"): logout()
 
-    if not is_authenticated():
-        return
-
-    user = current_user()
-
-    with st.sidebar:
-
-        st.success(
-            f"👤 {user['full_name']}"
-        )
-
-        st.caption(
-            f"Role : {user['role']}"
-        )
-
-        st.caption(
-            f"Username : {user['username']}"
-        )
-
-        if st.button(
-            "🚪 Logout",
-            use_container_width=True
-        ):
-
-            logout()
