@@ -1,6 +1,6 @@
 # ==============================================================================
 # database.py
-# ERP ENTERPRISE v15.0 LTS - PRODUCTION STABLE
+# ERP ENTERPRISE v15.0.1 LTS - PRODUCTION STABLE
 # Architecture: Frozen API Layer (Official Enterprise Baseline)
 # ==============================================================================
 
@@ -101,13 +101,17 @@ def get_products(warehouse_id=None, offset=0, limit=DEFAULT_PAGE_SIZE):
     except Exception:
         log_error(); return []
 
-def checkout_sale_rpc(cart, paid_amount, warehouse_id=None, cashier_id=None, counter_id=1):
+def checkout_sale_rpc(cart, paid_amount, warehouse_id=None, cashier_id=None, counter_id=1, payment_method="cash"):
+    """
+    Final Frozen RPC call for POS Checkout.
+    """
     payload = {
         "p_cart": cart, 
         "p_paid_amount": money(paid_amount), 
         "p_warehouse_id": int(warehouse_id) if warehouse_id is not None else get_default_warehouse_id(),
+        "p_cashier_id": validate_uuid(cashier_id),
         "p_counter_id": int(counter_id),
-        "p_cashier_id": validate_uuid(cashier_id)
+        "p_payment_method": str(payment_method)
     }
     return execute_rpc("checkout_sale_rpc", payload)
 
@@ -155,5 +159,5 @@ def execute_rpc(rpc_name, payload):
             log_error(rpc_name=rpc_name, payload=payload)
             return {"success": False, "message": "RPC Execution Error", "data": None}
 
-print("DATABASE v15.0 LTS LOADED - OFFICIAL FROZEN BASELINE")
-                                         
+print("DATABASE v15.0.1 LTS LOADED - OFFICIAL FROZEN BASELINE")
+                                                      
