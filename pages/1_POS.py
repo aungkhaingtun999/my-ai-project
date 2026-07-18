@@ -7,7 +7,7 @@
 import sys
 import os
 import pandas as pd
-from datetime import datetime
+from utils.timezone import format_datetime
 
 # Root path
 sys.path.append(
