@@ -1,7 +1,8 @@
 # ==============================================================================
-# database.py
-# ERP ENTERPRISE v15.2.4 LTS - FINAL PRODUCTION RELEASE + HOTFIX
+# database.py v15.2.7 LTS - PRODUCTION HARDENED
 # ==============================================================================
+
+print("DATABASE.PY START LOADING")
 
 import streamlit as st
 import logging
@@ -26,7 +27,13 @@ PRODUCT_FIELDS = "id,name,sku,barcode,selling_price,stock,warehouse_id,available
 logging.basicConfig(filename="erp_db.log", level=logging.ERROR, format="%(asctime)s %(levelname)s %(message)s", force=True)
 
 def log_error(msg="ERP Database Error", rpc_name=None, payload=None, exception=None):
-    safe_payload = {k: ("***" if any(s in k.lower() for s in SENSITIVE_KEYS) else v) for k, v in payload.items()} if isinstance(payload, dict) else payload
+    # Safe Payload Logic
+    safe_payload = {}
+    if isinstance(payload, dict):
+        safe_payload = {
+            k: ("***" if any(s in k.lower() for s in SENSITIVE_KEYS) else v)
+            for k, v in payload.items()
+        }
     logging.error(f"{msg} | RPC={rpc_name} | PAYLOAD={safe_payload} | ERROR={exception}")
 
 # --- Connection ---
@@ -55,7 +62,29 @@ def get_setting(key, default=None):
         log_error(msg="get_setting failed", exception=e)
         return default
 
-# --- Warehouse & Products ---
+# --- Inventory Module (No Cache) ---
+def get_inventory_view(warehouse_id=None, search="", offset=0, limit=DEFAULT_PAGE_SIZE):
+    try:
+        query = db().table("pos_products_view").select("*").order("name")
+        if warehouse_id is not None:
+            query = query.eq("warehouse_id", int(warehouse_id))
+        if search and search.strip():
+            s = search.strip()
+            query = query.or_(f"name.ilike.%{s}%,sku.ilike.%{s}%,barcode.ilike.%{s}%")
+        
+        return query.range(offset, offset + limit - 1).execute().data or []
+    except Exception as e:
+        log_error(msg="get_inventory_view failed", exception=e)
+        return []
+
+def get_warehouses():
+    try:
+        return db().table("warehouses").select("*").eq("is_active", True).order("id").execute().data or []
+    except Exception as e:
+        log_error(msg="get_warehouses failed", exception=e)
+        return []
+
+# --- Product Module ---
 @st.cache_data(ttl=300)
 def get_default_warehouse_id():
     try:
@@ -100,7 +129,6 @@ def execute_rpc(rpc_name, payload):
         try:
             response = db().rpc(rpc_name, payload).execute()
             raw = response.data
-            
             if raw is None: return {"success": False, "message": "Empty RPC response", "data": None}
             if isinstance(raw, str):
                 try: raw = json.loads(raw)
@@ -131,5 +159,5 @@ def execute_rpc(rpc_name, payload):
     log_error(msg="RPC Failed", rpc_name=rpc_name, payload=payload, exception=last_error)
     return {"success": False, "message": str(last_error) if last_error else "RPC Failed", "data": None}
 
-print("DATABASE v15.2.4 LTS LOADED - FULL PRODUCTION")
-        
+print("DATABASE.PY FINISHED LOADING")
+    
