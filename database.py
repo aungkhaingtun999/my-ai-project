@@ -1,5 +1,5 @@
 # ==============================================================================
-# database.py v15.2.7 LTS - PRODUCTION HARDENED
+# database.py v15.2.8 LTS - PRODUCTION HARDENED
 # ==============================================================================
 
 print("DATABASE.PY START LOADING")
@@ -27,7 +27,6 @@ PRODUCT_FIELDS = "id,name,sku,barcode,selling_price,stock,warehouse_id,available
 logging.basicConfig(filename="erp_db.log", level=logging.ERROR, format="%(asctime)s %(levelname)s %(message)s", force=True)
 
 def log_error(msg="ERP Database Error", rpc_name=None, payload=None, exception=None):
-    # Safe Payload Logic
     safe_payload = {}
     if isinstance(payload, dict):
         safe_payload = {
@@ -62,7 +61,7 @@ def get_setting(key, default=None):
         log_error(msg="get_setting failed", exception=e)
         return default
 
-# --- Inventory Module (No Cache) ---
+# --- Inventory & Product Modules ---
 def get_inventory_view(warehouse_id=None, search="", offset=0, limit=DEFAULT_PAGE_SIZE):
     try:
         query = db().table("pos_products_view").select("*").order("name")
@@ -71,7 +70,6 @@ def get_inventory_view(warehouse_id=None, search="", offset=0, limit=DEFAULT_PAG
         if search and search.strip():
             s = search.strip()
             query = query.or_(f"name.ilike.%{s}%,sku.ilike.%{s}%,barcode.ilike.%{s}%")
-        
         return query.range(offset, offset + limit - 1).execute().data or []
     except Exception as e:
         log_error(msg="get_inventory_view failed", exception=e)
@@ -84,7 +82,6 @@ def get_warehouses():
         log_error(msg="get_warehouses failed", exception=e)
         return []
 
-# --- Product Module ---
 @st.cache_data(ttl=300)
 def get_default_warehouse_id():
     try:
@@ -104,25 +101,7 @@ def get_products(warehouse_id=None, offset=0, limit=DEFAULT_PAGE_SIZE):
         log_error(msg="get_products failed", exception=e)
         return []
 
-# --- POS Checkout RPC ---
-def checkout_sale_rpc(cart, paid_amount, warehouse_id=None, cashier_id=None, counter_id=1, payment_method="cash", tax_rate=0, discount=0):
-    p_amount = money(paid_amount)
-    if p_amount <= 0:
-        return {"success": False, "message": "Invalid payment amount", "data": None}
-    
-    payload = {
-        "p_cart": cart, 
-        "p_paid_amount": p_amount, 
-        "p_warehouse_id": int(warehouse_id) if warehouse_id is not None else get_default_warehouse_id(),
-        "p_cashier_id": validate_uuid(cashier_id),
-        "p_counter_id": int(counter_id),
-        "p_payment_method": str(payment_method).lower(),
-        "p_tax_rate": money(tax_rate),
-        "p_discount": money(discount)
-    }
-    return execute_rpc("checkout_sale_rpc", payload)
-
-# --- RPC Engine ---
+# --- RPC Engine & POS Checkout ---
 def execute_rpc(rpc_name, payload):
     last_error = None
     for attempt in range(3):
@@ -133,16 +112,12 @@ def execute_rpc(rpc_name, payload):
             if isinstance(raw, str):
                 try: raw = json.loads(raw)
                 except: return {"success": False, "message": f"Malformed JSON: {raw}", "data": None}
-            
             if isinstance(raw, list): raw = raw[0] if raw else {}
             if isinstance(raw, dict) and "response_json" in raw: raw = raw["response_json"]
-            
             if isinstance(raw, dict):
                 success = raw.get("success") is True or str(raw.get("status")).lower() in ("success", "completed", "ok")
                 return {"success": success, "message": raw.get("message", "Operation completed"), "data": raw.get("data", raw)}
-            
             return {"success": True, "message": "Operation completed", "data": raw}
-            
         except APIError as e:
             last_error = e
             if "function" not in str(e).lower() and "column" not in str(e).lower() and attempt < 2:
@@ -155,210 +130,60 @@ def execute_rpc(rpc_name, payload):
                 time.sleep(0.5 * (attempt + 1))
                 continue
             break
-
     log_error(msg="RPC Failed", rpc_name=rpc_name, payload=payload, exception=last_error)
     return {"success": False, "message": str(last_error) if last_error else "RPC Failed", "data": None}
 
-print("DATABASE.PY FINISHED LOADING")
-# =========================================================
-# RECEIPT VIEWER SUPPORT
-# =========================================================
+def checkout_sale_rpc(cart, paid_amount, warehouse_id=None, cashier_id=None, counter_id=1, payment_method="cash", tax_rate=0, discount=0):
+    p_amount = money(paid_amount)
+    payload = {
+        "p_cart": cart, "p_paid_amount": p_amount, 
+        "p_warehouse_id": int(warehouse_id) if warehouse_id is not None else get_default_warehouse_id(),
+        "p_cashier_id": validate_uuid(cashier_id), "p_counter_id": int(counter_id),
+        "p_payment_method": str(payment_method).lower(), "p_tax_rate": money(tax_rate), "p_discount": money(discount)
+    }
+    return execute_rpc("checkout_sale_rpc", payload)
 
+def purchase_receive_rpc(product_id, supplier_id, warehouse_id, qty, cost, remarks="", user_id=None):
+    payload = {
+        "p_product_id": int(product_id),
+        "p_supplier_id": int(supplier_id),
+        "p_warehouse_id": int(warehouse_id),
+        "p_qty": int(qty),
+        "p_price": money(cost),
+        "p_notes": str(remarks),
+        "p_created_by": validate_uuid(user_id)
+    }
+    return execute_rpc("purchase_receive_rpc", payload)
+
+# --- Receipt, Supplier & Audit Support ---
 def get_receipt(invoice_no):
-
-    try:
-
-        response = (
-    db()
-            .table("sales")
-            .select("*")
-            .eq(
-                "invoice_no",
-                invoice_no
-            )
-            .single()
-            .execute()
-        )
-
-
-        return response.data
-
-
-    except Exception:
-
-        return None
-
-
+    try: return db().table("sales").select("*").eq("invoice_no", invoice_no).single().execute().data
+    except: return None
 
 def get_sale_items(sale_id):
-
-    try:
-
-        response = (
-    db()
-            .table("sale_items")
-            .select("*")
-            .eq(
-                "sale_id",
-                sale_id
-            )
-            .execute()
-        )
-
-
-        return response.data or []
-
-
-    except Exception:
-
-        return []
-        # =========================================================
-# RECEIPT SEARCH SUPPORT
-# =========================================================
+    try: return db().table("sale_items").select("*").eq("sale_id", sale_id).execute().data or []
+    except: return []
 
 def search_receipts(keyword, limit=10):
-
-    try:
-
-        response = (
-            db()
-            .table("sales")
-            .select(
-                "id,invoice_no,total,created_at"
-            )
-            .ilike(
-                "invoice_no",
-                f"%{keyword}%"
-            )
-            .order(
-                "created_at",
-                desc=True
-            )
-            .limit(limit)
-            .execute()
-        )
-
-        return response.data or []
-
+    try: return db().table("sales").select("id,invoice_no,total,created_at").ilike("invoice_no", f"%{keyword}%").order("created_at", desc=True).limit(limit).execute().data or []
     except Exception as e:
-
-        log_error(
-            msg="search_receipts failed",
-            exception=e
-        )
-
+        log_error(msg="search_receipts failed", exception=e)
         return []
-        # =========================================================
-# SUPPLIER SUPPORT
-# =========================================================
 
 def get_suppliers():
-    try:
-        response = (
-            db()
-            .table("suppliers")
-            .select("*")
-            .eq("is_active", True)
-            .order("name")
-            .execute()
-        )
-
-        return response.data or []
-
+    try: return db().table("suppliers").select("*").eq("is_active", True).order("name").execute().data or []
     except Exception as e:
-        log_error(
-            msg="get_suppliers failed",
-            exception=e
-        )
+        log_error(msg="get_suppliers failed", exception=e)
         return []
 
-
-# =========================================================
-# AUDIT LOG SUPPORT
-# =========================================================
-
-def create_audit_log(
-    user_id,
-    action,
-    description
-):
+def create_audit_log(user_id, action, description):
     try:
-
-        payload = {
-            "user_id": validate_uuid(user_id),
-            "action": str(action),
-            "description": str(description)
-        }
-
+        payload = {"user_id": validate_uuid(user_id), "action": str(action), "description": str(description)}
         db().table("audit_logs").insert(payload).execute()
-
         return True
-
     except Exception as e:
-
-        log_error(
-            msg="create_audit_log failed",
-            payload=payload,
-            exception=e
-        )
-
+        log_error(msg="create_audit_log failed", payload=payload, exception=e)
         return False
-        # =========================================================
-# PURCHASE RECEIVE RPC
-# =========================================================
 
-def purchase_receive_rpc(
-    product_id,
-    supplier_id,
-    warehouse_id,
-    qty,
-    cost,
-    remarks="",
-    user_id=None
-):
-    """
-    Enterprise Purchase Receive RPC Wrapper
-    """
+print("DATABASE.PY FINISHED LOADING")
 
-    payload = {
-        "p_product_id": int(product_id),
-        "p_supplier_id": int(supplier_id),
-        "p_warehouse_id": int(warehouse_id),
-        "p_qty": int(qty),
-        "p_cost": money(cost),
-        "p_remarks": str(remarks),
-        "p_user_id": validate_uuid(user_id)
-    }
-
-    return execute_rpc(
-        "purchase_receive_rpc",
-        payload
-    )
-    # =========================================================
-# PURCHASE RECEIVE RPC
-# =========================================================
-
-def purchase_receive_rpc(
-    product_id,
-    supplier_id,
-    warehouse_id,
-    qty,
-    cost,
-    remarks="",
-    user_id=None
-):
-    payload = {
-        "p_product_id": int(product_id),
-        "p_supplier_id": int(supplier_id),
-        "p_warehouse_id": int(warehouse_id),
-        "p_qty": int(qty),
-        "p_price": money(cost),              # <-- p_cost → p_price
-        "p_notes": str(remarks),             # <-- p_remarks → p_notes
-        "p_created_by": validate_uuid(user_id)  # <-- p_user_id → p_created_by
-    }
-
-    return execute_rpc(
-        "purchase_receive_rpc",
-        payload
-    )
-    
