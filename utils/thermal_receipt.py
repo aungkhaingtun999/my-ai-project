@@ -7,13 +7,13 @@
 import json
 import os
 
+from utils.timezone import format_datetime
+
 
 try:
     from escpos.printer import Usb
 except ImportError:
     Usb = None
-
-
 
 # ==============================================================================
 # SHOP CONFIG
@@ -207,13 +207,11 @@ def print_thermal(data):
 
 
         date_str = (
-
-            receipt.get("date")
-            or receipt.get("timestamp")
-            or receipt.get("sale_date")
-            or "N/A"
-
-        )
+    receipt.get("date")
+    or receipt.get("timestamp")
+    or receipt.get("sale_date")
+    or format_datetime()
+)
 
 
         cashier = (
