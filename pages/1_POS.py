@@ -31,7 +31,6 @@ if "show_receipt" not in st.session_state: st.session_state.show_receipt = False
 if "processing" not in st.session_state: st.session_state.processing = False
 if "sale_data" not in st.session_state: st.session_state.sale_data = None
 
-# --- Data Loading ---
 warehouse_id = get_default_warehouse_id()
 products = get_products(warehouse_id=warehouse_id)
 
@@ -53,7 +52,7 @@ if selected:
     if st.button(t("cart.add")):
         current_cart_qty = sum(item["qty"] for item in st.session_state.cart if item["id"] == selected["id"])
         if current_cart_qty + int(qty) > selected["stock"]:
-            st.error(f"Insufficient stock! Available: {selected['stock']}")
+            st.error("Insufficient stock!")
         else:
             found = False
             for item in st.session_state.cart:
@@ -71,12 +70,8 @@ if selected:
                 })
             st.rerun()
 
-# --- Checkout Logic ---
+# --- Checkout Logic (Clean Payload & ERP Standard) ---
 if st.session_state.cart and not st.session_state.show_receipt:
-    st.subheader(t("cart.title"))
-    for item in st.session_state.cart:
-        st.write(f"{item['name']} x {item['qty']} = {item['selling_price']*item['qty']:,.0f}")
-        
     subtotal = sum(i["selling_price"] * i["qty"] for i in st.session_state.cart)
     tax_rate = float(get_setting("default_tax_rate", 0))
     discount = st.number_input(t("payment.discount"), min_value=0.0, value=0.0)
@@ -84,40 +79,34 @@ if st.session_state.cart and not st.session_state.show_receipt:
     
     st.write(f"### Total: {total:,.0f} MMK")
     
-    # Payment Method Selection
-    payment_map = {t("payment.cash"): "cash", t("payment.card"): "card", t("payment.mobile"): "mobile"}
-    payment_label = st.radio(t("payment.method"), list(payment_map.keys()), horizontal=True)
-    payment_code = payment_map[payment_label]
-    
+    payment_code = {"cash": "cash", "card": "card", "mobile": "mobile"}[st.radio(t("payment.method"), ["cash", "card", "mobile"])]
     received = st.number_input(t("payment.received"), value=float(total)) if payment_code == "cash" else total
 
     if st.button(t("payment.confirm"), disabled=st.session_state.processing):
         st.session_state.processing = True
         try:
-            # Clean RPC Payload
+            # 1. Clean RPC Payload Construction
             cart_payload = [
                 {"id": i["id"], "qty": int(i["qty"]), "selling_price": float(i["selling_price"])}
                 for i in st.session_state.cart
             ]
             
-            # RPC Call
+            # 2. RPC with Tax/Discount Sync
             result = checkout_sale_rpc(
                 cart=cart_payload,
                 paid_amount=received,
                 warehouse_id=warehouse_id,
                 cashier_id=st.session_state.get("user_id"),
                 payment_method=payment_code,
-                tax_rate=tax_rate,
-                discount=discount
+                tax_rate=tax_rate,    # Sync to DB
+                discount=discount     # Sync to DB
             )
             
             if result.get("success"):
                 st.session_state.sale_data = {"invoice_no": result.get("data", {}).get("invoice_no"), "total": total}
                 st.session_state.show_receipt = True
-                st.session_state.processing = False
                 st.rerun()
-            else: 
-                raise Exception(result.get("message", "Checkout failed"))
+            else: raise Exception(result.get("message"))
         except Exception as e:
             st.session_state.processing = False
             st.error(str(e))
@@ -127,8 +116,7 @@ if st.session_state.show_receipt:
     st.success(f"Invoice: {st.session_state.sale_data['invoice_no']}")
     if print_thermal and st.button("🖨 Print Thermal"): print_thermal(st.session_state.sale_data)
     if generate_pdf and st.button("📄 PDF Receipt"): generate_pdf(st.session_state.sale_data)
-    
     if st.button(t("receipt.new_sale")):
         st.session_state.update({"cart": [], "show_receipt": False, "processing": False, "sale_data": None})
         st.rerun()
-      
+        
