@@ -248,4 +248,90 @@ def search_receipts(keyword, limit=10):
         )
 
         return []
+        # =========================================================
+# SUPPLIER SUPPORT
+# =========================================================
+
+def get_suppliers():
+    try:
+        response = (
+            db()
+            .table("suppliers")
+            .select("*")
+            .eq("is_active", True)
+            .order("name")
+            .execute()
+        )
+
+        return response.data or []
+
+    except Exception as e:
+        log_error(
+            msg="get_suppliers failed",
+            exception=e
+        )
+        return []
+
+
+# =========================================================
+# AUDIT LOG SUPPORT
+# =========================================================
+
+def create_audit_log(
+    user_id,
+    action,
+    description
+):
+    try:
+
+        payload = {
+            "user_id": validate_uuid(user_id),
+            "action": str(action),
+            "description": str(description)
+        }
+
+        db().table("audit_logs").insert(payload).execute()
+
+        return True
+
+    except Exception as e:
+
+        log_error(
+            msg="create_audit_log failed",
+            payload=payload,
+            exception=e
+        )
+
+        return False
+        # =========================================================
+# PURCHASE RECEIVE RPC
+# =========================================================
+
+def purchase_receive_rpc(
+    product_id,
+    supplier_id,
+    warehouse_id,
+    qty,
+    cost,
+    remarks="",
+    user_id=None
+):
+    """
+    Enterprise Purchase Receive RPC Wrapper
+    """
+
+    payload = {
+        "p_product_id": int(product_id),
+        "p_supplier_id": int(supplier_id),
+        "p_warehouse_id": int(warehouse_id),
+        "p_qty": int(qty),
+        "p_cost": money(cost),
+        "p_remarks": str(remarks),
+        "p_user_id": validate_uuid(user_id)
+    }
+
+    return execute_rpc(
+        "purchase_receive_rpc",
+        payload
+    )
     
