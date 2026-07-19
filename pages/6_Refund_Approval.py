@@ -44,10 +44,10 @@ try:
     )
 
     data = refunds.data
-    
-    # Debugging
-    # st.write("DEBUG USER:", user)
-    # st.write("DEBUG REFUNDS:", data)
+
+    # Debug Section
+    st.write("DEBUG USER:", user)
+    st.write("DEBUG REFUNDS:", data)
 
 except Exception as e:
     st.error(f"Error loading data: {e}")
