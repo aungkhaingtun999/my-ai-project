@@ -28,18 +28,7 @@ try:
     refunds = (
         db()
         .table("refunds")
-        .select(
-            """
-            id,
-            sale_id,
-            refund_amount,
-            status,
-            cashier_id,
-            refund_date
-            """
-        )
-        .eq("status", "PENDING")
-        .order("id", desc=True)
+        .select("*")
         .execute()
     )
 
@@ -47,7 +36,8 @@ try:
 
     # Debug Section
     st.write("DEBUG USER:", user)
-    st.write("DEBUG REFUNDS:", data)
+    st.write("DEBUG REFUNDS:")
+    st.write(refunds.data)
 
 except Exception as e:
     st.error(f"Error loading data: {e}")
@@ -68,16 +58,17 @@ else:
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                st.write(f"Refund ID: {refund['id']}")
-                st.write(f"Sale ID: {refund['sale_id']}")
+                st.write(f"Refund ID: {refund.get('id')}")
+                st.write(f"Sale ID: {refund.get('sale_id')}")
 
             with col2:
-                st.write(f"Amount: {refund['refund_amount']:,.0f} MMK")
+                st.write(f"Amount: {refund.get('refund_amount', 0):,.0f} MMK")
 
             with col3:
-                st.write(f"Date: {refund['refund_date']}")
+                st.write(f"Date: {refund.get('refund_date')}")
+                st.write(f"Status: {refund.get('status')}")
 
-            if st.button("View / Approve", key=f"refund_{refund['id']}"):
+            if st.button("View / Approve", key=f"refund_{refund.get('id')}"):
                 st.session_state.selected_refund = refund
                 st.rerun()
-                
+
