@@ -5,6 +5,7 @@
 
 import streamlit as st
 import pandas as pd
+import time
 from database import (
     db,
     get_inventory_view,
@@ -47,11 +48,7 @@ def run():
                 'Price': p.get('selling_price', 0)
             } for p in products])
             
-            st.dataframe(
-                display_df, 
-                width="stretch", 
-                hide_index=True
-            )
+            st.dataframe(display_df, width="stretch", hide_index=True)
         else:
             st.info("No products found in this warehouse.")
 
@@ -89,7 +86,7 @@ def run():
                     st.error(f"Transaction failed: {str(e)}")
 
     # =========================================================
-    # ✏️ EDIT PRODUCT (Data Mixed Issue Fixed)
+    # ✏️ EDIT PRODUCT
     # =========================================================
     with tab3:
         st.subheader("✏️ Edit Product Master")
@@ -98,16 +95,12 @@ def run():
         if not products:
             st.info("No products available")
         else:
-            product_map = {
-                f"{p.get('sku','')} | {p.get('name','')}": p
-                for p in products
-            }
+            product_map = {f"{p.get('sku','')} | {p.get('name','')}": p for p in products}
             selected_name = st.selectbox("Select Product", list(product_map.keys()))
             selected_product = product_map[selected_name]
 
             st.divider()
 
-            # Unique Key ထည့်ပေးထားသဖြင့် Item ပြောင်းလိုက်တိုင်း Form အသစ်ဖြစ်သွားပါမည်
             with st.form(f"edit_product_form_{selected_product['id']}"):
                 c1, c2 = st.columns(2)
                 name = c1.text_input("Product Name", value=selected_product.get("name",""))
@@ -117,7 +110,6 @@ def run():
                 selling_price = c2.number_input("Selling Price", value=float(selected_product.get("selling_price", 0)))
                 minimum_stock = c1.number_input("Minimum Stock", value=int(selected_product.get("minimum_stock", 0)))
                 
-                # Unit default value ပြန်ရွေးပေးခြင်း
                 unit_options = ["pcs", "kg", "box"]
                 unit_val = selected_product.get("unit", "pcs")
                 unit = c2.selectbox("Unit", unit_options, index=unit_options.index(unit_val) if unit_val in unit_options else 0)
@@ -140,7 +132,9 @@ def run():
                     )
 
                     if result.get("success"):
-                        st.toast("✅ Product updated successfully!", icon="🎉")
+                        st.success(f"✅ '{name}' ကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။")
+                        st.info(f"**ပြင်ဆင်ပြီးစီးမှု အနှစ်ချုပ်:**\n\n- SKU: {sku}\n- Selling Price: {selling_price:,.0f} MMK\n- Min Stock: {minimum_stock}")
+                        time.sleep(2)
                         st.rerun()
                     else:
                         st.error(result.get("message", "Update failed"))
@@ -167,4 +161,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-                
+            
