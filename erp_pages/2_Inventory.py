@@ -88,9 +88,57 @@ def run():
                 except Exception as e:
                     st.error(f"Transaction failed: {str(e)}")
 
+    # =========================================================
+    # ✏️ EDIT PRODUCT
+    # =========================================================
     with tab3:
-        st.subheader("✏️ Edit Product Details")
-        st.info("Edit Product Logic ကို ဤနေရာတွင် ဆက်လက်တည်ဆောက်ပါမည်။")
+        st.subheader("✏️ Edit Product Master")
+        products = get_inventory_view(warehouse_id=selected_wh_id)
+
+        if not products:
+            st.info("No products available")
+        else:
+            product_map = {
+                f"{p.get('sku','')} | {p.get('name','')}": p
+                for p in products
+            }
+            selected_name = st.selectbox("Select Product", list(product_map.keys()))
+            selected_product = product_map[selected_name]
+
+            st.divider()
+
+            with st.form("edit_product_form"):
+                c1, c2 = st.columns(2)
+                name = c1.text_input("Product Name", value=selected_product.get("name",""))
+                sku = c1.text_input("SKU", value=selected_product.get("sku",""))
+                barcode = c2.text_input("Barcode", value=selected_product.get("barcode",""))
+                purchase_price = c1.number_input("Purchase Price", value=float(selected_product.get("purchase_price", 0)))
+                selling_price = c2.number_input("Selling Price", value=float(selected_product.get("selling_price", 0)))
+                minimum_stock = c1.number_input("Minimum Stock", value=int(selected_product.get("minimum_stock", 0)))
+                unit = c2.selectbox("Unit", ["pcs", "kg", "box"], index=0)
+                notes = st.text_area("Notes", value=selected_product.get("notes", ""))
+                is_active = st.checkbox("Active Product", value=True)
+
+                if st.form_submit_button("💾 Update Product"):
+                    result = update_product_rpc(
+                        product_id=selected_product["id"],
+                        name=name,
+                        sku=sku,
+                        barcode=barcode,
+                        purchase_price=purchase_price,
+                        selling_price=selling_price,
+                        minimum_stock=minimum_stock,
+                        unit=unit,
+                        notes=notes,
+                        is_active=is_active
+                    )
+
+                    if result.get("success"):
+                        st.success("✅ Product updated successfully")
+                        st.info(f"Product: {name}\n\nSelling Price: {selling_price:,.0f} MMK\n\nMinimum Stock: {minimum_stock}")
+                        st.rerun()
+                    else:
+                        st.error(result.get("message", "Update failed"))
 
     with tab4:
         products = get_inventory_view(warehouse_id=selected_wh_id)
@@ -114,4 +162,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-                                  
+            
