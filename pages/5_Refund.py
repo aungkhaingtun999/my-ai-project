@@ -1,6 +1,6 @@
 # ==============================================================================
 # pages/5_Refund.py
-# ERP ENTERPRISE REFUND SYSTEM v4.6 (Cleaned Version)
+# ERP ENTERPRISE REFUND SYSTEM v4.7 (Robust Version)
 # ==============================================================================
 
 import streamlit as st
@@ -24,26 +24,28 @@ if "refund_cart" not in st.session_state:
 sale_id = st.text_input("🔍 Enter Sale ID", key="refund_sale_id")
 
 if st.button("Search Sale", key="btn_search_sale"):
-    if not sale_id:
-        st.warning("Please enter a valid Sale ID")
+    if not sale_id or not sale_id.isdigit():
+        st.warning("Please enter a valid Numeric Sale ID")
     else:
         try:
-            # 1. Fetch Sale
-            sale_resp = db().table("sales").select("*").eq("id", int(sale_id)).maybe_single().execute()
+            # 1. Fetch Sale with connection check
+            response = db().table("sales").select("*").eq("id", int(sale_id)).maybe_single().execute()
             
-            if not sale_resp.data:
-                st.error("Sale not found")
-                st.stop()
+            if response is None:
+                st.error("Database connection error or timeout.")
+            elif not response.data:
+                st.error("Sale not found.")
+            else:
+                sale = response.data
+                
+                # 2. Fetch Items
+                items_resp = db().table("sale_items").select("*").eq("sale_id", int(sale_id)).execute()
+                sale["items"] = items_resp.data if items_resp and items_resp.data else []
 
-            sale = sale_resp.data
-            
-            # 2. Fetch Items
-            items_resp = db().table("sale_items").select("*").eq("sale_id", int(sale_id)).execute()
-            sale["items"] = items_resp.data or []
-
-            st.session_state.selected_sale = sale
-            st.session_state.refund_cart = []
-            st.rerun()
+                st.session_state.selected_sale = sale
+                st.session_state.refund_cart = []
+                st.rerun()
+                
         except Exception as e:
             st.error(f"Search Error: {e}")
 
@@ -54,7 +56,7 @@ sale = st.session_state.selected_sale
 
 if sale:
     st.divider()
-    st.subheader(f"Sale ID : {sale['id']}")
+    st.subheader(f"Sale ID : {sale.get('id')}")
     st.write(f"**Original Total:** {sale.get('total', 0):,.0f} MMK")
     st.divider()
 
@@ -72,18 +74,17 @@ if sale:
         with col3: st.write(f"Price: {price:,.0f}")
         
         with col4:
-            qty = st.number_input(f"Refund Qty {item['id']}", min_value=0, max_value=qty_sold, 
-                                  value=0, key=f"refund_{item['id']}")
+            qty = st.number_input(f"Refund Qty {item.get('id')}", min_value=0, max_value=qty_sold, 
+                                  value=0, key=f"refund_{item.get('id')}")
             
-            existing = next((x for x in st.session_state.refund_cart if x["sale_item_id"] == item["id"]), None)
+            existing = next((x for x in st.session_state.refund_cart if x["sale_item_id"] == item.get("id")), None)
             
             if qty > 0:
-                refund_amount = qty * price
-                refund_total += refund_amount
+                refund_total += (qty * price)
                 if existing:
                     existing["qty"] = int(qty)
                 else:
-                    st.session_state.refund_cart.append({"sale_item_id": item["id"], "qty": int(qty)})
+                    st.session_state.refund_cart.append({"sale_item_id": item.get("id"), "qty": int(qty)})
             elif existing:
                 st.session_state.refund_cart.remove(existing)
 
@@ -106,14 +107,16 @@ if sale:
                     "p_cashier_id": cashier_id
                 }).execute()
                 
-                # Check response
-                if result.data and (result.data.get("success") == True or result.data is True):
+                # Check response safely
+                # Result.data က dict ဖြစ်နိုင်သလို boolean ဖြစ်နိုင်လို့ အဆင်ပြေအောင် စစ်ထားပါတယ်
+                res_data = result.data
+                if res_data is True or (isinstance(res_data, dict) and res_data.get("success")):
                     st.success("Refund Completed Successfully 🎉")
                     st.session_state.refund_cart = []
                     st.session_state.selected_sale = None
                     st.rerun()
                 else:
-                    st.error(f"Refund Failed: {result.data}")
+                    st.error(f"Refund Failed: {res_data}")
             except Exception as e:
                 st.error(f"RPC Error: {e}")
-                    
+        
