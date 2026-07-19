@@ -48,7 +48,7 @@ if st.button("Search Sale"):
                 db().table("sales")
                 .select("*")
                 .eq("id", sale_id)
-                .single()
+                .maybe_single()
                 .execute()
             )
 
