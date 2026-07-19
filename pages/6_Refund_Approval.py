@@ -74,7 +74,24 @@ else:
                 st.write(f"Date: {refund.get('refund_date')}")
                 st.write(f"Status: {refund.get('status')}")
 
-            if st.button("View / Approve", key=f"refund_{refund.get('id')}"):
-                st.session_state.selected_refund = refund
-                st.rerun()
+            # Approve Button Logic
+            if st.button("✅ Approve Refund", key=f"approve_{refund['id']}"):
+                try:
+                    result = (
+                        db()
+                        .rpc(
+                            "approve_refund_rpc",
+                            {
+                                "p_refund_id": refund["id"],
+                                "p_manager_id": user["id"]
+                            }
+                        )
+                        .execute()
+                    )
 
+                    st.success(f"Refund ID {refund['id']} Approved Successfully")
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"Approve Error: {e}")
+                    
