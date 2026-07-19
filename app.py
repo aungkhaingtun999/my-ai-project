@@ -1,186 +1,101 @@
-# ==========================================
-# app.py (ERP ENTERPRISE CONTROLLER v5)
-# ==========================================
-
 import streamlit as st
+import importlib.util
+import os
 from auth import login_page, is_authenticated
 from sidebar import show_sidebar
-from guards import get_current_user
 
 # ==========================================
 # PAGE CONFIG (MUST BE FIRST)
 # ==========================================
-
 st.set_page_config(
     page_title="Myanmar ERP Enterprise",
     page_icon="🏭",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # ==========================================
-# SESSION INIT (SAFE STATE ENGINE)
+# SESSION INIT
 # ==========================================
-
 def init_state():
     defaults = {
         "user": None,
-        "role": "Cashier",
-        "active_page": "dashboard",
-        "cart": [],
+        "role": None,
+        "active_page": "pages/1_POS.py", # Default Landing Page
         "language": "English",
-        "theme": "light",
         "auth_checked": False
     }
-
-    for k, v in defaults.items():
+    for k, v in defaults.items():  
         st.session_state.setdefault(k, v)
 
 init_state()
 
 # ==========================================
-# ROLE SYNC (SECURE SERVER TRUTH)
+# DYNAMIC FILE LOADER (PRODUCTION ENGINE)
 # ==========================================
-
-def sync_role():
-    user = st.session_state.get("user")
-
-    if isinstance(user, dict):
-        st.session_state.role = user.get("role", "Cashier")
-    else:
-        st.session_state.role = "Cashier"
-
-# ==========================================
-# GLOBAL SAFETY CHECK
-# ==========================================
-
-def ensure_user_object():
-    """
-    🔥 FIX: prevent sidebar / page crash if user structure breaks
-    """
-    user = st.session_state.get("user")
-
-    if not isinstance(user, dict):
-        st.session_state.user = None
-        return False
-
-    if not user.get("id"):
-        st.session_state.user = None
-        return False
-
-    return True
-
-# ==========================================
-# PAGE ROUTER (CLEAN ERP ENGINE)
-# ==========================================
-
 def page_router():
+    """
+    Load pages dynamically using file path locations.
+    Bypasses Streamlit's default page handling for secure control.
+    """
+    page_file = st.session_state.get("active_page", "pages/1_POS.py")
 
-    page = st.session_state.get("active_page", "dashboard")
-    user = st.session_state.get("user") or {}
-
-    st.markdown("---")
-
-    # ================= DASHBOARD =================
-    if page == "dashboard":
+    # Handle Custom Logic Pages
+    if page_file == "dashboard":
         st.title("🏭 ERP Control Dashboard")
+        st.info("Welcome to the Enterprise Core.")
+        return
 
-        st.subheader(
-            f"Welcome, {user.get('full_name') or user.get('username') or 'User'} 🚀"
-        )
+    # Check if file exists
+    if not os.path.exists(page_file):
+        st.error(f"Page file not found: {page_file}")
+        return
 
-        c1, c2, c3, c4 = st.columns(4)
+    try:
+        # Load module from file path
+        spec = importlib.util.spec_from_file_location("erp_page", page_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        # Execute the main function of the module
+        if hasattr(module, 'run'):
+            module.run()
+        else:
+            st.error(f"Module '{page_file}' does not contain a 'run()' function.")
 
-        c1.metric("System", "ACTIVE 🟢")
-        c2.metric("Role", st.session_state.role)
-        c3.metric("Mode", "Enterprise ERP")
-        c4.metric("Backend", "Supabase ⚡")
-
-        st.info(
-            "✔ ERP Core Engine Active\n"
-            "✔ Auth Layer Secured\n"
-            "✔ Sidebar Controlled\n"
-            "✔ DB Layer Connected"
-        )
-
-    elif page == "sales":
-        st.title("🛒 Sales Module")
-
-    elif page == "purchase":
-        st.title("📦 Purchase Module")
-
-    elif page == "inventory":
-        st.title("📦 Inventory Module")
-
-    elif page == "transfer":
-        st.title("🔁 Warehouse Transfer")
-
-    elif page == "reports":
-        st.title("📊 Reports Engine")
-
-    elif page == "settings":
-        st.title("⚙️ Settings Hub")
-
-    elif page == "customers":
-        st.title("👥 CRM Module")
-
-    elif page == "suppliers":
-        st.title("🏭 Supplier Module")
-
-    else:
-        st.warning("Page not found")
+    except Exception as e:
+        st.error(f"Page Load Error: {e}")
 
 # ==========================================
 # MAIN CONTROLLER
 # ==========================================
-
 def main():
-
-    # 🔐 HARD LOGIN GATE (NO LEAK, NO SIDEBAR)
+    # 1. Login Gate
     if not is_authenticated():
         login_page()
         st.stop()
 
-    # 🔥 VALIDATE USER OBJECT
-    if not ensure_user_object():
-        st.error("Invalid session. Please login again.")
-        st.stop()
+    # 2. User validation (Security Guard)
+    user = st.session_state.get("user")
+    if not user or not isinstance(user, dict):
+        st.session_state.clear()
+        st.rerun()
 
-    # =========================
-    # AUTH FLOW
-    # =========================
-
-    sync_role()
-
-    # =========================
-    # SAFE SIDEBAR LOAD
-    # =========================
+    # 3. Render Sidebar
     try:
         show_sidebar()
     except Exception as e:
-        st.error("Sidebar error")
-        st.caption(str(e))
+        st.sidebar.error("Sidebar loading error.")
 
-    # =========================
-    # MAIN PAGE
-    # =========================
+    # 4. Render Main Page
     page_router()
 
-    # =========================
-    # GLOBAL LOGOUT
-    # =========================
-    st.divider()
-
-    if st.button("🚪 Logout", use_container_width=True):
+    # 5. Global Logout footer
+    st.sidebar.divider()
+    if st.sidebar.button("🚪 Logout", use_container_width=True):
         st.session_state.clear()
-
-        # safe reset
-        init_state()
-
         st.rerun()
 
-# ==========================================
-# RUN APP
-# ==========================================
-
-main()
+if __name__ == "__main__":
+    main()
+    
