@@ -36,8 +36,14 @@ try:
 
     # Debug Section
     st.write("DEBUG USER:", user)
-    st.write("DEBUG REFUNDS:")
-    st.write(refunds.data)
+    st.write("REFUND RAW DATA:")
+    st.json(refunds.data)
+    
+    st.write("DB TYPE:")
+    st.write(type(refunds.data))
+
+    st.write("ROW COUNT:")
+    st.write(len(refunds.data))
 
 except Exception as e:
     st.error(f"Error loading data: {e}")
