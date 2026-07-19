@@ -57,28 +57,17 @@ class DummyPrinter:
 
 def get_printer():
     if Usb is None:
-        st.error("python-escpos not installed")
         return DummyPrinter()
 
     shop = get_shop_info()
-
     try:
         vendor = int(shop.get("printer_vendor_id", "0x0000"), 16)
         product = int(shop.get("printer_product_id", "0x0000"), 16)
 
-        st.info(f"Vendor ID : {hex(vendor)}")
-        st.info(f"Product ID : {hex(product)}")
-
-        if vendor == 0 or product == 0:
-            st.warning("Printer Vendor/Product ID not configured.")
+        if vendor == 0 and product == 0:
             return DummyPrinter()
-
-        printer = Usb(vendor, product)
-        st.success("USB Printer Connected")
-        return printer
-
-    except Exception as e:
-        st.error(f"USB Printer Error : {e}")
+        return Usb(vendor, product)
+    except Exception:
         return DummyPrinter()
 
 # ==============================================================================
