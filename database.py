@@ -193,6 +193,22 @@ def purchase_receive_rpc(product_id, supplier_id, warehouse_id, qty, cost, remar
     }
     return execute_rpc("purchase_receive_rpc", payload)
 
+def stock_adjustment_rpc(
+    product_id,
+    warehouse_id,
+    quantity,
+    reason,
+    user_id=None
+):
+    payload = {
+        "p_product_id": int(product_id),
+        "p_warehouse_id": int(warehouse_id),
+        "p_quantity": int(quantity),
+        "p_reason": str(reason),
+        "p_created_by": validate_uuid(user_id)
+    }
+    return execute_rpc("stock_adjustment_rpc", payload)
+
 # --- Receipt, Supplier, and Audit Support ---
 
 def get_receipt(invoice_no):
@@ -225,4 +241,4 @@ def create_audit_log(user_id, action, description):
         return False
 
 print("DATABASE.PY FINISHED LOADING")
-                          
+
