@@ -140,7 +140,7 @@ def run():
 
     with tab4:
         st.subheader("🔧 Stock Adjustment")
-        st.info("Stock Adjustment logic ကို ဤနေရာတွင် ဆက်လက်တည်ဆောက်ပါမည်။")
+        st.info("Stock Adjustment logic ကို ဆက်လက်ထည့်သွင်းပေးပါမည်။")
 
     with tab5:
         products = get_inventory_view(warehouse_id=selected_wh_id)
@@ -164,4 +164,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-            
+                
