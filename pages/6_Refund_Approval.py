@@ -54,6 +54,8 @@ try:
 
 
     data = refunds.data
+    st.write("DEBUG USER:", user)
+st.write("DEBUG REFUNDS:", data)
 
 
 except Exception as e:
