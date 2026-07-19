@@ -12,6 +12,7 @@ from database import (
     get_sale_items,
     search_receipts
 )
+from utils.receipt_pdf import generate_pdf
 
 
 # ==========================================
@@ -424,10 +425,73 @@ with c1:
 
 with c2:
 
-    st.button(
-        "📄 PDF",
-        disabled=True
-    )
+    if st.button("📄 PDF"):
+
+        receipt_data = {
+
+            "invoice_no": receipt.get("invoice_no"),
+
+            "date": receipt.get("created_at"),
+
+            "cashier": receipt.get(
+                "cashier",
+                "Admin"
+            ),
+
+            "items": items,
+
+            "subtotal": receipt.get(
+                "subtotal",
+                0
+            ),
+
+            "discount": receipt.get(
+                "discount",
+                0
+            ),
+
+            "tax_amount": receipt.get(
+                "tax",
+                0
+            ),
+
+            "grand_total": receipt.get(
+                "total",
+                0
+            ),
+
+            "paid": receipt.get(
+                "paid_amount",
+                0
+            ),
+
+            "change": receipt.get(
+                "change_amount",
+                0
+            )
+        }
+
+        result = generate_pdf(
+            receipt_data
+        )
+
+        if result:
+
+            pdf_bytes, filename = result
+
+            st.download_button(
+
+                label="⬇️ Download Receipt PDF",
+
+                data=pdf_bytes,
+
+                file_name=f"{filename}.pdf",
+
+                mime="application/pdf",
+
+                use_container_width=True
+
+            )
 
 
 
