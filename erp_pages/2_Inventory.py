@@ -25,7 +25,7 @@ def run():
     selected_wh_name = st.selectbox("📍 Select Warehouse", list(wh_map.keys()))
     selected_wh_id = wh_map[selected_wh_name]
 
-    # Tab ၄ ခုသို့ ပြောင်းလဲခြင်း
+    # Tab ၄ ခု
     tab1, tab2, tab3, tab4 = st.tabs([
         "📋 Product Master", 
         "➕ Add Product", 
@@ -89,7 +89,7 @@ def run():
                     st.error(f"Transaction failed: {str(e)}")
 
     # =========================================================
-    # ✏️ EDIT PRODUCT
+    # ✏️ EDIT PRODUCT (Data Mixed Issue Fixed)
     # =========================================================
     with tab3:
         st.subheader("✏️ Edit Product Master")
@@ -107,7 +107,8 @@ def run():
 
             st.divider()
 
-            with st.form("edit_product_form"):
+            # Unique Key ထည့်ပေးထားသဖြင့် Item ပြောင်းလိုက်တိုင်း Form အသစ်ဖြစ်သွားပါမည်
+            with st.form(f"edit_product_form_{selected_product['id']}"):
                 c1, c2 = st.columns(2)
                 name = c1.text_input("Product Name", value=selected_product.get("name",""))
                 sku = c1.text_input("SKU", value=selected_product.get("sku",""))
@@ -115,9 +116,14 @@ def run():
                 purchase_price = c1.number_input("Purchase Price", value=float(selected_product.get("purchase_price", 0)))
                 selling_price = c2.number_input("Selling Price", value=float(selected_product.get("selling_price", 0)))
                 minimum_stock = c1.number_input("Minimum Stock", value=int(selected_product.get("minimum_stock", 0)))
-                unit = c2.selectbox("Unit", ["pcs", "kg", "box"], index=0)
+                
+                # Unit default value ပြန်ရွေးပေးခြင်း
+                unit_options = ["pcs", "kg", "box"]
+                unit_val = selected_product.get("unit", "pcs")
+                unit = c2.selectbox("Unit", unit_options, index=unit_options.index(unit_val) if unit_val in unit_options else 0)
+                
                 notes = st.text_area("Notes", value=selected_product.get("notes", ""))
-                is_active = st.checkbox("Active Product", value=True)
+                is_active = st.checkbox("Active Product", value=selected_product.get("is_active", True))
 
                 if st.form_submit_button("💾 Update Product"):
                     result = update_product_rpc(
@@ -134,8 +140,7 @@ def run():
                     )
 
                     if result.get("success"):
-                        st.success("✅ Product updated successfully")
-                        st.info(f"Product: {name}\n\nSelling Price: {selling_price:,.0f} MMK\n\nMinimum Stock: {minimum_stock}")
+                        st.toast("✅ Product updated successfully!", icon="🎉")
                         st.rerun()
                     else:
                         st.error(result.get("message", "Update failed"))
@@ -162,4 +167,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-            
+                
