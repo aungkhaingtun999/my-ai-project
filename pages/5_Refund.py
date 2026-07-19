@@ -12,33 +12,32 @@ if "selected_sale" not in st.session_state:
 if "refund_cart" not in st.session_state:
     st.session_state.refund_cart = []
 
-# # ==========================================
-# SEARCH SALE (Optimized)
+# ==========================================
+# SESSION DEBUG (Requested)
+# ==========================================
+with st.expander("Session State Debug"):
+    st.write(st.session_state)
+
+# ==========================================
+# SEARCH SALE
 # ==========================================
 input_id = st.text_input("🔍 Enter Sale ID", key="refund_sale_input")
 
 if st.button("Search Sale"):
     if not input_id or not input_id.isdigit():
-        st.warning("Please enter a valid Numeric Sale ID")
+        st.warning("Please enter a valid numeric Sale ID.")
     else:
         with st.spinner("Fetching data from ERP..."):
             try:
-                # Primary key ကို တိုက်ရိုက်ခေါ်ပြီး filter လုပ်ခြင်း
-                # .eq("id", int(input_id)) သည် အလုပ်မလုပ်လျှင် .match({"id": int(input_id)}) ကို သုံးကြည့်ပါ
-                response = db().table("sales").select("*").match({"id": int(input_id)}).execute()
+                # Primary key lookup
+                response = db().table("sales").select("*").eq("id", int(input_id)).execute()
                 
-                # Response object တစ်ခုလုံးကို check လုပ်ခြင်း
-                if response is None:
-                    st.error("No response object received.")
-                elif not hasattr(response, 'data') or response.data is None:
-                    st.error("Server returned empty data.")
-                elif len(response.data) == 0:
+                if not response or not hasattr(response, 'data') or not response.data:
                     st.error(f"Sale ID {input_id} not found.")
                 else:
-                    # Data ရပြီ
                     sale = response.data[0]
                     
-                    # Fetch Items (Filter အနေနဲ့ ခေါ်ခြင်း)
+                    # Fetch Items
                     items_resp = db().table("sale_items").select("*").eq("sale_id", int(input_id)).execute()
                     sale["items"] = items_resp.data if items_resp and hasattr(items_resp, 'data') else []
 
@@ -48,7 +47,6 @@ if st.button("Search Sale"):
             except Exception as e:
                 st.error(f"Database Query Error: {e}")
 
-
 # ==========================================
 # REFUND DISPLAY
 # ==========================================
@@ -56,46 +54,49 @@ sale = st.session_state.selected_sale
 
 if sale:
     st.divider()
-    st.subheader(f"Sale ID : {sale.get('id')}")
+    st.subheader(f"Sale ID: {sale.get('id')}")
     st.write(f"**Original Total:** {sale.get('total', 0):,.0f} MMK")
     st.divider()
 
     refund_total = 0
+    new_cart = []
     
     # Iterate through sale items
     for item in sale.get("items", []):
+        item_id = item.get("id")
         qty_sold = int(item.get("qty", item.get("quantity", 0)))
         price = float(item.get("selling_price", item.get("unit_price", 0)))
         
         col1, col2, col3, col4 = st.columns([3, 2, 2, 3])
-        with col1: st.write(f"Product: {item.get('product_id')}")
+        with col1: st.write(f"Product ID: {item.get('product_id')}")
         with col2: st.write(f"Sold: {qty_sold}")
         with col3: st.write(f"Price: {price:,.0f}")
         
         with col4:
-            # key မှာ item id ကို သေချာထည့်ပေးခြင်း
-            qty = st.number_input(f"Refund Qty", min_value=0, max_value=qty_sold, 
-                                  value=0, key=f"ref_{item.get('id')}")
-            
-            existing = next((x for x in st.session_state.refund_cart if x["sale_item_id"] == item.get("id")), None)
+            # Using a unique key based on item_id
+            qty = st.number_input(
+                f"Refund Qty", 
+                min_value=0, 
+                max_value=qty_sold, 
+                value=0, 
+                key=f"ref_{item_id}"
+            )
             
             if qty > 0:
                 refund_total += (qty * price)
-                if existing:
-                    existing["qty"] = int(qty)
-                else:
-                    st.session_state.refund_cart.append({"sale_item_id": item.get("id"), "qty": int(qty)})
-            elif existing:
-                st.session_state.refund_cart.remove(existing)
+                new_cart.append({"sale_item_id": item_id, "qty": int(qty)})
+
+    # Update the cart state
+    st.session_state.refund_cart = new_cart
 
     st.divider()
-    st.info(f"### Total Refund Amount : {refund_total:,.0f} MMK")
+    st.info(f"### Total Refund Amount: {refund_total:,.0f} MMK")
 
-    reason = st.text_input("Refund Reason")
+    reason = st.text_input("Reason for Refund")
 
     if st.button("Process Refund", type="primary"):
         if not st.session_state.refund_cart:
-            st.error("No items selected")
+            st.error("No items selected for refund.")
         else:
             try:
                 result = db().rpc("refund_sale_rpc", {
@@ -107,12 +108,12 @@ if sale:
                 
                 res_data = result.data
                 if res_data is True or (isinstance(res_data, dict) and res_data.get("success")):
-                    st.success("Refund Completed!")
+                    st.success("Refund processed successfully!")
                     st.session_state.refund_cart = []
                     st.session_state.selected_sale = None
                     st.rerun()
                 else:
-                    st.error(f"Refund Failed: {res_data}")
+                    st.error(f"Refund failed: {res_data}")
             except Exception as e:
                 st.error(f"RPC Error: {e}")
-        
+                                                   
