@@ -36,14 +36,15 @@ if "refund_cart" not in st.session_state:
 # ==========================================
 
 sale_id = st.text_input(
-    "🔍 Enter Sale ID"
+sale_id = st.text_input(
+    "🔍 Enter Sale ID",
+    key="refund_sale_id"
 )
 
-if st.button("Search Sale"):
-
-    if not sale_id:
-        st.warning("Enter Sale ID")
-if st.button("Search Sale"):
+if st.button(
+    "Search Sale",
+    key="btn_search_sale"
+):
 
     if not sale_id:
         st.warning("Enter Sale ID")
@@ -51,7 +52,6 @@ if st.button("Search Sale"):
     else:
 
         try:
-
             sale_resp = (
                 db()
                 .table("sales")
@@ -61,7 +61,7 @@ if st.button("Search Sale"):
                 .execute()
             )
 
-            if sale_resp is None or sale_resp.data is None:
+            if sale_resp.data is None:
                 st.error("Sale not found")
                 st.stop()
 
@@ -80,7 +80,6 @@ if st.button("Search Sale"):
             st.session_state.selected_sale = sale
             st.session_state.refund_cart = []
 
-            st.success("Sale loaded successfully")
             st.rerun()
 
         except Exception as e:
