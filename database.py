@@ -155,6 +155,38 @@ def checkout_sale_rpc(cart, paid_amount, warehouse_id=None, cashier_id=None, cou
     }
     return execute_rpc("checkout_sale_rpc", payload)
 
+def stock_adjustment_rpc(
+    product_id,
+    warehouse_id,
+    quantity,
+    reason,
+    created_by=None
+):
+    try:
+        payload = {
+            "p_product_id": int(product_id),
+            "p_warehouse_id": int(warehouse_id),
+            "p_quantity": int(quantity),
+            "p_reason": reason,
+            "p_created_by": created_by
+        }
+
+        response = db().rpc(
+            "stock_adjustment_rpc",
+            payload
+        ).execute()
+
+        return {
+            "success": True,
+            "data": response.data
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }
+
 def update_product_rpc(
     product_id,
     name,
@@ -193,23 +225,6 @@ def purchase_receive_rpc(product_id, supplier_id, warehouse_id, qty, cost, remar
     }
     return execute_rpc("purchase_receive_rpc", payload)
 
-# --- Stock Adjustment RPC ---
-
-def stock_adjustment_rpc(product_id, warehouse_id, quantity, reason, created_by=None):
-
-    payload = {
-        "p_product_id": int(product_id),
-        "p_warehouse_id": int(warehouse_id),
-        "p_quantity": int(quantity),
-        "p_reason": str(reason),
-        "p_created_by": validate_uuid(created_by)
-    }
-
-    return execute_rpc(
-        "stock_adjustment_rpc",
-        payload
-    )
-
 # --- Receipt, Supplier, and Audit Support ---
 
 def get_receipt(invoice_no):
@@ -242,4 +257,4 @@ def create_audit_log(user_id, action, description):
         return False
 
 print("DATABASE.PY FINISHED LOADING")
-                
+    
