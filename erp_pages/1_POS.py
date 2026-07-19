@@ -32,12 +32,6 @@ from language import t, language_selector
 
 def run():
     # --------------------------------------------------------------------------
-    # PAGE CONFIG
-    # --------------------------------------------------------------------------
-    # Note: st.set_page_config should be called only once in the main entry point.
-    # If this is a sub-page, you might need to remove this or move it to app.py.
-
-    # --------------------------------------------------------------------------
     # LANGUAGE
     # --------------------------------------------------------------------------
     language_selector()
@@ -46,7 +40,7 @@ def run():
     # SECURITY CHECK
     # --------------------------------------------------------------------------
     if not is_authenticated():
-        st.warning("Please log in first")
+        st.warning("Please login first")
         st.stop()
 
     # --------------------------------------------------------------------------
@@ -64,15 +58,21 @@ def run():
             st.session_state[key] = value
 
     # --------------------------------------------------------------------------
-    # TAX SETTINGS
+    # ERP ACCOUNTING SETTINGS
     # --------------------------------------------------------------------------
-    if "tax_rate" not in st.session_state:
-        try:
-            st.session_state.tax_rate = float(
-                get_setting("default_tax_rate", 0)
-            )
-        except:
-            st.session_state.tax_rate = 0
+    try:
+        st.session_state.tax_rate = float(
+            get_setting("default_tax_rate", 0)
+        )
+    except:
+        st.session_state.tax_rate = 0
+
+    try:
+        st.session_state.discount_policy = (
+            get_setting("discount_policy", "disabled")
+        )
+    except:
+        st.session_state.discount_policy = "disabled"
 
     # --------------------------------------------------------------------------
     # WAREHOUSE
@@ -80,7 +80,7 @@ def run():
     warehouse_id = get_default_warehouse_id()
 
     if not warehouse_id:
-        st.error("The default warehouse is not configured.")
+        st.error("Default warehouse not configured")
         st.stop()
 
     # --------------------------------------------------------------------------
@@ -89,11 +89,11 @@ def run():
     try:
         products = get_products(warehouse_id=warehouse_id)
     except Exception as e:
-        st.error(f"Failed to load products: {e}")
+        st.error(f"Product loading failed: {e}")
         st.stop()
 
     if not products:
-        st.warning("No products are currently available.")
+        st.warning("No products available")
         st.stop()
 
     # --------------------------------------------------------------------------
@@ -107,9 +107,9 @@ def run():
     if not st.session_state.show_receipt:
         col1, col2 = st.columns(2)
         with col1:
-            name_search = st.text_input("🔍 Search by product name")
+            name_search = st.text_input("🔍 Product Name")
         with col2:
-            barcode_search = st.text_input("📦 Search by SKU / Barcode")
+            barcode_search = st.text_input("📦 SKU / Barcode")
 
         matches = []
         for product in products:
@@ -163,7 +163,7 @@ def run():
                             "selling_price": price,
                             "qty": int(qty)
                         })
-                    st.success("Item added to cart successfully.")
+                    st.success("Added to cart")
                     st.rerun()
 
     # --------------------------------------------------------------------------
@@ -208,8 +208,22 @@ def run():
 
         st.divider()
         st.subheader("💰 Payment")
-        st.session_state.tax_rate = st.number_input("Tax Rate (%)", min_value=0.0, value=float(st.session_state.tax_rate), step=0.5)
-        discount = st.number_input("Discount", min_value=0.0, value=0.0, step=100.0)
+        
+        # Display Tax Rate (System Setting)
+        st.info(f"Tax Rate (System Setting): {st.session_state.tax_rate}%")
+        
+        # Discount Policy Logic
+        if st.session_state.discount_policy == "disabled":
+            discount = 0
+            st.info("Discount disabled by system settings")
+        else:
+            discount = st.number_input(
+                "Discount",
+                min_value=0.0,
+                value=0.0,
+                step=100.0
+            )
+
         tax_amount = round(subtotal * st.session_state.tax_rate / 100, 2)
         grand_total = max(0, subtotal + tax_amount - discount)
 
@@ -306,3 +320,4 @@ def run():
             except:
                 st.session_state.tax_rate = 0
             st.rerun()
+    
