@@ -5,7 +5,12 @@
 
 import streamlit as st
 import pandas as pd
-from database import db, get_inventory_view, get_warehouses
+from database import (
+    db,
+    get_inventory_view,
+    get_warehouses,
+    update_product_rpc
+)
 
 def run():
     st.title("🏭 Enterprise Product Master v4.3")
@@ -20,7 +25,13 @@ def run():
     selected_wh_name = st.selectbox("📍 Select Warehouse", list(wh_map.keys()))
     selected_wh_id = wh_map[selected_wh_name]
 
-    tab1, tab2, tab3 = st.tabs(["📋 Product Master", "➕ Add Product", "📊 Enterprise Dashboard"])
+    # Tab ၄ ခုသို့ ပြောင်းလဲခြင်း
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📋 Product Master", 
+        "➕ Add Product", 
+        "✏️ Edit Product", 
+        "📊 Enterprise Dashboard"
+    ])
 
     with tab1:
         search = st.text_input("🔍 Search Products (Name, SKU, Barcode)", key="search_bar")
@@ -36,7 +47,6 @@ def run():
                 'Price': p.get('selling_price', 0)
             } for p in products])
             
-            # ပြင်ဆင်ထားသည့်အပိုင်း: width="stretch"
             st.dataframe(
                 display_df, 
                 width="stretch", 
@@ -60,7 +70,6 @@ def run():
             }
             init_qty = st.number_input("Initial Stock", min_value=0)
             
-            # Button တွင် width="stretch" အသုံးပြုခြင်း
             if st.form_submit_button("Save Product", width="stretch"):
                 try:
                     res = db().rpc("create_product_full", {
@@ -80,6 +89,10 @@ def run():
                     st.error(f"Transaction failed: {str(e)}")
 
     with tab3:
+        st.subheader("✏️ Edit Product Details")
+        st.info("Edit Product Logic ကို ဤနေရာတွင် ဆက်လက်တည်ဆောက်ပါမည်။")
+
+    with tab4:
         products = get_inventory_view(warehouse_id=selected_wh_id)
         if products:
             df = pd.DataFrame(products)
@@ -101,3 +114,4 @@ def run():
 
 if __name__ == "__main__":
     run()
+                                  
