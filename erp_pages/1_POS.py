@@ -243,7 +243,17 @@ def run():
             st.session_state.processing = True
             try:
                 cart_payload = [{"id": item["id"], "qty": int(item["qty"]), "selling_price": float(item["selling_price"])} for item in st.session_state.cart]
-                result = checkout_sale_rpc(cart=cart_payload, paid_amount=received, cashier_id=st.session_state.get("user_id"))
+                
+                # Checkout RPC with full parameters
+                result = checkout_sale_rpc(
+                    cart=cart_payload, 
+                    paid_amount=received, 
+                    cashier_id=st.session_state.get("user_id"),
+                    warehouse_id=warehouse_id,
+                    payment_method=payment_method,
+                    tax_rate=st.session_state.tax_rate,
+                    discount=discount
+                )
                 
                 if result.get("success", False):
                     data = result.get("data", {})
@@ -320,4 +330,4 @@ def run():
             except:
                 st.session_state.tax_rate = 0
             st.rerun()
-    
+        
