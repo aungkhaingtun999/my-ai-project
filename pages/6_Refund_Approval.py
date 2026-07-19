@@ -29,21 +29,12 @@ try:
         db()
         .table("refunds")
         .select("*")
+        .eq("status", "PENDING")
+        .order("id", desc=True)
         .execute()
     )
 
     data = refunds.data
-
-    # Debug Section
-    st.write("DEBUG USER:", user)
-    st.write("REFUND RAW DATA:")
-    st.json(refunds.data)
-    
-    st.write("DB TYPE:")
-    st.write(type(refunds.data))
-
-    st.write("ROW COUNT:")
-    st.write(len(refunds.data))
 
 except Exception as e:
     st.error(f"Error loading data: {e}")
@@ -94,4 +85,39 @@ else:
 
                 except Exception as e:
                     st.error(f"Approve Error: {e}")
-                    
+
+            # Reject Reason Input and Reject Button Logic
+            reject_reason = st.text_input(
+                "Reject Reason",
+                key=f"reject_reason_{refund['id']}"
+            )
+
+            if st.button("❌ Reject Refund", key=f"reject_{refund['id']}"):
+                if not reject_reason.strip():
+                    st.warning("Please enter reject reason")
+                else:
+                    try:
+                        result = (
+                            db()
+                            .rpc(
+                                "reject_refund_rpc",
+                                {
+                                    "p_refund_id": refund["id"],
+                                    "p_manager_id": user["id"],
+                                    "p_reason": reject_reason
+                                }
+                            )
+                            .execute()
+                        )
+
+                        response = result.data
+
+                        if isinstance(response, dict) and response.get("success"):
+                            st.success(f"Refund ID {refund['id']} Rejected")
+                            st.rerun()
+                        else:
+                            st.error(response)
+
+                    except Exception as e:
+                        st.error(f"Reject Error: {e}")
+                
