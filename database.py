@@ -193,6 +193,8 @@ def purchase_receive_rpc(product_id, supplier_id, warehouse_id, qty, cost, remar
     }
     return execute_rpc("purchase_receive_rpc", payload)
 
+# --- Stock Adjustment RPC ---
+
 def stock_adjustment_rpc(
     product_id,
     warehouse_id,
@@ -200,6 +202,7 @@ def stock_adjustment_rpc(
     reason,
     user_id=None
 ):
+
     payload = {
         "p_product_id": int(product_id),
         "p_warehouse_id": int(warehouse_id),
@@ -207,7 +210,11 @@ def stock_adjustment_rpc(
         "p_reason": str(reason),
         "p_created_by": validate_uuid(user_id)
     }
-    return execute_rpc("stock_adjustment_rpc", payload)
+
+    return execute_rpc(
+        "stock_adjustment_rpc",
+        payload
+    )
 
 # --- Receipt, Supplier, and Audit Support ---
 
