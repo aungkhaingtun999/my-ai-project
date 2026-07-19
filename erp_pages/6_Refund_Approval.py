@@ -2,122 +2,103 @@ import streamlit as st
 from database import db
 from auth import require_login
 
-st.set_page_config(
-    page_title="Refund Approval",
-    layout="wide"
-)
+# ==========================================
+# ACTION FUNCTIONS
+# ==========================================
+def handle_approval(refund_id, manager_id):
+    try:
+        db().rpc("approve_refund_rpc", {
+            "p_refund_id": refund_id, 
+            "p_manager_id": manager_id
+        }).execute()
+        st.success(f"Refund ID {refund_id} successfully approved.")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Approval error: {e}")
+
+def handle_rejection(refund_id, manager_id, reason):
+    try:
+        result = db().rpc("reject_refund_rpc", {
+            "p_refund_id": refund_id,
+            "p_manager_id": manager_id,
+            "p_reason": reason
+        }).execute()
+        
+        if result.data and isinstance(result.data, dict) and result.data.get("success"):
+            st.success(f"Refund ID {refund_id} rejected.")
+            st.rerun()
+        else:
+            st.error(f"Rejection failed: {result.data}")
+    except Exception as e:
+        st.error(f"Rejection error: {e}")
 
 # ==========================================
-# AUTH
+# MAIN RUN FUNCTION
 # ==========================================
-user = require_login()
+def run():
+    st.set_page_config(page_title="Refund Approval", layout="wide")
 
-# ==========================================
-# MANAGER ONLY
-# ==========================================
-if user.get("role_id") != 2:
-    st.error("⛔ Access Denied. Manager permission required.")
-    st.stop()
+    # AUTH
+    user = require_login()
 
-st.title("✅ Refund Approval Center")
+    # MANAGER ONLY
+    if user.get("role_id") != 2:
+        st.error("⛔ Access Denied. Manager permission required.")
+        st.stop()
 
-# ==========================================
-# LOAD PENDING REFUNDS
-# ==========================================
-try:
-    refunds = (
-        db()
-        .table("refunds")
-        .select("*")
-        .eq("status", "PENDING")
-        .order("id", desc=True)
-        .execute()
-    )
+    st.title("✅ Refund Approval Center")
 
-    data = refunds.data
+    # LOAD PENDING REFUNDS
+    try:
+        refunds = (
+            db()
+            .table("refunds")
+            .select("*")
+            .eq("status", "PENDING")
+            .order("id", desc=True)
+            .execute()
+        )
+        data = refunds.data
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        st.stop()
 
-except Exception as e:
-    st.error(f"Error loading data: {e}")
-    st.stop()
+    # DISPLAY
+    if not data:
+        st.info("No Pending Refunds")
+    else:
+        st.subheader(f"Pending Refund Count : {len(data)}")
 
-# ==========================================
-# DISPLAY
-# ==========================================
-if not data:
-    st.info("No Pending Refunds")
-else:
-    st.subheader(f"Pending Refund Count : {len(data)}")
+        for refund in data:
+            with st.container(border=True):
+                col1, col2, col3 = st.columns(3)
 
-    for refund in data:
-        with st.container():
-            st.divider()
+                with col1:
+                    st.write(f"**Refund ID:** {refund.get('id')}")
+                    st.write(f"**Sale ID:** {refund.get('sale_id')}")
 
-            col1, col2, col3 = st.columns(3)
+                with col2:
+                    st.write(f"**Amount:** {refund.get('refund_amount', 0):,.0f} MMK")
 
-            with col1:
-                st.write(f"Refund ID: {refund.get('id')}")
-                st.write(f"Sale ID: {refund.get('sale_id')}")
+                with col3:
+                    st.write(f"**Date:** {refund.get('refund_date')}")
+                    st.write(f"**Status:** {refund.get('status')}")
 
-            with col2:
-                st.write(f"Amount: {refund.get('refund_amount', 0):,.0f} MMK")
-
-            with col3:
-                st.write(f"Date: {refund.get('refund_date')}")
-                st.write(f"Status: {refund.get('status')}")
-
-            # Approve Button Logic
-            if st.button("✅ Approve Refund", key=f"approve_{refund['id']}"):
-                try:
-                    result = (
-                        db()
-                        .rpc(
-                            "approve_refund_rpc",
-                            {
-                                "p_refund_id": refund["id"],
-                                "p_manager_id": user["id"]
-                            }
-                        )
-                        .execute()
-                    )
-
-                    st.success(f"Refund ID {refund['id']} Approved Successfully")
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"Approve Error: {e}")
-
-            # Reject Reason Input and Reject Button Logic
-            reject_reason = st.text_input(
-                "Reject Reason",
-                key=f"reject_reason_{refund['id']}"
-            )
-
-            if st.button("❌ Reject Refund", key=f"reject_{refund['id']}"):
-                if not reject_reason.strip():
-                    st.warning("Please enter reject reason")
-                else:
-                    try:
-                        result = (
-                            db()
-                            .rpc(
-                                "reject_refund_rpc",
-                                {
-                                    "p_refund_id": refund["id"],
-                                    "p_manager_id": user["id"],
-                                    "p_reason": reject_reason
-                                }
-                            )
-                            .execute()
-                        )
-
-                        response = result.data
-
-                        if isinstance(response, dict) and response.get("success"):
-                            st.success(f"Refund ID {refund['id']} Rejected")
-                            st.rerun()
-                        else:
-                            st.error(response)
-
-                    except Exception as e:
-                        st.error(f"Reject Error: {e}")
+                # Approve/Reject UI
+                app_col, rej_col = st.columns([1, 2])
                 
+                with app_col:
+                    if st.button("✅ Approve", key=f"approve_{refund['id']}", type="primary"):
+                        handle_approval(refund['id'], user['id'])
+
+                with rej_col:
+                    reject_reason = st.text_input("Reject Reason", key=f"reject_reason_{refund['id']}")
+                    if st.button("❌ Reject", key=f"reject_{refund['id']}"):
+                        if not reject_reason.strip():
+                            st.warning("Please enter reject reason")
+                        else:
+                            handle_rejection(refund['id'], user['id'], reject_reason)
+
+if __name__ == "__main__":
+    run()
+    
