@@ -62,11 +62,21 @@ def page_router():
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 
-        # Execute run()
+        # Execute Page Logic (Support run(), main(), or Legacy)
         if hasattr(module, "run"):
             module.run()
+        
+        elif hasattr(module, "main"):
+            module.main()
+        
         else:
-            st.error(f"{page_id}.py must contain run()")
+            # Legacy page support
+            st.warning(
+                f"{page_id}.py has no run() or main() function.\n"
+                "Executing legacy page..."
+            )
+            # Module import လုပ်တဲ့အချိန်မှာ top-level code က 
+            # အလုပ်လုပ်ပြီးသားဖြစ်နေလို့ ဒီနေရာမှာ ဘာမှထပ်ခေါ်စရာမလိုပါ
 
     except Exception as e:
         st.error(f"Page Load Error: {e}")
@@ -91,3 +101,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
