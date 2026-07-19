@@ -2,5 +2,17 @@
     "shop_name": "MY POS SYSTEM",
     "address": "Tachileik, Shan State, Myanmar",
     "phone": "09-267772367",
-    "footer_msg": "Thank you for shopping with us!"
+    "footer_msg": "Thank you for shopping with us!",
+
+    "printer_mode": "windows",
+
+    "printer_name": "Microsoft Print to PDF",
+
+    "printer_vendor_id": "",
+
+    "printer_product_id": "",
+
+    "printer_ip": "",
+
+    "printer_port": 9100
 }
