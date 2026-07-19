@@ -5,7 +5,7 @@
 # ==============================================================================
 
 import streamlit as st
-from database import supabase
+from database import db
 
 
 st.set_page_config(
@@ -45,8 +45,7 @@ if st.button("Search Sale"):
         try:
 
             sale_resp = (
-                supabase
-                .table("sales")
+                db().table(...)("sales")
                 .select("*")
                 .eq("id", sale_id)
                 .single()
@@ -60,8 +59,7 @@ if st.button("Search Sale"):
 
 
                 items_resp = (
-                    supabase
-                    .table("sale_items")
+                    db().table(...)("sale_items")
                     .select("*")
                     .eq("sale_id", sale_id)
                     .execute()
@@ -258,7 +256,7 @@ if sale:
             try:
 
                 result = (
-                    supabase
+                    db
                     .rpc(
                         "refund_sale_rpc",
                         {
