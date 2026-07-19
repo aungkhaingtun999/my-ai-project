@@ -1,8 +1,7 @@
 import streamlit as st
-from auth import logout
-from guards import (
-    is_logged_in,
-    current_user,
+from auth import (
+    is_authenticated,
+    logout,
     ROLE_ADMIN,
     ROLE_MANAGER,
     ROLE_CASHIER
@@ -57,7 +56,7 @@ MENU = {
 # ==========================================================
 def get_active_page():
     if "active_page" not in st.session_state:
-        user = current_user()
+        user = st.session_state.user
         if user.get("role_id") == ROLE_ADMIN:
             st.session_state.active_page = "3_Admin_Dashboard"
         else:
@@ -68,12 +67,11 @@ def get_active_page():
 # SIDEBAR
 # ==========================================================
 def show_sidebar():
-    if not is_logged_in():
+    if not is_authenticated():
         return
 
-    user = current_user()
-    role_id = user.get("role_id")
-    role_display = user.get("role") or user.get("role_name") or "Staff"
+    user = st.session_state.user
+    role_display = user.get("role", "Unknown")
 
     with st.sidebar:
         st.title("🏭 Myanmar ERP")
@@ -81,7 +79,7 @@ def show_sidebar():
         st.divider()
 
         # USER CARD
-        st.success(f"👤 {user.get('full_name', user.get('username', 'User'))}")
+        st.success(f"👤 {user.get('full_name', 'User')}")
         st.caption(f"Username : {user.get('username', '')}")
         st.caption(f"Role : {role_display}")
         st.divider()
@@ -99,7 +97,7 @@ def show_sidebar():
         # NAVIGATION
         st.subheader("📂 Navigation")
         active = get_active_page()
-        pages = MENU.get(role_id, [])
+        pages = MENU.get(user.get("role_id"), [])
 
         for icon, title, page_id in pages:
             label = f"{icon} {title}"
@@ -122,4 +120,3 @@ def show_sidebar():
         # LOGOUT
         if st.button("🚪 Logout", key="logout_btn", use_container_width=True):
             logout()
-            st.rerun()
