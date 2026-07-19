@@ -1,11 +1,12 @@
 # ==================================================
 # pages/6_Refund_Report.py
-# ERP REFUND REPORT v1
+# ERP REFUND REPORT v2
 # ==================================================
 
 import streamlit as st
 import pandas as pd
 from datetime import date
+import io
 
 from database import db
 from auth import require_login
@@ -18,17 +19,13 @@ from auth import require_login
 user = require_login()
 
 
-# ==========================
-# PAGE CONFIG
-# ==========================
-
 st.set_page_config(
     page_title="Refund Report",
     layout="wide"
 )
 
 
-st.title("📊 Refund Report")
+st.title("📊 Refund Report v2")
 
 
 # ==========================
@@ -58,11 +55,17 @@ if df.empty:
 
 
 
+df["refund_date"] = pd.to_datetime(
+    df["refund_date"]
+)
+
+
+
 # ==========================
-# FILTER AREA
+# FILTER
 # ==========================
 
-st.sidebar.header("🔍 Filters")
+st.sidebar.header("🔍 Report Filter")
 
 
 invoice_search = st.sidebar.text_input(
@@ -72,35 +75,28 @@ invoice_search = st.sidebar.text_input(
 
 cashier_filter = st.sidebar.multiselect(
     "Cashier",
-    options=df["cashier_name"].dropna().unique()
+    df["cashier_name"].dropna().unique()
 )
 
 
 warehouse_filter = st.sidebar.multiselect(
     "Warehouse",
-    options=df["warehouse_name"].dropna().unique()
+    df["warehouse_name"].dropna().unique()
 )
-
-
-# Date Filter
-
-df["refund_date"] = pd.to_datetime(df["refund_date"])
 
 
 from_date = st.sidebar.date_input(
     "From Date",
-    value=df["refund_date"].min().date()
+    df["refund_date"].min().date()
 )
 
 
 to_date = st.sidebar.date_input(
     "To Date",
-    value=date.today()
+    date.today()
 )
 
 
-
-# Apply filters
 
 filtered = df.copy()
 
@@ -125,13 +121,15 @@ if invoice_search:
 
 if cashier_filter:
     filtered = filtered[
-        filtered["cashier_name"].isin(cashier_filter)
+        filtered["cashier_name"]
+        .isin(cashier_filter)
     ]
 
 
 if warehouse_filter:
     filtered = filtered[
-        filtered["warehouse_name"].isin(warehouse_filter)
+        filtered["warehouse_name"]
+        .isin(warehouse_filter)
     ]
 
 
@@ -140,33 +138,98 @@ if warehouse_filter:
 # KPI
 # ==========================
 
-col1, col2, col3 = st.columns(3)
+c1,c2,c3,c4 = st.columns(4)
 
 
-with col1:
+with c1:
     st.metric(
-        "Refund Transactions",
+        "Refund Count",
         filtered["refund_id"].nunique()
     )
 
 
-with col2:
+with c2:
     st.metric(
         "Refund Amount",
         f"{filtered['refund_amount'].sum():,.0f} MMK"
     )
 
 
-with col3:
+with c3:
     st.metric(
-        "Refund Items",
+        "Refund Qty",
         filtered["quantity"].sum()
+    )
+
+
+with c4:
+    avg = 0
+
+    if filtered["refund_id"].nunique():
+        avg = (
+            filtered["refund_amount"].sum()
+            /
+            filtered["refund_id"].nunique()
+        )
+
+    st.metric(
+        "Average Refund",
+        f"{avg:,.0f}"
     )
 
 
 
 # ==========================
-# TABLE
+# CHART
+# ==========================
+
+st.divider()
+
+st.subheader("📈 Refund By Product")
+
+
+product_chart = (
+    filtered
+    .groupby("product_name")["quantity"]
+    .sum()
+    .sort_values(
+        ascending=False
+    )
+)
+
+
+st.bar_chart(product_chart)
+
+
+
+# ==========================
+# CASHIER SUMMARY
+# ==========================
+
+st.subheader("👤 Cashier Summary")
+
+
+cashier_report = (
+    filtered
+    .groupby("cashier_name")
+    .agg(
+        Refund_Count=("refund_id","nunique"),
+        Refund_Amount=("refund_amount","sum")
+    )
+    .reset_index()
+)
+
+
+st.dataframe(
+    cashier_report,
+    use_container_width=True,
+    hide_index=True
+)
+
+
+
+# ==========================
+# DETAIL TABLE
 # ==========================
 
 st.divider()
@@ -174,7 +237,7 @@ st.divider()
 st.subheader("Refund Details")
 
 
-show_columns = [
+columns = [
     "refund_id",
     "invoice_no",
     "refund_date",
@@ -188,7 +251,53 @@ show_columns = [
 
 
 st.dataframe(
-    filtered[show_columns],
+    filtered[columns],
     use_container_width=True,
     hide_index=True
+)
+
+
+
+# ==========================
+# EXPORT
+# ==========================
+
+st.divider()
+
+st.subheader("📥 Export")
+
+
+excel_buffer = io.BytesIO()
+
+
+with pd.ExcelWriter(
+    excel_buffer,
+    engine="openpyxl"
+) as writer:
+
+    filtered.to_excel(
+        writer,
+        index=False,
+        sheet_name="Refund_Report"
+    )
+
+
+st.download_button(
+    label="📥 Download Excel",
+    data=excel_buffer.getvalue(),
+    file_name="refund_report.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
+
+csv = filtered.to_csv(
+    index=False
+)
+
+
+st.download_button(
+    label="📄 Download CSV",
+    data=csv,
+    file_name="refund_report.csv",
+    mime="text/csv"
 )
