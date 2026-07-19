@@ -1,8 +1,12 @@
 import streamlit as st
 from database import get_supabase
+from auth import require_admin  # Admin Security Guard ထည့်သွင်းခြင်း
 import hashlib
 
 def run():
+    # 2) Admin Security Guard
+    require_admin()
+
     st.title("👥 User Management (Admin Panel)")
     st.caption("Control users, roles and access rights")
 
@@ -11,9 +15,9 @@ def run():
     def hash_password(password):
         return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
-    # 2) Error Handling ဖြင့် Roles Load လုပ်ခြင်း
+    # 3) Optimized Data Fetching (select id, name)
     try:
-        roles_resp = supabase.table("roles").select("*").execute()
+        roles_resp = supabase.table("roles").select("id,name").execute()
         roles = roles_resp.data or []
     except Exception as e:
         st.error(f"Role loading failed: {e}")
@@ -26,7 +30,6 @@ def run():
     role_map = {r["name"]: r["id"] for r in roles}
     role_names = list(role_map.keys())
 
-    # Load Users
     try:
         users_resp = supabase.table("users").select("id, username, full_name, role_id, is_active").execute()
         users = users_resp.data or []
@@ -34,7 +37,7 @@ def run():
         st.error(f"User loading failed: {e}")
         return
 
-    # Search Logic
+    # Search
     search = st.text_input("🔍 Search User")
     if search:
         search = search.lower()
@@ -83,16 +86,26 @@ def run():
             with c3: st.write(f"🛡 {role_name}")
             with c4:
                 new_role = st.selectbox("Role", role_names, index=role_names.index(role_name) if role_name in role_names else 0, key=f"role_{u['id']}")
+                
+                # 1) Role Update with Try/Except
                 if new_role != role_name:
-                    supabase.table("users").update({"role_id": role_map[new_role]}).eq("id", u["id"]).execute()
-                    st.rerun()
+                    try:
+                        supabase.table("users").update({
+                            "role_id": role_map[new_role]
+                        }).eq("id", u["id"]).execute()
+                        st.success("Role updated")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Role update failed: {e}")
+
             with c5:
-                # 3) Soft Delete (is_active = False)
                 delete_btn_label = "✅" if u.get("is_active") else "⛔"
                 if st.button(f"{delete_btn_label}", key=f"toggle_{u['id']}", help="Toggle Active Status"):
-                    new_status = not u.get("is_active")
-                    supabase.table("users").update({"is_active": new_status}).eq("id", u["id"]).execute()
-                    st.rerun()
+                    try:
+                        supabase.table("users").update({"is_active": not u.get("is_active")}).eq("id", u["id"]).execute()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Status update failed: {e}")
 
     # Summary
     st.divider()
@@ -104,6 +117,5 @@ def run():
     c2.metric("✅ Active", active_count)
     c3.metric("⛔ Disabled", total - active_count)
 
-# 1) Direct Run Support
 if __name__ == "__main__":
     run()
