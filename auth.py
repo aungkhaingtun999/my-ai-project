@@ -9,16 +9,21 @@ from database import get_supabase
 supabase = get_supabase()
 
 # ==================================================
-# SECURITY & CONSTANTS
+# SECURITY & ROLE CONSTANTS
 # ==================================================
 SESSION_IDLE_TIMEOUT = 1800  # 30 minutes
 MAX_FAILED_ATTEMPTS = 5
 LOCK_DURATION_MINUTES = 15
 
+# Role Constants
+ROLE_ADMIN = 1
+ROLE_MANAGER = 2
+ROLE_CASHIER = 3
+
 ROLE_MAP = {
-    1: "Admin",
-    2: "Manager",
-    3: "Cashier"
+    ROLE_ADMIN: "Admin",
+    ROLE_MANAGER: "Manager",
+    ROLE_CASHIER: "Cashier"
 }
 
 # ==================================================
@@ -36,7 +41,7 @@ def log_auth_event(user_id, event_type, status="success"):
         pass
 
 # ==================================================
-# PASSWORD VERIFICATION (v15 Final)
+# PASSWORD VERIFICATION & UPGRADE
 # ==================================================
 def verify_password(user, password):
     stored = user.get("password_hash")
@@ -62,7 +67,7 @@ def upgrade_password(user_id, password):
         new_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode()
         supabase.table("users").update({"password_hash": new_hash}).eq("id", user_id).execute()
     except Exception:
-        pass # Password upgrade shouldn't stop login
+        pass 
 
 # ==================================================
 # CORE AUTH FUNCTIONS
@@ -71,7 +76,7 @@ def get_user(username):
     try:
         response = supabase.table("users").select("*").eq("username", username.strip()).eq("is_active", True).limit(1).execute()
         return response.data[0] if response.data else None
-    except Exception as e:
+    except Exception:
         st.error("Authentication Database Error")
         return None
 
@@ -101,21 +106,18 @@ def login_user(username, password):
         return False, "Invalid password."
 
 def build_session(user):
-
     st.session_state.user = {
         "id": user["id"],
         "username": user["username"],
         "full_name": user.get("full_name", user["username"]),
-        "role_id": int(user.get("role_id", 3)),
-        "role": ROLE_MAP.get(int(user.get("role_id", 3)), "Cashier"),
+        "role_id": int(user.get("role_id", ROLE_CASHIER)),
+        "role": ROLE_MAP.get(int(user.get("role_id", ROLE_CASHIER)), "Cashier"),
         "is_active": bool(user.get("is_active", True)),
         "last_activity": time.time()
     }
-
-    # ERP Compatibility
     st.session_state.user_id = user["id"]
     st.session_state.username = user["username"]
-    st.session_state.role_id = int(user.get("role_id", 3))
+    st.session_state.role_id = int(user.get("role_id", ROLE_CASHIER))
 
 # ==================================================
 # GUARDS & HELPERS
@@ -135,6 +137,13 @@ def require_login():
         login_page()
         st.stop()
     return st.session_state.user
+
+def require_admin():
+    user = require_login()
+    if user["role_id"] != ROLE_ADMIN:
+        st.error("⛔ Access Denied: Admin privileges required.")
+        st.stop()
+    return user
 
 def require_role(role_id):
     user = require_login()
@@ -164,4 +173,3 @@ def auth_sidebar():
             st.success(f"👤 {user['full_name']}")
             st.caption(f"Role: {user['role']}")
             if st.button("🚪 Logout"): logout()
-
