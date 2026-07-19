@@ -15,7 +15,6 @@ def run():
             st.stop()
         return user
 
-    # APPLY GUARD
     user = require_admin()
 
     st.title("⚙️ ERP Control Center (Admin Panel)")
@@ -44,9 +43,6 @@ def run():
             st.error(f"Failed to save {key}: {e}")
             st.stop()
 
-    # =========================
-    # HELPER GETTERS
-    # =========================
     def get_bool(key, default=False):
         return str(settings_map.get(key, str(default))).lower() == "true"
 
@@ -60,18 +56,34 @@ def run():
     # 🧾 ACCOUNTING & TAX
     # =========================
     st.subheader("🧾 Accounting & Tax")
-    tax_rate = st.number_input("Default Tax Rate (%)", value=get_float("tax_rate", 5))
+    
+    tax_rate = st.number_input(
+        "Default Tax Rate (%)",
+        value=get_float("default_tax_rate", 7.0)
+    )
+    
     discount_policy = st.selectbox(
         "Discount Policy",
         ["allowed", "restricted"],
         index=0 if settings_map.get("discount_policy", "allowed") == "allowed" else 1
     )
 
-    if st.button("Save Accounting Settings"):
-        save_setting("tax_rate", tax_rate)
+    if st.button("💾 Save Accounting Settings", use_container_width=True):
+        save_setting("default_tax_rate", tax_rate)
         save_setting("discount_policy", discount_policy)
-        st.success("Accounting settings updated")
-        st.rerun()
+        
+        st.cache_data.clear()
+        
+        st.success(
+            f"""
+✅ Accounting Settings Updated
+
+• Tax Rate: {tax_rate}%
+• Discount Policy: {discount_policy}
+
+These settings are now active and will be applied to new POS transactions.
+"""
+        )
 
     st.divider()
 
@@ -144,9 +156,6 @@ def run():
 
     st.divider()
 
-    # =========================
-    # 🧠 SYSTEM STATUS
-    # =========================
     st.subheader("System Status")
     st.success("✔ ERP Core Active\n✔ Warehouse Engine Ready\n✔ Sales/Purchase Connected\n✔ Settings DB Synced")
     st.success("⚙️ Control Center Fully Operational 🚀")
@@ -154,4 +163,4 @@ def run():
 if __name__ == "__main__":
     st.set_page_config(page_title="ERP Control Center", layout="wide")
     run()
-    
+
