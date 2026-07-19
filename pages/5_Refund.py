@@ -45,7 +45,7 @@ if st.button("Search Sale"):
         try:
 
             sale_resp = (
-                db().table(...)("sales")
+                db().table()("sales")
                 .select("*")
                 .eq("id", sale_id)
                 .single()
