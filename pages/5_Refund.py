@@ -31,7 +31,18 @@ if "refund_cart" not in st.session_state:
 # ==========================================
 # SEARCH SALE
 # ==========================================
+# ==========================================
+# SEARCH SALE
+# ==========================================
 
+sale_id = st.text_input(
+    "🔍 Enter Sale ID"
+)
+
+if st.button("Search Sale"):
+
+    if not sale_id:
+        st.warning("Enter Sale ID")
 if st.button("Search Sale"):
 
     if not sale_id:
