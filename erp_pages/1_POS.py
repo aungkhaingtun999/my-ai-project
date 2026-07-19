@@ -69,10 +69,10 @@ def run():
 
     try:
         st.session_state.discount_policy = (
-            get_setting("discount_policy", "disabled")
+            get_setting("discount_policy", "allowed")
         )
     except:
-        st.session_state.discount_policy = "disabled"
+        st.session_state.discount_policy = "allowed"
 
     # --------------------------------------------------------------------------
     # WAREHOUSE
@@ -211,9 +211,20 @@ def run():
         
         st.info(f"Tax Rate (System Setting): {st.session_state.tax_rate}%")
         
-        if st.session_state.discount_policy == "disabled":
-            discount = 0
-            st.info("Discount disabled by system settings")
+        # =====================================================
+        # DISCOUNT POLICY FROM ERP SETTINGS
+        # =====================================================
+        policy = str(st.session_state.discount_policy).strip().lower()
+
+        if policy == "restricted":
+            discount = st.number_input(
+                "Discount",
+                min_value=0.0,
+                value=0.0,
+                step=100.0,
+                disabled=True
+            )
+            st.error("⛔ Discount is restricted by Admin.")
         else:
             discount = st.number_input(
                 "Discount",
@@ -221,6 +232,7 @@ def run():
                 value=0.0,
                 step=100.0
             )
+            st.success("✅ Discount is allowed.")
 
         tax_amount = round(subtotal * st.session_state.tax_rate / 100, 2)
         grand_total = max(0, subtotal + tax_amount - discount)
@@ -242,7 +254,6 @@ def run():
             try:
                 cart_payload = [{"id": item["id"], "qty": int(item["qty"]), "selling_price": float(item["selling_price"])} for item in st.session_state.cart]
                 
-                # Updated checkout_sale_rpc with parameters
                 result = checkout_sale_rpc(
                     cart=cart_payload,
                     paid_amount=received,
@@ -310,4 +321,4 @@ def run():
             except:
                 st.session_state.tax_rate = 0
             st.rerun()
-
+            
