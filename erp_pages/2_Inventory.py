@@ -159,6 +159,12 @@ def run():
             reason = st.text_input("Reason", "Stock Adjustment")
 
             if st.button("💾 Apply Adjustment", width="stretch"):
+                
+                # Debugging information
+                st.write("DEBUG product_id:", product_id)
+                st.write("DEBUG warehouse_id:", selected_wh_id)
+                st.write("DEBUG quantity:", adjustment_qty)
+
                 result = stock_adjustment_rpc(
                     product_id=product_id,
                     warehouse_id=selected_wh_id,
@@ -200,4 +206,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-            
+                
