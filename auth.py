@@ -101,6 +101,7 @@ def login_user(username, password):
         return False, "Invalid password."
 
 def build_session(user):
+
     st.session_state.user = {
         "id": user["id"],
         "username": user["username"],
@@ -110,6 +111,11 @@ def build_session(user):
         "is_active": bool(user.get("is_active", True)),
         "last_activity": time.time()
     }
+
+    # ERP Compatibility
+    st.session_state.user_id = user["id"]
+    st.session_state.username = user["username"]
+    st.session_state.role_id = int(user.get("role_id", 3))
 
 # ==================================================
 # GUARDS & HELPERS
