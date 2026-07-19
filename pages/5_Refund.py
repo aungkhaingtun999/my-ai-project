@@ -107,13 +107,31 @@ if sale:
                 }).execute()
                 
                 res_data = result.data
+                
+                # Updated Success Block
                 if res_data is True or (isinstance(res_data, dict) and res_data.get("success")):
-                    st.success("Refund processed successfully!")
+                    refund_id = (
+                        res_data.get("refund_id")
+                        if isinstance(res_data, dict)
+                        else None
+                    )
+
+                    st.success("✅ Refund Request Created")
+
+                    st.info(
+                        f"""
+                        Refund ID: {refund_id}
+
+                        Status: PENDING
+
+                        Waiting for Manager Approval
+                        """
+                    )
+
                     st.session_state.refund_cart = []
                     st.session_state.selected_sale = None
-                    st.rerun()
                 else:
                     st.error(f"Refund failed: {res_data}")
             except Exception as e:
                 st.error(f"RPC Error: {e}")
-                
+
