@@ -209,10 +209,8 @@ def run():
         st.divider()
         st.subheader("💰 Payment")
         
-        # Display Tax Rate (System Setting)
         st.info(f"Tax Rate (System Setting): {st.session_state.tax_rate}%")
         
-        # Discount Policy Logic
         if st.session_state.discount_policy == "disabled":
             discount = 0
             st.info("Discount disabled by system settings")
@@ -244,10 +242,10 @@ def run():
             try:
                 cart_payload = [{"id": item["id"], "qty": int(item["qty"]), "selling_price": float(item["selling_price"])} for item in st.session_state.cart]
                 
-                # Checkout RPC with full parameters
+                # Updated checkout_sale_rpc with parameters
                 result = checkout_sale_rpc(
-                    cart=cart_payload, 
-                    paid_amount=received, 
+                    cart=cart_payload,
+                    paid_amount=received,
                     cashier_id=st.session_state.get("user_id"),
                     warehouse_id=warehouse_id,
                     payment_method=payment_method,
@@ -295,31 +293,13 @@ def run():
         st.write(f"### Payment Summary\nSubtotal : **{data['subtotal']:,.0f} MMK**\nTax ({data['tax_rate']}%): **{data['tax_amount']:,.0f} MMK**\nDiscount : **{data['discount']:,.0f} MMK**\n# GRAND TOTAL\n## {data['grand_total']:,.0f} MMK\nPaid : {data['paid']:,.0f} MMK\nChange : {data['change']:,.0f} MMK")
         
         c1, c2, c3 = st.columns(3)
-        if c1.button(
-            "🖨 Print Receipt",
-            use_container_width=True
-        ):
-
+        if c1.button("🖨 Print Receipt", use_container_width=True):
             print_thermal(data)
-
-            st.success(
-                "Receipt sent to printer"
-            )
-        if c2.button(
-            "📄 Generate PDF",
-            use_container_width=True
-        ):
+            st.success("Receipt sent to printer")
+        if c2.button("📄 Generate PDF", use_container_width=True):
             pdf_bytes, filename = generate_pdf(data)
-
             if pdf_bytes:
-                st.download_button(
-                    "⬇ Download PDF",
-                    data=pdf_bytes,
-                    file_name=f"{filename}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key="download_receipt_pdf"
-                )
+                st.download_button("⬇ Download PDF", data=pdf_bytes, file_name=f"{filename}.pdf", mime="application/pdf", use_container_width=True, key="download_receipt_pdf")
         if c3.button("🆕 New Sale", use_container_width=True):
             st.session_state.cart = []
             st.session_state.sale_data = None
@@ -330,4 +310,4 @@ def run():
             except:
                 st.session_state.tax_rate = 0
             st.rerun()
-        
+
