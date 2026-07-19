@@ -36,7 +36,6 @@ def run():
     sales = get_sales(start_iso, end_iso)
     df = pd.DataFrame(sales)
 
-    # Dynamic loader အတွက်ပိုမိုသင့်လျော်သော error handling
     if df.empty:
         st.warning("No sales data found.")
         return
@@ -109,12 +108,20 @@ def run():
                     lambda x: json.dumps(x) if isinstance(x, (dict, list)) else x
                 )
 
-        # 2. Timezone-aware Datetime Handling (Safe approach)
+        # 2. Remove timezone for Excel compatibility (Safe Approach)
         for col in export_df.columns:
-            if pd.api.types.is_datetime64tz_dtype(export_df[col]):
-                export_df[col] = export_df[col].dt.tz_localize(None).astype(str)
-            elif pd.api.types.is_datetime64_any_dtype(export_df[col]):
-                export_df[col] = export_df[col].astype(str)
+            try:
+                if isinstance(export_df[col].dtype, pd.DatetimeTZDtype):
+                    export_df[col] = export_df[col].dt.tz_convert(None).astype(str)
+                elif pd.api.types.is_datetime64_dtype(export_df[col]):
+                    export_df[col] = export_df[col].astype(str)
+            except Exception:
+                pass
+
+        # Ensure no remaining timezone objects before Excel write
+        export_df = export_df.apply(
+            lambda col: col.dt.tz_localize(None) if isinstance(col.dtype, pd.DatetimeTZDtype) else col
+        )
 
         # 3. NaN တန်ဖိုးများကို empty string သို့ ပြောင်းပါ
         export_df = export_df.fillna('')
@@ -141,4 +148,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-                
+    
