@@ -45,17 +45,23 @@ if st.button("Search Sale"):
         try:
 
             sale_resp = (
-                db().table("sales")
-                .select("*")
-                .eq("id", sale_id)
-                .maybe_single()
-                .execute()
-            )
+    db()
+    .table("sales")
+    .select("*")
+    .eq("id", int(sale_id))
+    .maybe_single()
+    .execute()
+)
 
+if sale_resp is None:
+    st.error("Database returned no response")
+    st.stop()
 
-            if sale_resp.data:
+if sale_resp.data is None:
+    st.error("Sale not found")
+    st.stop()
 
-                sale = sale_resp.data
+sale = sale_resp.data
 
 
                 items_resp = (
@@ -256,7 +262,7 @@ if sale:
             try:
 
                 result = (
-                    db
+                    db()
                     .rpc(
                         "refund_sale_rpc",
                         {
