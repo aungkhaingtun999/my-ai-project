@@ -20,7 +20,6 @@ st.set_page_config(
 def init_state():
     defaults = {
         "user": None,
-        "role": None,
         "active_page": "1_POS", # Default Landing Page ID
         "language": "English",
         "auth_checked": False
@@ -92,4 +91,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
