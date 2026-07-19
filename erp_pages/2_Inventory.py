@@ -10,7 +10,8 @@ from database import (
     db,
     get_inventory_view,
     get_warehouses,
-    update_product_rpc
+    update_product_rpc,
+    stock_adjustment_rpc
 )
 
 def run():
@@ -26,11 +27,12 @@ def run():
     selected_wh_name = st.selectbox("📍 Select Warehouse", list(wh_map.keys()))
     selected_wh_id = wh_map[selected_wh_name]
 
-    # Tab ၄ ခု
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📋 Product Master", 
-        "➕ Add Product", 
-        "✏️ Edit Product", 
+    # Tab ၅ ခုသို့ တိုးမြှင့်ခြင်း
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📋 Product Master",
+        "➕ Add Product",
+        "✏️ Edit Product",
+        "🔧 Stock Adjustment",
         "📊 Enterprise Dashboard"
     ])
 
@@ -85,9 +87,6 @@ def run():
                 except Exception as e:
                     st.error(f"Transaction failed: {str(e)}")
 
-    # =========================================================
-    # ✏️ EDIT PRODUCT
-    # =========================================================
     with tab3:
         st.subheader("✏️ Edit Product Master")
         products = get_inventory_view(warehouse_id=selected_wh_id)
@@ -140,6 +139,10 @@ def run():
                         st.error(result.get("message", "Update failed"))
 
     with tab4:
+        st.subheader("🔧 Stock Adjustment")
+        st.info("Stock Adjustment logic ကို ဤနေရာတွင် ဆက်လက်တည်ဆောက်ပါမည်။")
+
+    with tab5:
         products = get_inventory_view(warehouse_id=selected_wh_id)
         if products:
             df = pd.DataFrame(products)
