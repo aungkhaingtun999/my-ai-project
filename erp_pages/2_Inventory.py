@@ -162,14 +162,15 @@ def run():
                 result = stock_adjustment_rpc(
                     product_id=product_id,
                     warehouse_id=selected_wh_id,
-                    quantity=int(adjustment_qty),
+                    quantity=adjustment_qty,
                     reason=reason,
-                    user_id=st.session_state.get("user_id")
+                    created_by=st.session_state.get("user_id")
                 )
 
                 if result.get("success"):
-                    st.success(f"✅ Stock Updated\n\nProduct : {product['name']}\nBefore : {current_stock}\nChange : {adjustment_qty}\nAfter : {current_stock + adjustment_qty}")
-                    time.sleep(1)
+                    st.success("✅ Stock Updated Successfully")
+                    st.json(result.get("data"))
+                    time.sleep(1.5)
                     st.rerun()
                 else:
                     st.error(result.get("message", "Adjustment Failed"))
@@ -195,4 +196,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-
+                    
