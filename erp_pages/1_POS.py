@@ -9,6 +9,7 @@ import os
 import pandas as pd
 from datetime import datetime
 from utils.timezone import format_datetime
+from utils.receipt_pdf import generate_pdf
 import streamlit as st
 
 # Root path
@@ -271,8 +272,13 @@ def run():
         c1, c2, c3 = st.columns(3)
         if c1.button("🖨 Print Receipt", use_container_width=True):
             pass # Placeholder for print logic
-        if c2.button("📄 Generate PDF", use_container_width=True):
-            pass # Placeholder for PDF logic
+        if c2.button(
+            "📄 Generate PDF",
+            use_container_width=True
+        ):
+            generate_pdf(
+                data
+            )
         if c3.button("🆕 New Sale", use_container_width=True):
             st.session_state.cart = []
             st.session_state.sale_data = None
