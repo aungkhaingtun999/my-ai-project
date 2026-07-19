@@ -12,36 +12,42 @@ if "selected_sale" not in st.session_state:
 if "refund_cart" not in st.session_state:
     st.session_state.refund_cart = []
 
+# # ==========================================
+# SEARCH SALE (Optimized)
 # ==========================================
-# SEARCH SALE
-# ==========================================
-# Input ကို session_state နဲ့တွဲသုံးခြင်း (Data မပျောက်စေရန်)
 input_id = st.text_input("🔍 Enter Sale ID", key="refund_sale_input")
 
 if st.button("Search Sale"):
     if not input_id or not input_id.isdigit():
         st.warning("Please enter a valid Numeric Sale ID")
     else:
-        with st.spinner("Searching for Sale..."):
+        with st.spinner("Fetching data from ERP..."):
             try:
-                # 1. Fetch Sale
-                response = db().table("sales").select("*").eq("id", int(input_id)).maybe_single().execute()
+                # Primary key ကို တိုက်ရိုက်ခေါ်ပြီး filter လုပ်ခြင်း
+                # .eq("id", int(input_id)) သည် အလုပ်မလုပ်လျှင် .match({"id": int(input_id)}) ကို သုံးကြည့်ပါ
+                response = db().table("sales").select("*").match({"id": int(input_id)}).execute()
                 
+                # Response object တစ်ခုလုံးကို check လုပ်ခြင်း
                 if response is None:
-                    st.error("No response from server.")
-                elif not response.data:
+                    st.error("No response object received.")
+                elif not hasattr(response, 'data') or response.data is None:
+                    st.error("Server returned empty data.")
+                elif len(response.data) == 0:
                     st.error(f"Sale ID {input_id} not found.")
                 else:
-                    sale = response.data
-                    # 2. Fetch Items
+                    # Data ရပြီ
+                    sale = response.data[0]
+                    
+                    # Fetch Items (Filter အနေနဲ့ ခေါ်ခြင်း)
                     items_resp = db().table("sale_items").select("*").eq("sale_id", int(input_id)).execute()
-                    sale["items"] = items_resp.data if items_resp and items_resp.data else []
+                    sale["items"] = items_resp.data if items_resp and hasattr(items_resp, 'data') else []
 
                     st.session_state.selected_sale = sale
                     st.session_state.refund_cart = []
                     st.rerun()
             except Exception as e:
-                st.error(f"Search Failed: {e}")
+                st.error(f"Database Query Error: {e}")
+
 
 # ==========================================
 # REFUND DISPLAY
