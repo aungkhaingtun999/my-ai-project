@@ -10,6 +10,7 @@ import pandas as pd
 from datetime import datetime
 from utils.timezone import format_datetime
 from utils.receipt_pdf import generate_pdf
+from utils.thermal_receipt import print_thermal
 import streamlit as st
 
 # Root path
@@ -270,8 +271,16 @@ def run():
         st.write(f"### Payment Summary\nSubtotal : **{data['subtotal']:,.0f} MMK**\nTax ({data['tax_rate']}%): **{data['tax_amount']:,.0f} MMK**\nDiscount : **{data['discount']:,.0f} MMK**\n# GRAND TOTAL\n## {data['grand_total']:,.0f} MMK\nPaid : {data['paid']:,.0f} MMK\nChange : {data['change']:,.0f} MMK")
         
         c1, c2, c3 = st.columns(3)
-        if c1.button("🖨 Print Receipt", use_container_width=True):
-            pass # Placeholder for print logic
+        if c1.button(
+            "🖨 Print Receipt",
+            use_container_width=True
+        ):
+
+            print_thermal(data)
+
+            st.success(
+                "Receipt sent to printer"
+            )
         if c2.button(
             "📄 Generate PDF",
             use_container_width=True
