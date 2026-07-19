@@ -37,7 +37,7 @@ def log_error(msg="ERP Database Error", rpc_name=None, payload=None, exception=N
         }
     logging.error(f"{msg} | RPC={rpc_name} | PAYLOAD={safe_payload} | ERROR={exception}")
 
-# --- Connection ---
+# --- Connections ---
 
 @st.cache_resource
 def get_supabase() -> Client:
@@ -61,7 +61,7 @@ def validate_uuid(value):
     except: 
         return None
 
-# --- ERP Settings ---
+# --- ERP Configuration ---
 
 def get_setting(key, default=None):
     try:
@@ -155,6 +155,32 @@ def checkout_sale_rpc(cart, paid_amount, warehouse_id=None, cashier_id=None, cou
     }
     return execute_rpc("checkout_sale_rpc", payload)
 
+def update_product_rpc(
+    product_id,
+    name,
+    sku,
+    barcode,
+    purchase_price,
+    selling_price,
+    minimum_stock,
+    unit,
+    notes,
+    is_active
+):
+    payload = {
+        "p_product_id": int(product_id),
+        "p_name": name,
+        "p_sku": sku,
+        "p_barcode": barcode,
+        "p_purchase_price": money(purchase_price),
+        "p_selling_price": money(selling_price),
+        "p_minimum_stock": int(minimum_stock),
+        "p_unit": unit,
+        "p_notes": notes,
+        "p_is_active": is_active
+    }
+    return execute_rpc("update_product", payload)
+
 def purchase_receive_rpc(product_id, supplier_id, warehouse_id, qty, cost, remarks="", user_id=None):
     payload = {
         "p_product_id": int(product_id),
@@ -167,7 +193,7 @@ def purchase_receive_rpc(product_id, supplier_id, warehouse_id, qty, cost, remar
     }
     return execute_rpc("purchase_receive_rpc", payload)
 
-# --- Receipt, Supplier & Audit Support ---
+# --- Receipt, Supplier, and Audit Support ---
 
 def get_receipt(invoice_no):
     try: return db().table("sales").select("*").eq("invoice_no", invoice_no).single().execute().data
@@ -199,4 +225,4 @@ def create_audit_log(user_id, action, description):
         return False
 
 print("DATABASE.PY FINISHED LOADING")
-
+                          
