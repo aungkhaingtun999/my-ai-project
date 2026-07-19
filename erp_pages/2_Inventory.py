@@ -162,7 +162,7 @@ def run():
                 result = stock_adjustment_rpc(
                     product_id=product_id,
                     warehouse_id=selected_wh_id,
-                    quantity=adjustment_qty,
+                    quantity=int(adjustment_qty),
                     reason=reason,
                     created_by=st.session_state.get("user_id")
                 )
@@ -170,7 +170,11 @@ def run():
                 if result.get("success"):
                     st.success("✅ Stock Updated Successfully")
                     st.json(result.get("data"))
-                    time.sleep(1.5)
+
+                    # Clear Streamlit cache
+                    st.cache_data.clear()
+
+                    time.sleep(1)
                     st.rerun()
                 else:
                     st.error(result.get("message", "Adjustment Failed"))
@@ -196,4 +200,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-                    
+            
