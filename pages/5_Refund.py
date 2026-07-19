@@ -1,7 +1,16 @@
 import streamlit as st
 from database import db
+from auth import require_login
 
-st.set_page_config(page_title="Refund System", layout="wide")
+# 1. Page Config ကို အပေါ်ဆုံးမှာ ထားပါ
+st.set_page_config(
+    page_title="Refund System",
+    layout="wide"
+)
+
+# 2. Authentication (Config အပြီးမှ ခေါ်ယူပါ)
+user = require_login()
+
 st.title("↩️ Refund System (ERP Mode)")
 
 # ==========================================
@@ -11,12 +20,6 @@ if "selected_sale" not in st.session_state:
     st.session_state.selected_sale = None
 if "refund_cart" not in st.session_state:
     st.session_state.refund_cart = []
-
-# ==========================================
-# SESSION DEBUG (Requested)
-# ==========================================
-with st.expander("Session State Debug"):
-    st.write(st.session_state)
 
 # ==========================================
 # SEARCH SALE
@@ -29,7 +32,6 @@ if st.button("Search Sale"):
     else:
         with st.spinner("Fetching data from ERP..."):
             try:
-                # Primary key lookup
                 response = db().table("sales").select("*").eq("id", int(input_id)).execute()
                 
                 if not response or not hasattr(response, 'data') or not response.data:
@@ -61,7 +63,6 @@ if sale:
     refund_total = 0
     new_cart = []
     
-    # Iterate through sale items
     for item in sale.get("items", []):
         item_id = item.get("id")
         qty_sold = int(item.get("qty", item.get("quantity", 0)))
@@ -73,7 +74,6 @@ if sale:
         with col3: st.write(f"Price: {price:,.0f}")
         
         with col4:
-            # Using a unique key based on item_id
             qty = st.number_input(
                 f"Refund Qty", 
                 min_value=0, 
@@ -86,7 +86,6 @@ if sale:
                 refund_total += (qty * price)
                 new_cart.append({"sale_item_id": item_id, "qty": int(qty)})
 
-    # Update the cart state
     st.session_state.refund_cart = new_cart
 
     st.divider()
@@ -99,11 +98,12 @@ if sale:
             st.error("No items selected for refund.")
         else:
             try:
+                # RPC call using authenticated user ID
                 result = db().rpc("refund_sale_rpc", {
                     "p_sale_id": int(sale["id"]),
                     "p_items": st.session_state.refund_cart,
                     "p_reason": reason,
-                    "p_cashier_id": st.session_state.get("user_id")
+                    "p_cashier_id": user["id"]
                 }).execute()
                 
                 res_data = result.data
@@ -116,4 +116,4 @@ if sale:
                     st.error(f"Refund failed: {res_data}")
             except Exception as e:
                 st.error(f"RPC Error: {e}")
-                                                   
+                
