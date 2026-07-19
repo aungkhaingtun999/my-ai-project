@@ -8,10 +8,6 @@ import pandas as pd
 from database import db, get_inventory_view, get_warehouses
 
 def run():
-    # Page configuration must be set at the top of the function
-    # Note: If this is a page inside 'pages/' folder, set_page_config is already 
-    # handled by the main app, but we can include it for safety.
-    
     st.title("🏭 Enterprise Product Master v4.3")
 
     # Warehouse Selection
@@ -40,12 +36,17 @@ def run():
                 'Price': p.get('selling_price', 0)
             } for p in products])
             
-            st.dataframe(display_df, width=None, hide_index=True) # width="stretch" deprecated in some versions, replaced with None or default
+            # ပြင်ဆင်ထားသည့်အပိုင်း: width="stretch"
+            st.dataframe(
+                display_df, 
+                width="stretch", 
+                hide_index=True
+            )
         else:
             st.info("No products found in this warehouse.")
 
     with tab2:
-        with st.form("add_product_form"):
+        with st.form("add_product_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
             data = {
                 "name": c1.text_input("Product Name*"),
@@ -59,7 +60,8 @@ def run():
             }
             init_qty = st.number_input("Initial Stock", min_value=0)
             
-            if st.form_submit_button("Save Product"):
+            # Button တွင် width="stretch" အသုံးပြုခြင်း
+            if st.form_submit_button("Save Product", width="stretch"):
                 try:
                     res = db().rpc("create_product_full", {
                         "p_data": data, 
@@ -78,16 +80,13 @@ def run():
                     st.error(f"Transaction failed: {str(e)}")
 
     with tab3:
-        # Re-fetch or use existing products logic
         products = get_inventory_view(warehouse_id=selected_wh_id)
         if products:
             df = pd.DataFrame(products)
-            # HARDENING: Ensure columns exist
             for col in ['purchase_price', 'minimum_stock', 'qty', 'selling_price']:
                 if col not in df.columns: df[col] = 0
             
             df['qty'] = pd.to_numeric(df['qty'], errors='coerce').fillna(0)
-            # ... (rest of the dashboard logic)
             
             inventory_cost = (df['qty'] * df['purchase_price']).sum()
             inventory_value = (df['qty'] * df['selling_price']).sum()
@@ -102,4 +101,3 @@ def run():
 
 if __name__ == "__main__":
     run()
-                    
