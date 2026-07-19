@@ -90,12 +90,6 @@ def main():
     # 4. Render Main Page
     page_router()
 
-    # 5. Global Logout footer
-    st.sidebar.divider()
-    if st.sidebar.button("🚪 Logout", use_container_width=True):
-        st.session_state.clear()
-        st.rerun()
-
 if __name__ == "__main__":
     main()
     
