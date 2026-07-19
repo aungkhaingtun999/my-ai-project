@@ -1,4 +1,5 @@
 import streamlit as st
+
 from auth import logout
 from guards import (
     is_logged_in,
@@ -8,77 +9,249 @@ from guards import (
     ROLE_CASHIER
 )
 
-# 1) Menu Structure များကို အပြည့်အစုံပြင်ဆင်ခြင်း
+
+# ==========================================================
+# ERP MENU MASTER
+# ==========================================================
+
 MENU = {
+
+    # ================= ADMIN =================
+
     ROLE_ADMIN: [
+
         ("🏠", "Dashboard", "3_Admin_Dashboard"),
+
         ("🛒", "POS", "1_POS"),
+
         ("📦", "Inventory", "2_Inventory"),
+
+        ("📱", "Mobile Inventory", "2_Mobile_Inventory"),
+
+        ("🧾", "Receipt", "2_Receipt"),
+
+        ("🧾", "Receipt Viewer", "6_Receipt_Viewer"),
+
         ("🛍", "Purchase", "7_Purchase"),
+
         ("🔁", "Transfer", "8_Transfer"),
+
+        ("👥", "Customers", "9_Customers"),
+
+        ("🏭", "Suppliers", "10_Suppliers"),
+
         ("↩️", "Refund", "5_Refund"),
+
         ("✅", "Refund Approval", "6_Refund_Approval"),
+
         ("📊", "Refund Report", "6_Refund_Report"),
+
+        ("📈", "Reports", "3_Reports"),
+
+        ("👤", "Users", "4_Users"),
+
         ("⚙️", "Settings", "12_Settings"),
+
     ],
+
+
+    # ================= MANAGER =================
+
     ROLE_MANAGER: [
+
         ("🏠", "Dashboard", "3_Admin_Dashboard"),
+
         ("🛒", "POS", "1_POS"),
+
         ("📦", "Inventory", "2_Inventory"),
+
+        ("📱", "Mobile Inventory", "2_Mobile_Inventory"),
+
+        ("🧾", "Receipt Viewer", "6_Receipt_Viewer"),
+
+        ("🛍", "Purchase", "7_Purchase"),
+
+        ("🔁", "Transfer", "8_Transfer"),
+
+        ("👥", "Customers", "9_Customers"),
+
+        ("🏭", "Suppliers", "10_Suppliers"),
+
+        ("↩️", "Refund", "5_Refund"),
+
         ("✅", "Refund Approval", "6_Refund_Approval"),
+
         ("📊", "Refund Report", "6_Refund_Report"),
-        ("📈", "Reports", "2_Reports"),
+
+        ("📈", "Reports", "3_Reports"),
+
     ],
+
+
+    # ================= CASHIER =================
+
     ROLE_CASHIER: [
+
         ("🛒", "POS", "1_POS"),
+
+        ("🧾", "Receipt Viewer", "6_Receipt_Viewer"),
+
+        ("↩️", "Refund", "5_Refund"),
+
     ]
+
 }
 
-# 2) Role-based Default Page Logic
+
+
+# ==========================================================
+# ACTIVE PAGE
+# ==========================================================
+
 def get_active_page():
-    if "active_page" not in st.session_state:
-        user = current_user()
-        # Admin ဆိုလျှင် Dashboard၊ ကျန်သူများအတွက် POS
-        if user.get("role_id") == ROLE_ADMIN:
-            st.session_state.active_page = "3_Admin_Dashboard"
-        else:
-            st.session_state.active_page = "1_POS"
-            
-    return st.session_state.active_page
+
+    return st.session_state.get(
+        "active_page",
+        "1_POS"
+    )
+
+
+
+# ==========================================================
+# SIDEBAR
+# ==========================================================
 
 def show_sidebar():
+
+
+    # SECURITY GATE
+
     if not is_logged_in():
         return
 
+
+
     user = current_user()
-    role_display = user.get('role', 'Staff') 
-    
+
+    role_id = user.get("role_id")
+
+
     with st.sidebar:
+
+
         st.title("🏭 Myanmar ERP")
+
         st.caption("Enterprise Edition")
-        st.info(f"👤 {user.get('username', 'User')}\n🔑 Role: {role_display}")
+
+
         st.divider()
+
+
+
+        # USER CARD
+
+        st.success(
+            f"👤 {user.get('full_name', user.get('username'))}"
+        )
+
+        st.caption(
+            f"Username : {user.get('username','')}"
+        )
+
+        st.caption(
+            f"Role : {user.get('role','Staff')}"
+        )
+
+
+        st.divider()
+
+
+
+        # LANGUAGE
+
+        if "language" not in st.session_state:
+            st.session_state.language="English"
+
+
+        st.session_state.language = st.selectbox(
+            "Language",
+            [
+                "English",
+                "မြန်မာ"
+            ],
+            index=0 if st.session_state.language=="English" else 1
+        )
+
+
+        st.divider()
+
+
+
+        # NAVIGATION
 
         st.subheader("📂 Navigation")
+
+
         active = get_active_page()
 
-        role_id = user.get("role_id")
-        pages = MENU.get(role_id, [])
-        
-        # 3) Menu Key Duplicate မဖြစ်စေရန် စစ်ဆေးခြင်း
-        # page_id သည် သီးသန့်ဖြစ်နေသောကြောင့် button key အတွက် စိတ်ချရသည်
-        for icon, title, page_id in pages:
+
+        pages = MENU.get(
+            role_id,
+            []
+        )
+
+
+        for icon,title,page_id in pages:
+
+
             label = f"{icon} {title}"
+
+
             if active == page_id:
                 label = f"✅ {label}"
-            
-            if st.button(label, key=page_id, use_container_width=True):
-                if st.session_state.active_page != page_id:
-                    st.session_state.active_page = page_id
-                    st.rerun()
+
+
+
+            if st.button(
+                label,
+                key=f"nav_{page_id}",
+                use_container_width=True
+            ):
+
+                st.session_state.active_page = page_id
+
+                st.rerun()
+
+
 
         st.divider()
-        if st.button("🚪 Logout", use_container_width=True):
+
+
+
+        # STATUS
+
+        st.success("🟢 System Online")
+
+        st.caption("Database : Connected")
+
+        st.caption("Session : Active")
+
+        st.caption("ERP Version : Enterprise")
+
+
+
+        st.divider()
+
+
+
+        # LOGOUT
+
+        if st.button(
+            "🚪 Logout",
+            key="logout_btn",
+            use_container_width=True
+        ):
+
             logout()
+
             st.rerun()
-            
