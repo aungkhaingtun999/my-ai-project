@@ -27,7 +27,7 @@ def run():
     selected_wh_name = st.selectbox("📍 Select Warehouse", list(wh_map.keys()))
     selected_wh_id = wh_map[selected_wh_name]
 
-    # Tab ၅ ခုစလုံးကို စနစ်တကျ ပြင်ဆင်ခြင်း
+    # Tab ၅ ခု
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📋 Product Master",
         "➕ Add Product",
@@ -90,12 +90,14 @@ def run():
     with tab3:
         st.subheader("✏️ Edit Product Master")
         products = get_inventory_view(warehouse_id=selected_wh_id)
+
         if not products:
             st.info("No products available")
         else:
             product_map = {f"{p.get('sku','')} | {p.get('name','')}": p for p in products}
             selected_name = st.selectbox("Select Product", list(product_map.keys()))
             selected_product = product_map[selected_name]
+
             st.divider()
 
             with st.form(f"edit_product_form_{selected_product['id']}"):
@@ -106,13 +108,15 @@ def run():
                 purchase_price = c1.number_input("Purchase Price", value=float(selected_product.get("purchase_price", 0)))
                 selling_price = c2.number_input("Selling Price", value=float(selected_product.get("selling_price", 0)))
                 minimum_stock = c1.number_input("Minimum Stock", value=int(selected_product.get("minimum_stock", 0)))
+                
                 unit_options = ["pcs", "kg", "box"]
                 unit_val = selected_product.get("unit", "pcs")
                 unit = c2.selectbox("Unit", unit_options, index=unit_options.index(unit_val) if unit_val in unit_options else 0)
+                
                 notes = st.text_area("Notes", value=selected_product.get("notes", ""))
                 is_active = st.checkbox("Active Product", value=selected_product.get("is_active", True))
 
-                if st.form_submit_button("💾 Update Product"):
+                if st.form_submit_button("💾 Update Product", width="stretch"):
                     result = update_product_rpc(
                         product_id=selected_product["id"],
                         name=name,
@@ -125,46 +129,47 @@ def run():
                         notes=notes,
                         is_active=is_active
                     )
+
                     if result.get("success"):
                         st.success(f"✅ '{name}' ကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။")
-                        time.sleep(2)
+                        time.sleep(1)
                         st.rerun()
                     else:
                         st.error(result.get("message", "Update failed"))
 
+    # =========================================================
+    # 🔧 STOCK ADJUSTMENT
+    # =========================================================
     with tab4:
         st.subheader("🔧 Stock Adjustment")
         products = get_inventory_view(warehouse_id=selected_wh_id)
+
         if not products:
-            st.info("No products available")
+            st.warning("No products found")
         else:
-            product_map = {f"{p.get('sku','')} | {p.get('name','')}": p for p in products}
-            selected_product_name = st.selectbox("Select Product", list(product_map.keys()), key="adjust_product")
-            selected_product = product_map[selected_product_name]
-            current_stock = int(selected_product.get("qty", selected_product.get("stock", 0)))
+            product_map = {f"{p['id']} | {p['name']}": p for p in products}
+            selected = st.selectbox("Select Product", list(product_map.keys()))
+            product = product_map[selected]
+            product_id = product["id"]
+            current_stock = product.get("stock", product.get("qty", 0))
 
-            st.info(f"Product : {selected_product.get('name')}\n\nCurrent Stock : {current_stock}")
-            adjustment_type = st.radio("Adjustment Type", ["➕ Add Stock", "➖ Remove Stock"], horizontal=True)
-            qty = st.number_input("Adjustment Quantity", min_value=1, value=1, step=1)
-            reason = st.text_area("Reason", placeholder="Example: Opening Stock, Damage, Count Correction")
+            st.info(f"📦 Product : {product['name']}\n🆔 ID : {product_id}\n📊 Current Stock : {current_stock}")
 
-            if st.button("💾 Save Stock Adjustment", use_container_width=True):
-                if not reason.strip():
-                    st.warning("Please enter adjustment reason")
-                    st.stop()
-                
-                adjustment_qty = int(qty) if adjustment_type == "➕ Add Stock" else -int(qty)
+            adjustment_qty = st.number_input("Adjustment Quantity (+/-)", value=0, step=1)
+            reason = st.text_input("Reason", "Stock Adjustment")
+
+            if st.button("💾 Apply Adjustment", width="stretch"):
                 result = stock_adjustment_rpc(
-                    product_id=selected_product["id"],
+                    product_id=product_id,
                     warehouse_id=selected_wh_id,
-                    quantity=adjustment_qty,
+                    quantity=int(adjustment_qty),
                     reason=reason,
                     user_id=st.session_state.get("user_id")
                 )
 
                 if result.get("success"):
-                    st.success(f"✅ Stock Adjustment Completed\n\nProduct : {selected_product.get('name')}\n\nPrevious Stock : {current_stock}\n\nAdjustment : {adjustment_qty}\n\nNew Balance : {result.get('data',{}).get('balance_after', 'Updated')}")
-                    time.sleep(1.5)
+                    st.success(f"✅ Stock Updated\n\nProduct : {product['name']}\nBefore : {current_stock}\nChange : {adjustment_qty}\nAfter : {current_stock + adjustment_qty}")
+                    time.sleep(1)
                     st.rerun()
                 else:
                     st.error(result.get("message", "Adjustment Failed"))
@@ -190,4 +195,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-    
+
