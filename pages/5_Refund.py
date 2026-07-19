@@ -32,9 +32,6 @@ if "refund_cart" not in st.session_state:
 # SEARCH SALE
 # ==========================================
 
-sale_id = st.text_input("🔍 Enter Sale ID")
-
-
 if st.button("Search Sale"):
 
     if not sale_id:
@@ -45,58 +42,38 @@ if st.button("Search Sale"):
         try:
 
             sale_resp = (
-    db()
-    .table("sales")
-    .select("*")
-    .eq("id", int(sale_id))
-    .maybe_single()
-    .execute()
-)
-
-if sale_resp is None:
-    st.error("Database returned no response")
-    st.stop()
-
-if sale_resp.data is None:
-    st.error("Sale not found")
-    st.stop()
-
-sale = sale_resp.data
-
-
-                items_resp = (
-                    db().table("sale_items")
-                    .select("*")
-                    .eq("sale_id", sale_id)
-                    .execute()
-                )
-
-
-                sale["items"] = items_resp.data or []
-
-
-                st.session_state.selected_sale = sale
-                st.session_state.refund_cart = []
-
-
-                st.success(
-                    "Sale loaded successfully"
-                )
-
-                st.rerun()
-
-
-            else:
-                st.error("Sale not found")
-
-
-        except Exception as e:
-
-            st.error(
-                f"Search Error: {e}"
+                db()
+                .table("sales")
+                .select("*")
+                .eq("id", int(sale_id))
+                .maybe_single()
+                .execute()
             )
 
+            if sale_resp is None or sale_resp.data is None:
+                st.error("Sale not found")
+                st.stop()
 
+            sale = sale_resp.data
+
+            items_resp = (
+                db()
+                .table("sale_items")
+                .select("*")
+                .eq("sale_id", int(sale_id))
+                .execute()
+            )
+
+            sale["items"] = items_resp.data or []
+
+            st.session_state.selected_sale = sale
+            st.session_state.refund_cart = []
+
+            st.success("Sale loaded successfully")
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Search Error: {e}")
 
 # ==========================================
 # REFUND DISPLAY
