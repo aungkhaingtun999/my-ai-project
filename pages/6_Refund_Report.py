@@ -7,6 +7,7 @@ from database import db
 from auth import require_login
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4 # Added A4
 
 # ==========================
 # AUTH
@@ -82,7 +83,7 @@ with c5: st.metric("Total Amount", f"{total_amount:,.0f} MMK")
 # ==========================
 def create_refund_pdf(header, items):
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=None)
+    doc = SimpleDocTemplate(buffer, pagesize=A4) # Updated to A4
     styles = getSampleStyleSheet()
     content = [Paragraph("Refund Report", styles["Title"]), Spacer(1, 12)]
     content.append(Paragraph(f"Refund ID: {header['refund_id']}<br/>Invoice: {header['invoice_no']}<br/>Status: {header['status']}<br/>Cashier: {header['cashier_name']}<br/>Warehouse: {header['warehouse_name']}<br/>Reason: {header.get('reason','')}", styles["Normal"]))
