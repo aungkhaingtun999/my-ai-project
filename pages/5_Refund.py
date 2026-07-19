@@ -21,6 +21,19 @@ if "refund_cart" not in st.session_state:
 # ==========================================
 # SEARCH SALE
 # ==========================================
+if st.button("Search Sale"):
+    with st.spinner("Connecting to ERP Database..."):
+        try:
+            # တိုက်ရိုက် test လုပ်ကြည့်ခြင်း
+            res = db().table("sales").select("id").limit(1).execute()
+            st.success("Database Connection OK")
+            
+            # Sale ရှာခြင်း
+            sale_resp = db().table("sales").select("*").eq("id", int(sale_id)).maybe_single().execute()
+            # ... ကျန်တာဆက်လုပ်
+        except Exception as e:
+            st.error(f"Connection Failed: {e}")
+            
 sale_id = st.text_input("🔍 Enter Sale ID", key="refund_sale_id")
 
 if st.button("Search Sale", key="btn_search_sale"):
