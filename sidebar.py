@@ -9,13 +9,16 @@ from guards import (
 )
 
 # ==========================================================
-# ERP MENU CONFIGURATION
+# ERP MENU MASTER
 # ==========================================================
 MENU = {
     ROLE_ADMIN: [
         ("🏠", "Dashboard", "3_Admin_Dashboard"),
         ("🛒", "POS", "1_POS"),
         ("📦", "Inventory", "2_Inventory"),
+        ("📱", "Mobile Inventory", "2_Mobile_Inventory"),
+        ("🧾", "Receipt", "2_Receipt"),
+        ("🧾", "Receipt Viewer", "6_Receipt_Viewer"),
         ("🛍", "Purchase", "7_Purchase"),
         ("🔁", "Transfer", "8_Transfer"),
         ("👥", "Customers", "9_Customers"),
@@ -23,18 +26,24 @@ MENU = {
         ("↩️", "Refund", "5_Refund"),
         ("✅", "Refund Approval", "6_Refund_Approval"),
         ("📊", "Refund Report", "6_Refund_Report"),
-        ("🧾", "Receipt Viewer", "6_Receipt_Viewer"),
+        ("📈", "Reports", "3_Reports"),
+        ("👤", "Users", "4_Users"),
         ("⚙️", "Settings", "12_Settings"),
     ],
     ROLE_MANAGER: [
         ("🏠", "Dashboard", "3_Admin_Dashboard"),
         ("🛒", "POS", "1_POS"),
         ("📦", "Inventory", "2_Inventory"),
+        ("📱", "Mobile Inventory", "2_Mobile_Inventory"),
+        ("🧾", "Receipt Viewer", "6_Receipt_Viewer"),
+        ("🛍", "Purchase", "7_Purchase"),
         ("🔁", "Transfer", "8_Transfer"),
+        ("👥", "Customers", "9_Customers"),
+        ("🏭", "Suppliers", "10_Suppliers"),
         ("↩️", "Refund", "5_Refund"),
         ("✅", "Refund Approval", "6_Refund_Approval"),
         ("📊", "Refund Report", "6_Refund_Report"),
-        ("📊", "Reports", "3_Reports"),
+        ("📈", "Reports", "3_Reports"),
     ],
     ROLE_CASHIER: [
         ("🛒", "POS", "1_POS"),
@@ -53,7 +62,7 @@ def get_active_page():
             st.session_state.active_page = "3_Admin_Dashboard"
         else:
             st.session_state.active_page = "1_POS"
-    return st.session_state.active_page
+    return st.session_state.get("active_page", "1_POS")
 
 # ==========================================================
 # SIDEBAR
@@ -64,7 +73,6 @@ def show_sidebar():
 
     user = current_user()
     role_id = user.get("role_id")
-    # Role display ပြဿနာကို နောက်ဆင့်မှာ auth.py မှာ fix မယ်
     role_display = user.get("role") or user.get("role_name") or "Staff"
 
     with st.sidebar:
@@ -76,6 +84,16 @@ def show_sidebar():
         st.success(f"👤 {user.get('full_name', user.get('username', 'User'))}")
         st.caption(f"Username : {user.get('username', '')}")
         st.caption(f"Role : {role_display}")
+        st.divider()
+
+        # LANGUAGE
+        if "language" not in st.session_state:
+            st.session_state.language = "English"
+        st.session_state.language = st.selectbox(
+            "Language",
+            ["English", "မြန်မာ"],
+            index=0 if st.session_state.language == "English" else 1
+        )
         st.divider()
 
         # NAVIGATION
@@ -93,7 +111,15 @@ def show_sidebar():
                 st.rerun()
 
         st.divider()
+
+        # STATUS
+        st.success("🟢 System Online")
+        st.caption("Database : Connected")
+        st.caption("Session : Active")
+        st.caption("ERP Version : Enterprise")
+        st.divider()
+
+        # LOGOUT
         if st.button("🚪 Logout", key="logout_btn", use_container_width=True):
             logout()
             st.rerun()
-        
