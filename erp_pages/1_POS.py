@@ -46,7 +46,7 @@ def run():
     # SECURITY CHECK
     # --------------------------------------------------------------------------
     if not is_authenticated():
-        st.warning("Please login first")
+        st.warning("Please log in first")
         st.stop()
 
     # --------------------------------------------------------------------------
@@ -80,7 +80,7 @@ def run():
     warehouse_id = get_default_warehouse_id()
 
     if not warehouse_id:
-        st.error("Default warehouse not configured")
+        st.error("The default warehouse is not configured.")
         st.stop()
 
     # --------------------------------------------------------------------------
@@ -89,11 +89,11 @@ def run():
     try:
         products = get_products(warehouse_id=warehouse_id)
     except Exception as e:
-        st.error(f"Product loading failed: {e}")
+        st.error(f"Failed to load products: {e}")
         st.stop()
 
     if not products:
-        st.warning("No products available")
+        st.warning("No products are currently available.")
         st.stop()
 
     # --------------------------------------------------------------------------
@@ -107,9 +107,9 @@ def run():
     if not st.session_state.show_receipt:
         col1, col2 = st.columns(2)
         with col1:
-            name_search = st.text_input("🔍 Product Name")
+            name_search = st.text_input("🔍 Search by product name")
         with col2:
-            barcode_search = st.text_input("📦 SKU / Barcode")
+            barcode_search = st.text_input("📦 Search by SKU / Barcode")
 
         matches = []
         for product in products:
@@ -163,7 +163,7 @@ def run():
                             "selling_price": price,
                             "qty": int(qty)
                         })
-                    st.success("Added to cart")
+                    st.success("Item added to cart successfully.")
                     st.rerun()
 
     # --------------------------------------------------------------------------
@@ -285,9 +285,17 @@ def run():
             "📄 Generate PDF",
             use_container_width=True
         ):
-            generate_pdf(
-                data
-            )
+            pdf_bytes, filename = generate_pdf(data)
+
+            if pdf_bytes:
+                st.download_button(
+                    "⬇ Download PDF",
+                    data=pdf_bytes,
+                    file_name=f"{filename}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="download_receipt_pdf"
+                )
         if c3.button("🆕 New Sale", use_container_width=True):
             st.session_state.cart = []
             st.session_state.sale_data = None
