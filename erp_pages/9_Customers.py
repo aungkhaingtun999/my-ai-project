@@ -1,6 +1,6 @@
 import streamlit as st
 from database import get_supabase
-
+from utils.ui import show_table
 # Supabase client ကို initialize လုပ်ခြင်း
 supabase = get_supabase()
 
