@@ -56,6 +56,22 @@ def add_supplier(company_name, phone, address, email="", contact_name=""):
         st.exception(e)
         return None
 
+def Show_table(suppliers):
+    if suppliers:
+        search = st.text_input("🔍 Search Supplier")
+        filtered = suppliers
+
+        if search:
+            search_lower = search.lower()
+            filtered = [
+                s for s in suppliers
+                if search_lower in str(s.get("company_name", "")).lower()
+            ]
+
+        st.dataframe(filtered, use_container_width=True)
+    else:
+        st.info("No suppliers found")
+
 # ----------------------------------------------------------
 # MAIN RUN FUNCTION
 # ----------------------------------------------------------
@@ -72,21 +88,9 @@ def run():
     # Supplier List
     st.subheader("📋 Supplier List")
     suppliers = get_suppliers()
-
-    if suppliers:
-        search = st.text_input("🔍 Search Supplier")
-        filtered = suppliers
-
-        if search:
-            search_lower = search.lower()
-            filtered = [
-                s for s in suppliers
-                if search_lower in str(s.get("company_name", "")).lower()
-            ]
-
-        st.dataframe(filtered, use_container_width=True)
-    else:
-        st.info("No suppliers found")
+    
+    # Show table using custom function
+    Show_table(suppliers)
 
     # Add Supplier Form
     st.divider()
@@ -121,4 +125,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-
+            
