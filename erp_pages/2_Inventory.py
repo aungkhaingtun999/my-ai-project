@@ -6,6 +6,7 @@
 import streamlit as st
 import pandas as pd
 import time
+
 from database import (
     db,
     get_inventory_view,
@@ -13,10 +14,10 @@ from database import (
     update_product_rpc,
     stock_adjustment_rpc
 )
+
 from utils.ui import show_table
 
 def run():
-    
     st.title("🏭 Enterprise Product Master v4.3")
 
     # Warehouse Selection
@@ -62,7 +63,7 @@ def run():
             }
             init_qty = st.number_input("Initial Stock", min_value=0)
             
-            if st.form_submit_button("Save Product", width="stretch"):
+            if st.form_submit_button("Save Product", use_container_width=True):
                 try:
                     res = db().rpc("create_product_full", {
                         "p_data": data, 
@@ -109,7 +110,7 @@ def run():
                 notes = st.text_area("Notes", value=selected_product.get("notes", ""))
                 is_active = st.checkbox("Active Product", value=selected_product.get("is_active", True))
 
-                if st.form_submit_button("💾 Update Product", width="stretch"):
+                if st.form_submit_button("💾 Update Product", use_container_width=True):
                     result = update_product_rpc(
                         product_id=selected_product["id"],
                         name=name,
@@ -151,13 +152,7 @@ def run():
             adjustment_qty = st.number_input("Adjustment Quantity (+/-)", value=0, step=1)
             reason = st.text_input("Reason", "Stock Adjustment")
 
-            if st.button("💾 Apply Adjustment", width="stretch"):
-                
-                # Debugging information
-                st.write("DEBUG product_id:", product_id)
-                st.write("DEBUG warehouse_id:", selected_wh_id)
-                st.write("DEBUG quantity:", adjustment_qty)
-
+            if st.button("💾 Apply Adjustment", use_container_width=True):
                 result = stock_adjustment_rpc(
                     product_id=product_id,
                     warehouse_id=selected_wh_id,
@@ -179,24 +174,64 @@ def run():
                     st.error(result.get("message", "Adjustment Failed"))
 
     with tab5:
+        st.caption(f"Current Warehouse : {selected_wh_name}")
+        
         products = get_inventory_view(warehouse_id=selected_wh_id)
         if products:
             df = pd.DataFrame(products)
             for col in ['purchase_price', 'minimum_stock', 'qty', 'selling_price']:
                 if col not in df.columns: df[col] = 0
-            df['qty'] = pd.to_numeric(df['qty'], errors='coerce').fillna(0)
             
-            inventory_cost = (df['qty'] * df['purchase_price']).sum()
-            inventory_value = (df['qty'] * df['selling_price']).sum()
+            # Numeric conversion to prevent type errors
+            df["qty"] = pd.to_numeric(df["qty"], errors="coerce").fillna(0)
+            df["purchase_price"] = pd.to_numeric(df["purchase_price"], errors="coerce").fillna(0)
+            df["selling_price"] = pd.to_numeric(df["selling_price"], errors="coerce").fillna(0)
             
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Total Products", len(df))
-            m2.metric("Stock Qty", df['qty'].sum())
-            m3.metric("Inventory Cost", f"{inventory_cost:,.2f}")
-            m4.metric("Gross Profit", f"{(inventory_value - inventory_cost):,.2f}")
+            # Calculate stock value per item with rounding
+            df["stock_value"] = (df["qty"] * df["purchase_price"]).round(2)
+            
+            # Enterprise Inventory KPI
+            inventory_cost = df["stock_value"].sum()
+            inventory_value = (df["qty"] * df["selling_price"]).sum()
+            potential_profit = inventory_value - inventory_cost
+
+            m1, m2, m3, m4, m5 = st.columns(5)
+
+            m1.metric("📦 Total Products", len(df))
+            m2.metric("📊 Stock Qty", int(df["qty"].sum()))
+            m3.metric("💰 Stock Value", f"{inventory_cost:,.0f} MMK")
+            m4.metric("💵 Selling Value", f"{inventory_value:,.0f} MMK")
+            m5.metric("📈 Potential Profit", f"{potential_profit:,.0f} MMK")
+
+            st.divider()
+            st.subheader("📋 Inventory Summary")
+            summary = df.reindex(columns=[
+                "sku",
+                "name",
+                "qty",
+                "purchase_price",
+                "selling_price",
+                "stock_value"
+            ])
+            show_table(summary)
+
+            st.divider()
+            st.subheader("⚠️ Low Stock Alert")
+            low_stock = df[df["qty"] <= df["minimum_stock"]]
+            if not low_stock.empty:
+                low_stock_summary = low_stock.reindex(columns=[
+                    "sku",
+                    "name",
+                    "qty",
+                    "minimum_stock",
+                    "purchase_price"
+                ])
+                show_table(low_stock_summary)
+            else:
+                st.success("No Low Stock Products found in this warehouse.")
         else:
             st.write("No data available for dashboard.")
 
 if __name__ == "__main__":
     run()
-                
+
