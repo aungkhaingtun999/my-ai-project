@@ -1,6 +1,6 @@
 import streamlit as st
 from supabase_client import supabase
-
+from utils.ui import show_table
 def run():
     # 🔐 MUST BE THE FIRST LOGIC BLOCK
     if not st.session_state.get("user"):
