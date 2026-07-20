@@ -41,16 +41,7 @@ def run():
         products = get_inventory_view(warehouse_id=selected_wh_id, search=search)
         
         if products:
-            display_df = pd.DataFrame([{
-                'Name': p.get('name', ''),
-                'SKU': p.get('sku', ''),
-                'Barcode': p.get('barcode', ''),
-                'Qty': p.get('qty', 0),
-                'Cost': p.get('purchase_price', 0),
-                'Price': p.get('selling_price', 0)
-            } for p in products])
-            
-            st.dataframe(display_df, width="stretch", hide_index=True)
+            show_table(products)
         else:
             st.info("No products found in this warehouse.")
 
