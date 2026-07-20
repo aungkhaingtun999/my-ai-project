@@ -1,6 +1,6 @@
 # ==============================================================================
 # utils/ui.py
-# ERP ENTERPRISE UI LIBRARY v2.1.1
+# ERP ENTERPRISE UI LIBRARY v2.1.2
 # CORE UI FRAMEWORK
 # Streamlit 1.50+
 # ==============================================================================
@@ -11,7 +11,7 @@ import math
 import pandas as pd
 import streamlit as st
 
-UI_VERSION = "2.1.1 Enterprise ERP"
+UI_VERSION = "2.1.2 Enterprise ERP"
 
 
 # ==============================================================================
@@ -81,17 +81,40 @@ def add_serial(df):
 
 
 def show_table(df, serial=True, hide_index=True, width="stretch"):
+    """Enterprise Safe Table Engine
+
+    Supports:
+        - pandas.DataFrame
+        - list[dict]
+        - empty dataframe
+        - None
+        - string message
+    """
+
     if df is None:
         empty_data()
         return
 
+    # Allow passing message string
+    if isinstance(df, str):
+        st.info(df)
+        return
+
+    # Convert list -> DataFrame
     if isinstance(df, list):
         df = pd.DataFrame(df)
 
-    if len(df) == 0:
+    # Invalid object
+    if not isinstance(df, pd.DataFrame):
+        st.error(f"show_table() expects DataFrame, got {type(df).__name__}")
+        return
+
+    # Empty dataframe
+    if df.empty:
         empty_data()
         return
 
+    # Add serial column
     if serial:
         df = add_serial(df)
 
@@ -104,8 +127,12 @@ def table_panel(df, title="Records"):
 
     if df is None:
         count = 0
-    else:
+    elif isinstance(df, pd.DataFrame):
         count = len(df)
+    elif isinstance(df, list):
+        count = len(df)
+    else:
+        count = 0
 
     st.caption(f"Total Records : {count}")
 
@@ -394,3 +421,4 @@ def footer():
 # ==============================================================================
 # END OF FILE
 # ==============================================================================
+
