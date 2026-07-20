@@ -13,7 +13,7 @@ from database import (
     search_receipts
 )
 from utils.receipt_pdf import generate_pdf
-
+from utils.ui import show_table
 
 # ==========================================
 # PAGE CONFIG
