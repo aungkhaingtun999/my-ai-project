@@ -1,12 +1,11 @@
 # ==========================================
 # pages/8_Transfer.py
 # ERP ENTERPRISE WAREHOUSE TRANSFER
-# PART 1
 # ==========================================
 
-import streamlit as st
-from database import get_supabase
 from datetime import datetime
+from database import get_supabase
+import streamlit as st
 
 supabase = get_supabase()
 
@@ -48,11 +47,11 @@ except Exception as e:
     st.stop()
 
 if len(warehouses) < 2:
-    st.error("Need at least 2 warehouses.")
+    st.error("Need at least 2 active warehouses to perform a transfer.")
     st.stop()
 
 if not products:
-    st.error("No products found.")
+    st.error("No active products found.")
     st.stop()
 
 warehouse_map = {w["name"]: w for w in warehouses}
@@ -72,20 +71,16 @@ if "transfer_success" not in st.session_state:
 left, right = st.columns(2)
 
 with left:
-
     from_name = st.selectbox(
         "📤 From Warehouse",
         list(warehouse_map.keys())
     )
 
 with right:
-
     to_options = [
-        x
-        for x in warehouse_map.keys()
+        x for x in warehouse_map.keys()
         if x != from_name
     ]
-
     to_name = st.selectbox(
         "📥 To Warehouse",
         to_options
@@ -99,7 +94,7 @@ product_name = st.selectbox(
 product = product_map[product_name]
 
 qty = st.number_input(
-    "Transfer Qty",
+    "Transfer Quantity",
     min_value=1,
     step=1,
     value=1
@@ -112,41 +107,35 @@ qty = st.number_input(
 source_stock = (
     supabase.table("warehouse_stock")
     .select("*")
-    .eq(
-        "warehouse_id",
-        warehouse_map[from_name]["id"]
-    )
-    .eq(
-        "product_id",
-        product["id"]
-    )
+    .eq("warehouse_id", warehouse_map[from_name]["id"])
+    .eq("product_id", product["id"])
     .execute()
     .data
 )
 
 available = 0
+stock = None
 
 if source_stock:
-
     stock = source_stock[0]
-
     available = stock.get(
         "available_qty",
         stock.get("qty", 0)
     )
 
-st.info(f"Available Stock : {available}")
+st.info(f"Available Stock: {available}")
 
 if qty > available:
-    st.error("Not enough stock.")
+    st.error("Not enough available stock in the source warehouse.")
     st.stop()
-    # ===========================
+
+# ===========================
 # REMARKS
 # ===========================
 
 remarks = st.text_area(
     "Remarks",
-    placeholder="Optional..."
+    placeholder="Optional transfer notes..."
 )
 
 # ===========================
@@ -156,29 +145,25 @@ remarks = st.text_area(
 if st.button("🚚 Execute Transfer", use_container_width=True):
 
     if qty <= 0:
-        st.error("Invalid quantity.")
+        st.error("Invalid quantity specified.")
         st.stop()
 
     if available < qty:
-        st.error("Insufficient stock.")
+        st.error("Insufficient stock to complete the transfer.")
         st.stop()
 
     transfer_no = "TRF-" + datetime.now().strftime("%Y%m%d%H%M%S")
 
     try:
-
         # -------------------------
         # Reduce Source Stock
         # -------------------------
-
         new_source_qty = stock["qty"] - qty
-        new_source_available = stock["available_qty"] - qty
+        new_source_available = stock.get("available_qty", stock["qty"]) - qty
 
         supabase.table("warehouse_stock").update({
-
             "qty": new_source_qty,
             "available_qty": new_source_available
-
         }).eq(
             "id",
             stock["id"]
@@ -187,40 +172,30 @@ if st.button("🚚 Execute Transfer", use_container_width=True):
         # -------------------------
         # Destination Stock
         # -------------------------
-
         dest = (
             supabase.table("warehouse_stock")
             .select("*")
-            .eq(
-                "warehouse_id",
-                warehouse_map[to_name]["id"]
-            )
-            .eq(
-                "product_id",
-                product["id"]
-            )
+            .eq("warehouse_id", warehouse_map[to_name]["id"])
+            .eq("product_id", product["id"])
             .execute()
             .data
         )
 
         if dest:
-
             d = dest[0]
+            new_dest_qty = d["qty"] + qty
+            new_dest_available = d.get("available_qty", d["qty"]) + qty
 
             supabase.table("warehouse_stock").update({
-
-                "qty": d["qty"] + qty,
-                "available_qty": d["available_qty"] + qty
-
+                "qty": new_dest_qty,
+                "available_qty": new_dest_available
             }).eq(
                 "id",
                 d["id"]
             ).execute()
 
         else:
-
             supabase.table("warehouse_stock").insert({
-
                 "warehouse_id": warehouse_map[to_name]["id"],
                 "product_id": product["id"],
                 "qty": qty,
@@ -229,15 +204,12 @@ if st.button("🚚 Execute Transfer", use_container_width=True):
                 "minimum_stock": 0,
                 "maximum_stock": 0,
                 "reorder_level": 0
-
             }).execute()
 
         # -------------------------
         # Save History
         # -------------------------
-
         supabase.table("stock_transfers").insert({
-
             "transfer_no": transfer_no,
             "from_warehouse_id": warehouse_map[from_name]["id"],
             "to_warehouse_id": warehouse_map[to_name]["id"],
@@ -245,16 +217,42 @@ if st.button("🚚 Execute Transfer", use_container_width=True):
             "qty": qty,
             "status": "completed",
             "remarks": remarks
-
         }).execute()
 
-        st.success(f"✅ Transfer Complete : {transfer_no}")
-
+        st.success(f"✅ Transfer Complete: {transfer_no}")
         st.balloons()
-
         st.rerun()
 
     except Exception as e:
+        st.error(f"An error occurred during the transfer: {e}")
 
-        st.error(e)
-        
+# ===========================
+# SHOW TRANSFERS TABLE
+# ===========================
+
+st.divider()
+st.subheader("📋 Recent Stock Transfers")
+
+try:
+    transfers_data = (
+        supabase.table("stock_transfers")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(10)
+        .execute()
+        .data
+        or []
+    )
+
+    if transfers_data:
+        st.dataframe(
+            transfers_data,
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info("No transfer records found.")
+
+except Exception as e:
+    st.error(f"Error loading transfer history: {e}")
+    
