@@ -7,7 +7,8 @@ from database import db
 from auth import require_login
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.pagesizes import A4 # Added A4
+from reportlab.lib.pagesizes import A4
+from utils.ui import show_table
 
 # ==========================
 # AUTH
@@ -83,7 +84,7 @@ with c5: st.metric("Total Amount", f"{total_amount:,.0f} MMK")
 # ==========================
 def create_refund_pdf(header, items):
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4) # Updated to A4
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
     content = [Paragraph("Refund Report", styles["Title"]), Spacer(1, 12)]
     content.append(Paragraph(f"Refund ID: {header['refund_id']}<br/>Invoice: {header['invoice_no']}<br/>Status: {header['status']}<br/>Cashier: {header['cashier_name']}<br/>Warehouse: {header['warehouse_name']}<br/>Reason: {header.get('reason','')}", styles["Normal"]))
@@ -117,7 +118,14 @@ def refund_detail_dialog(refund_id):
     items = db().table("refund_detail_view").select("*").eq("refund_id", refund_id).execute().data
     if items:
         item_df = pd.DataFrame(items)
-        st.dataframe(item_df[["product_name", "quantity", "unit_price", "item_total"]], use_container_width=True, hide_index=True)
+        show_table(
+            item_df[[
+                "product_name",
+                "quantity",
+                "unit_price",
+                "item_total"
+            ]]
+        )
         st.success(f"Total: {item_df['item_total'].sum():,.0f} MMK")
         
         pdf_file = create_refund_pdf(header, items)
@@ -129,13 +137,33 @@ def refund_detail_dialog(refund_id):
 # ==========================
 st.divider()
 st.subheader("Refund Details")
+
+columns = [
+    "refund_id",
+    "invoice_no",
+    "refund_date",
+    "status",
+    "product_name",
+    "quantity",
+    "item_total",
+    "cashier_name",
+    "processed_by",
+    "warehouse_name",
+    "reason"
+]
+
 for _, row in filtered.iterrows():
     c1, c2, c3, c4 = st.columns([1, 3, 2, 2])
     c1.write(row["refund_id"])
     c2.write(row["invoice_no"])
     c3.write(f"{row['item_total']:,.0f} MMK")
-    if c4.button("👁️ View", key=f"view_{row['refund_id']}"):
+    if c4.button("👁️ View", key=f"view_{row['refund_id']}_{row.get('item_index', 0)}"):
         refund_detail_dialog(row["refund_id"])
+
+# Also replacing standard dataframe views if any remain using columns
+show_table(
+    filtered[columns]
+)
 
 # ==========================
 # ANALYTICS
@@ -166,4 +194,4 @@ excel_buffer = io.BytesIO()
 with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
     filtered.to_excel(writer, index=False)
 st.download_button("📥 Excel", excel_buffer.getvalue(), "refund_report.xlsx")
-    
+
