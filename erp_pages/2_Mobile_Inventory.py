@@ -6,7 +6,7 @@
 import streamlit as st
 from database import db, money 
 from auth import is_authenticated
-
+from utils.ui import show_table
 def run():
     st.set_page_config(page_title="Mobile Inventory", layout="centered", page_icon="📦")
 
