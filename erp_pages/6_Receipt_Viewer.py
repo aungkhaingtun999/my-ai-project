@@ -24,20 +24,15 @@ def run():
             return 0.0
 
     if search_query:
-        # 🔍 Fetch the latest 50 sales
+        # 🔍 Fetch matching sales directly from Supabase using ILIKE for case-insensitive partial matching
         response = supabase.table("sales") \
             .select("*") \
+            .ilike("receipt_no", f"%{search_query}%") \
             .order("id", desc=True) \
             .limit(50) \
             .execute()
 
-        if not response.data:
-            st.error("No receipts found.")
-            st.stop()
-
-        # Search logic
-        query_str = str(search_query).lower()
-        matches = [s for s in response.data if query_str in str(s.get("receipt_no", "")).lower()]
+        matches = response.data or []
 
         if not matches:
             st.error(f"No receipts found matching '{search_query}'.")
@@ -46,7 +41,7 @@ def run():
         # Allow user to select if multiple matches are found
         selected_sale = None
         if len(matches) > 1:
-            options = {f"{s['receipt_no']}": s for s in matches}
+            options = {f"{s['receipt_no']} (ID: {s['id']})": s for s in matches}
             selected_key = st.selectbox("Multiple receipts found. Please select one:", list(options.keys()))
             selected_sale = options[selected_key]
         else:
@@ -99,4 +94,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-    
+            
