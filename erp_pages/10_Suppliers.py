@@ -7,7 +7,7 @@
 import streamlit as st
 import time
 from database import get_supabase
-
+from utils.ui import show_table
 # ----------------------------------------------------------
 # DATABASE
 # ----------------------------------------------------------
