@@ -1,6 +1,6 @@
 # ==============================================================================
 # utils/ui.py
-# ERP ENTERPRISE UI LIBRARY v2.1.2
+# ERP ENTERPRISE UI LIBRARY v2.1.5
 # CORE UI FRAMEWORK
 # Streamlit 1.50+
 # ==============================================================================
@@ -11,7 +11,28 @@ import math
 import pandas as pd
 import streamlit as st
 
-UI_VERSION = "2.1.2 Enterprise ERP"
+UI_VERSION = "2.1.5 Enterprise ERP"
+
+
+# ==============================================================================
+# GLOBAL FORMAT UTILS
+# ==============================================================================
+
+
+def format_number(value, decimals=0):
+    """Formats numeric values with thousand separators (e.g., 1,500,000)
+
+    Supports optional decimals for exchange rates, taxes, and unit prices.
+    Safe for KPIs, Receipts, and UI Displays.
+    """
+    if pd.isna(value):
+        return ""
+    try:
+        val = float(value)
+        format_str = f"{{:,.{decimals}f}}"
+        return format_str.format(val)
+    except (ValueError, TypeError):
+        return str(value)
 
 
 # ==============================================================================
@@ -81,7 +102,7 @@ def add_serial(df):
 
 
 def show_table(df, serial=True, hide_index=True, width="stretch"):
-    """Enterprise Safe Table Engine
+    """Enterprise Safe Table Engine with Display-Only Number Formatting
 
     Supports:
         - pandas.DataFrame
@@ -118,7 +139,29 @@ def show_table(df, serial=True, hide_index=True, width="stretch"):
     if serial:
         df = add_serial(df)
 
-    st.dataframe(df, hide_index=hide_index, width=width)
+    # ==========================================
+    # DISPLAY-ONLY NUMBER FORMATTING (SAFE COPY)
+    # ==========================================
+    display_df = df.copy()
+
+    numeric_cols = display_df.select_dtypes(include=["number"]).columns
+
+    for col in numeric_cols:
+        col_lower = col.lower()
+        # ID များကို string ပြောင်းခြင်းကြောင့် sorting ပြဿနာ မတက်စေရန် မူလအတိုင်း ချန်လှပ်သည်
+        if col_lower == "id":
+            continue
+        # Serial ('No.') ကဲ့သို့သော column များကို comma မပါဘဲ ကိန်းပြည့်အတိုင်းထားရန်
+        elif col_lower == "no.":
+            display_df[col] = display_df[col].map(
+                lambda x: f"{int(x)}" if pd.notna(x) else ""
+            )
+        else:
+            display_df[col] = display_df[col].map(
+                lambda x: f"{x:,.0f}" if pd.notna(x) else ""
+            )
+
+    st.dataframe(display_df, hide_index=hide_index, width=width)
 
 
 def table_panel(df, title="Records"):
@@ -421,4 +464,3 @@ def footer():
 # ==============================================================================
 # END OF FILE
 # ==============================================================================
-
