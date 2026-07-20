@@ -22,6 +22,9 @@ def run():
     else:
         st.info("No customers found.")
 
+    # Show_table function ကို ထည့်သွင်းခြင်း
+    show_table("customers")
+
     st.divider()
 
     st.subheader("➕ Add Customer")
