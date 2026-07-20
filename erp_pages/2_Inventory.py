@@ -13,8 +13,10 @@ from database import (
     update_product_rpc,
     stock_adjustment_rpc
 )
+from utils.ui import show_table
 
 def run():
+    
     st.title("🏭 Enterprise Product Master v4.3")
 
     # Warehouse Selection
