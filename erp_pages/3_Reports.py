@@ -4,6 +4,7 @@ import json
 from datetime import date, timedelta
 from io import BytesIO
 from database import db
+from utils.ui import show_table  # Added utility import
 
 def run():
     st.set_page_config(page_title="ERP Reports v3.2", layout="wide")
@@ -79,21 +80,21 @@ def run():
     with tab1:
         st.subheader("Daily Sales")
         daily = df.groupby(df["created_at"].dt.date)["total"].sum().reset_index()
-        st.dataframe(daily, use_container_width=True)
+        show_table(daily)  # Replaced st.dataframe
 
         st.subheader("Monthly Sales")
         monthly = df.groupby(df["created_at"].dt.to_period("M").astype(str))["total"].sum().reset_index()
-        st.dataframe(monthly, use_container_width=True)
+        show_table(monthly)  # Replaced st.dataframe
 
     with tab2:
         st.subheader("👨‍💼 Cashier Performance")
         cashier = df.groupby("cashier_id").agg(Bills=("id", "count"), Sales=("total", "sum")).reset_index()
-        st.dataframe(cashier, use_container_width=True)
+        show_table(cashier)  # Replaced st.dataframe
 
     with tab3:
         st.subheader("💳 Payment Methods")
         payment = df.groupby("payment_method").agg(Bills=("id", "count"), Amount=("total", "sum")).reset_index()
-        st.dataframe(payment, use_container_width=True)
+        show_table(payment)  # Replaced st.dataframe
 
     with tab4:
         st.subheader("📥 Export Reports")
@@ -148,4 +149,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-    
+
