@@ -5,6 +5,7 @@
 
 from datetime import datetime
 from database import get_supabase
+from utils.ui import show_table
 import streamlit as st
 
 supabase = get_supabase()
