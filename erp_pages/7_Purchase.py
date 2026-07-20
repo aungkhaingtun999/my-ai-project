@@ -11,6 +11,7 @@ import streamlit as st
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from auth import is_authenticated
+from utils.ui import show_table
 from database import (
     create_audit_log,
     get_products,
