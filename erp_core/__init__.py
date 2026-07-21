@@ -1,18 +1,48 @@
 # ==============================================================================
 # erp_core/__init__.py
-# ERP ENTERPRISE CORE EXPORT v30
+# ERP ENTERPRISE CORE PACKAGE v30.9
+# CLEAN EXPORT - NO CIRCULAR IMPORT
 # ==============================================================================
 
 
+"""
+ERP Core Package
+
+IMPORTANT:
+Keep this file lightweight.
+Do NOT import services here.
+
+Reason:
+auth.py -> database.py -> erp_core
+can create circular imports.
+"""
+
+
+# ==============================================================================
 # Exceptions
+# ==============================================================================
+
 from .exceptions import *
 
 
+
+# ==============================================================================
 # Configuration
-from .config import *
+# ==============================================================================
+
+from .config import (
+    Tables,
+    TABLE_PRODUCT_VIEW,
+    DEFAULT_PAGE_SIZE,
+    log_error
+)
 
 
+
+# ==============================================================================
 # Context
+# ==============================================================================
+
 from .context import (
     ERPContext,
     CacheManager,
@@ -21,22 +51,34 @@ from .context import (
 )
 
 
+
+# ==============================================================================
 # Database Core
+# ==============================================================================
+
 from .base_repo import (
     get_supabase,
     db,
     get_connection,
+
     DatabaseHealth,
     database_health_check,
+
     money,
     money_float,
+
     validate_uuid,
     serialize_json,
+
     safe_execute
 )
 
 
+
+# ==============================================================================
 # Repository Layer
+# ==============================================================================
+
 from .repositories import (
     RepositoryCoordinator,
     BaseRepository,
@@ -48,46 +90,47 @@ from .repositories import (
 )
 
 
+
+# ==============================================================================
 # RPC Engine
+# ==============================================================================
+
 from .rpc_engine import (
     RPCEngine
 )
 
 
-# Service Layer
 
-from .services import (
+# ==============================================================================
+# VERSION
+# ==============================================================================
 
-    # Settings
-    get_setting,
-
-
-    # Services
-    AccountingLedgerService,
-    CustomerService,
-    SalesService,
-    InventoryService,
-    PurchaseService,
-    RefundService,
-    DashboardService,
-    AuditService,
+ERP_CORE_VERSION = "30.9 CLEAN ARCHITECTURE"
 
 
-    # Functions
-    checkout_sale_rpc,
-    purchase_receive_rpc,
-    refund_sale_rpc,
 
-    get_fifo_cogs,
-    create_audit_log,
+__all__ = [
 
+    # Database
+    "db",
+    "get_supabase",
+    "get_connection",
 
-    # Loaders
-    get_warehouses,
-    get_suppliers,
-    get_customers,
-    get_products,
+    # Money
+    "money",
+    "money_float",
 
+    # Security
+    "validate_uuid",
 
-    require_login
-)
+    # Context
+    "ERPContext",
+    "CacheManager",
+
+    # RPC
+    "RPCEngine",
+
+    # Config
+    "Tables"
+
+]
