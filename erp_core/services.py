@@ -601,8 +601,6 @@ class PurchaseService:
 
         context.rotate_transaction()
 
-        tx_id = context.current_transaction_id
-
 
 
         result = RPCEngine.execute(
@@ -635,20 +633,12 @@ class PurchaseService:
                     ),
 
 
-                "p_payment_method":
-                    str(payment_method).lower(),
-
-
                 "p_notes":
                     str(remarks),
 
 
                 "p_created_by":
-                    validate_uuid(user_id),
-
-
-                "p_transaction_id":
-                    tx_id
+                    validate_uuid(user_id)
 
             }
 
@@ -1275,4 +1265,5 @@ def get_fifo_cogs(
         product_id,
         qty,
         warehouse_id
-    )
+                )
+            
