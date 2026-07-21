@@ -689,8 +689,6 @@ class RefundService:
 
         context.rotate_transaction()
 
-        tx_id = context.current_transaction_id
-
 
 
         result = RPCEngine.execute(
@@ -701,11 +699,11 @@ class RefundService:
 
             {
 
-                "p_invoice_no":
-                    str(invoice_no),
+                "p_sale_id":
+                    int(invoice_no),
 
 
-                "p_refund_items":
+                "p_items":
                     serialize_json(
                         refund_items
                     ),
@@ -718,11 +716,7 @@ class RefundService:
                 "p_cashier_id":
                     validate_uuid(
                         cashier_id
-                    ),
-
-
-                "p_transaction_id":
-                    tx_id
+                    )
 
             }
 
@@ -1265,5 +1259,4 @@ def get_fifo_cogs(
         product_id,
         qty,
         warehouse_id
-                )
-            
+    )
