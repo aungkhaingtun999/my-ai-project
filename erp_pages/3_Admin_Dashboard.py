@@ -15,7 +15,7 @@ from database import (
     get_warehouses,
     get_default_warehouse_id
 )
-from database.utils import money, safe_float
+from erp_core.utils import money, safe_float
 
 # ------------------------------------------------------------------------------
 # PAGE CONFIGURATION
