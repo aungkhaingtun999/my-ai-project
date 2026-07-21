@@ -10,10 +10,12 @@ from datetime import datetime, timedelta
 
 from database import (
     db,
-    require_login,
-    current_user,
     get_warehouses,
     get_default_warehouse_id
+)
+
+from auth import (
+    require_login
 )
 from erp_core.base_repo import money, safe_float
 
