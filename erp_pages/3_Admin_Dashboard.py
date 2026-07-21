@@ -5,7 +5,7 @@
 
 import streamlit as st
 import pandas as pd
-from decimal import Decimal
+
 from datetime import datetime, timedelta
 
 from database import (
@@ -15,9 +15,14 @@ from database import (
 )
 
 from auth import (
-    require_login
+    require_login,
+    current_user
 )
-from erp_core.base_repo import money, safe_float
+
+from erp_core.base_repo import (
+    money,
+    safe_float
+)
 
 # ------------------------------------------------------------------------------
 # PAGE CONFIGURATION
