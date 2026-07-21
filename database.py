@@ -1,7 +1,7 @@
 # ==============================================================================
 # database.py
-# ERP ENTERPRISE DATABASE COMPATIBILITY LAYER V30.5 (EXTENDED)
-# Lazy-Loaded Resilient Root Wrapper with Full Product/User CRUD & RPC Support
+# ERP ENTERPRISE DATABASE COMPATIBILITY LAYER V30.5
+# Lazy-Loaded Resilient Root Wrapper
 # ==============================================================================
 
 print("DATABASE ROOT WRAPPER LOADING V30.5...")
@@ -112,6 +112,43 @@ def purchase_receive_rpc(*args, **kwargs):
     return _services().purchase_receive_rpc(*args, **kwargs)
 
 
+
+def stock_adjustment_rpc(*args, **kwargs):
+    """
+    Inventory stock adjustment compatibility wrapper
+    Used by Inventory / Adjustment pages
+    """
+    try:
+        return _services().stock_adjustment_rpc(*args, **kwargs)
+    except Exception:
+        # Fallback manual table update or RPCEngine if available
+        try:
+            client = db()
+            product_id = kwargs.get("product_id") or (args[0] if args else None)
+            qty = kwargs.get("quantity") or (args[1] if len(args) > 1 else 0)
+            if product_id:
+                table_products = getattr(Tables, "PRODUCTS", "products")
+                client.table(table_products).update({"stock": qty}).eq("id", int(product_id)).execute()
+                return {"success": True}
+        except Exception as e:
+            pass
+        return {"success": False, "message": "stock_adjustment_rpc service not available"}
+
+
+def save_product_rpc(*args, **kwargs):
+    return save_product(*args, **kwargs)
+
+
+def get_user_permissions(*args, **kwargs):
+    try:
+        user = get_current_user()
+        if isinstance(user, dict):
+            return user.get("permissions", [])
+    except Exception:
+        pass
+    return []
+
+
 def refund_sale_rpc(*args, **kwargs):
     return _services().refund_sale_rpc(*args, **kwargs)
 
@@ -217,6 +254,7 @@ def get_receipt(invoice_no):
         return result.data
     except Exception:
         try:
+            # Fallback without join if relationship name differs
             table_sales = getattr(Tables, "SALES", "sales")
             result = (
                 db()
@@ -383,6 +421,50 @@ def save_setting(key, value):
 
 
 # ==============================================================================
+# EXTRA LEGACY COMPATIBILITY
+# ==============================================================================
+
+
+def get_sales():
+    return get_sales_summary()
+
+
+def get_inventory_items(
+    warehouse_id=None
+):
+    return get_inventory_view(
+        warehouse_id
+    )
+
+
+def get_low_stock_products(
+    warehouse_id=None
+):
+    products = get_inventory_view(
+        warehouse_id
+    )
+    return [
+        p for p in products
+        if p.get("stock", 0)
+        <=
+        p.get("minimum_stock", 5)
+    ]
+
+
+def get_active_products():
+    return get_products()
+
+
+def get_active_users():
+    return get_users()
+
+
+# ==============================================================================
+# VERSION
+# ==============================================================================
+
+
+# ==============================================================================
 # PRODUCT RPC & CRUD COMPATIBILITY
 # ==============================================================================
 
@@ -516,48 +598,5 @@ def update_user(user_id, user_data):
         return {"success": False, "message": str(e)}
 
 
-# ==============================================================================
-# EXTRA LEGACY COMPATIBILITY
-# ==============================================================================
-
-
-def get_sales():
-    return get_sales_summary()
-
-
-def get_inventory_items(
-    warehouse_id=None
-):
-    return get_inventory_view(
-        warehouse_id
-    )
-
-
-def get_low_stock_products(
-    warehouse_id=None
-):
-    products = get_inventory_view(
-        warehouse_id
-    )
-    return [
-        p for p in products
-        if p.get("stock", 0)
-        <=
-        p.get("minimum_stock", 5)
-    ]
-
-
-def get_active_products():
-    return get_products()
-
-
-def get_active_users():
-    return get_users()
-
-
-# ==============================================================================
-# VERSION
-# ==============================================================================
-
-DATABASE_VERSION = "ERP V30.5 EXTENDED COMPATIBILITY"
+DATABASE_VERSION = "ERP V30.6 COMPATIBILITY"
             
