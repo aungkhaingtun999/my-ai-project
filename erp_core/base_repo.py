@@ -78,3 +78,18 @@ class DatabaseHealth:
             return False
 
 def database_health_check(): return DatabaseHealth.check()
+
+__all__ = [
+    "get_supabase",
+    "db",
+    "get_connection",
+    "money",
+    "money_float",
+    "safe_float",
+    "validate_uuid",
+    "serialize_json",
+    "safe_execute",
+    "DatabaseHealth",
+    "database_health_check",
+    "log_error"
+]
