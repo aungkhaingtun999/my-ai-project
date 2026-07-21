@@ -489,7 +489,14 @@ class SalesService:
 
 
             if success:
-                # ==============================================================================
+
+                pass
+
+
+
+
+
+# ==============================================================================
 # INVENTORY SERVICE
 # ==============================================================================
 
@@ -968,7 +975,12 @@ class AuditService:
         except Exception:
 
             return False
-            # ==============================================================================
+
+
+
+
+
+# ==============================================================================
 # CACHE DATA LOADERS
 # ==============================================================================
 
@@ -1267,23 +1279,8 @@ def create_audit_log(
 
 def require_login():
 
-    context = ERPContext.get_current()
-
-
-    user = context.current_user
-
-
-
-    if not user:
-
-        st.warning(
-            "Please log in to access this module."
-        )
-
+    if not st.session_state.get("authenticated", False):
+        st.warning("Please log in to continue.")
         st.stop()
 
-
-
-    return user
-
-               
+  
