@@ -1,8 +1,10 @@
 # erp_core/repositories.py
 from typing import Dict, List, Any, Optional
 from supabase import Client
+
 from .config import Tables, TABLE_PRODUCT_VIEW
 from .base_repo import db, safe_execute
+from .exceptions import DatabaseError
 
 class BaseRepository:
     def __init__(self, client: Client, table_name: str):
@@ -89,3 +91,4 @@ class RepositoryCoordinator:
         self.sales = SalesRepository(self.client)
     def __enter__(self): return self
     def __exit__(self, exc_type, exc_val, exc_tb): pass
+        
