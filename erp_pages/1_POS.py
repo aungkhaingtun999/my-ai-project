@@ -20,7 +20,7 @@ sys.path.append(
     )
 )
 
-from database import (
+from erp_core import (
     get_products,
     get_setting,
     get_default_warehouse_id,
@@ -321,4 +321,3 @@ def run():
             except:
                 st.session_state.tax_rate = 0
             st.rerun()
-            
