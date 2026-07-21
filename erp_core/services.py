@@ -975,6 +975,14 @@ def get_warehouses():
 
 
 
+def get_default_warehouse_id():
+    data = get_warehouses()
+    if data:
+        return data[0]["id"]
+    return 1
+
+
+
 
 
 @st.cache_data(ttl=300)
