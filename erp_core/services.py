@@ -677,7 +677,7 @@ class RefundService:
 
     def process_refund(
         self,
-        invoice_no: str,
+        sale_id: int,
         refund_items: list,
         reason: str = "",
         cashier_id: Optional[str] = None
@@ -700,7 +700,7 @@ class RefundService:
             {
 
                 "p_sale_id":
-                    int(invoice_no),
+                    int(sale_id),
 
 
                 "p_items":
@@ -1151,7 +1151,7 @@ def purchase_receive_rpc(
 
 
 def refund_sale_rpc(
-    invoice_no,
+    sale_id,
     refund_items,
     reason="",
     cashier_id=None
@@ -1165,7 +1165,7 @@ def refund_sale_rpc(
 
     return service.process_refund(
 
-        invoice_no,
+        sale_id,
 
         refund_items,
 
@@ -1276,4 +1276,4 @@ def get_inventory_view(
 ):
     try:
         with RepositoryCoordinator(db()) as coord:
-      
+            return
