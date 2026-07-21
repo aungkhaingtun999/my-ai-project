@@ -1263,89 +1263,132 @@ def update_product_rpc(
 
 
 
+# # ==============================================================================
+# FIFO COGS COMPATIBILITY WRAPPER
 # ==============================================================================
-# FIFO COGS
-# ==============================================================================
-
 
 def get_fifo_cogs(
     product_id: int,
     qty: int,
     warehouse_id: int
-
 ):
 
     service = DashboardService(
         db()
     )
 
-
     return service.get_fifo_cogs(
-
         product_id,
-
         qty,
-
         warehouse_id
-
     )
 
 
 
-
-
 # ==============================================================================
-# AUDIT LOG
+# INVENTORY VIEW SERVICE
+# ERP SEARCH + PAGINATION SUPPORT
 # ==============================================================================
 
 
-def create_audit_log(
-    action: str,
-    details: str,
-    user_id: Optional[str] = None
-
+@st.cache_data(ttl=300)
+def _inventory_view_cached(
+    search,
+    warehouse_id,
+    limit,
+    version
 ):
 
-    service = AuditService(
-        db()
-    )
-
-
-    return service.create_audit_log(
-
-        action,
-
-        details,
-
-        user_id
-
-    )
-
-
-
-
-
-# ==============================================================================
-# AUTH CHECK
-# ==============================================================================
-
-
-def require_login() -> bool:
-    """
-    Ensures that a user is currently authenticated within the Streamlit session.
-    Redirects or throws an authorization error if no active session exists.
-    """
     try:
-        context = ERPContext.get_current()
-        
-        if not context or not getattr(context, "current_user_id", None):
-            st.warning("Authentication required. Please log in to continue.")
-            st.stop()
-            return False
-            
-        return True
 
-    except Exception:
-        st.error("Authentication check failed. Please refresh your session.")
-        st.stop()
-        return False
+        query = (
+
+            db()
+            .table(
+                TABLE_PRODUCT_VIEW
+            )
+            .select("*")
+
+        )
+
+
+        # -----------------------------
+        # SEARCH SUPPORT
+        # -----------------------------
+
+        if search:
+
+            query = query.or_(
+                f"name.ilike.%{search}%,"
+                f"barcode.ilike.%{search}%,"
+                f"sku.ilike.%{search}%"
+            )
+
+
+
+        # -----------------------------
+        # WAREHOUSE FILTER
+        # -----------------------------
+
+        if warehouse_id:
+
+            query = (
+                query
+                .eq(
+                    "warehouse_id",
+                    int(warehouse_id)
+                )
+            )
+
+
+
+        # -----------------------------
+        # LIMIT
+        # -----------------------------
+
+        if limit:
+
+            query = query.limit(
+                int(limit)
+            )
+
+
+
+        response = (
+            query
+            .execute()
+        )
+
+
+        return response.data or []
+
+
+
+    except Exception as e:
+
+        return []
+
+
+
+
+
+def get_inventory_view(
+    search=None,
+    warehouse_id=None,
+    limit=DEFAULT_PAGE_SIZE
+):
+
+
+    return _inventory_view_cached(
+
+        search,
+
+        warehouse_id,
+
+        limit,
+
+        CacheManager.get_version(
+            "inventory_version"
+        )
+
+    )
