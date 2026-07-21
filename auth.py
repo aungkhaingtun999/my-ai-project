@@ -173,3 +173,8 @@ def auth_sidebar():
             st.success(f"👤 {user['full_name']}")
             st.caption(f"Role: {user['role']}")
             if st.button("🚪 Logout"): logout()
+                # ==================================================
+# CURRENT USER HELPER
+# ==================================================
+def current_user():
+    return st.session_state.get("user")
