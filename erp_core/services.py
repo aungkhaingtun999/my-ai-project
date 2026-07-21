@@ -1260,3 +1260,20 @@ def get_fifo_cogs(
         qty,
         warehouse_id
     )
+
+
+
+
+
+# ==============================================================================
+# INVENTORY VIEW COMPATIBILITY WRAPPER
+# ==============================================================================
+
+def get_inventory_view(
+    warehouse_id=None,
+    search=None,
+    limit=100
+):
+    try:
+        with RepositoryCoordinator(db()) as coord:
+      
