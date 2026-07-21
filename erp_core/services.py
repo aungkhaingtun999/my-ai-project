@@ -1,7 +1,7 @@
 # ==============================================================================
 # erp_core/services.py
-# ERP ENTERPRISE SERVICE LAYER V30
-# PART 1/3 - CORE BUSINESS SERVICES
+# ERP ENTERPRISE SERVICE LAYER V30 STABLE
+# PART 1/3
 # ==============================================================================
 
 
@@ -55,6 +55,56 @@ from .repositories import (
 
 
 # ==============================================================================
+# SETTINGS
+# ==============================================================================
+
+
+def get_setting(
+    key: str,
+    default=None
+):
+
+    """
+    ERP Settings Reader
+    """
+
+    try:
+
+        result = (
+            db()
+            .table(
+                Tables.SETTINGS
+            )
+            .select("*")
+            .eq(
+                "key",
+                key
+            )
+            .maybe_single()
+            .execute()
+        )
+
+
+        if result.data:
+
+            return result.data.get(
+                "value",
+                default
+            )
+
+
+    except Exception:
+
+        pass
+
+
+    return default
+
+
+
+
+
+# ==============================================================================
 # ACCOUNTING SERVICE
 # ==============================================================================
 
@@ -79,33 +129,34 @@ class AccountingLedgerService:
     ) -> Dict[str, Any]:
 
 
-        total_debit = sum(
+        debit = sum(
             money(
-                e.get(
+                item.get(
                     "debit",
                     0
                 )
             )
-            for e in entries
+            for item in entries
         )
 
 
-        total_credit = sum(
+        credit = sum(
             money(
-                e.get(
+                item.get(
                     "credit",
                     0
                 )
             )
-            for e in entries
+            for item in entries
         )
 
 
-        if total_debit != total_credit:
+        if debit != credit:
 
             raise AccountingError(
-                f"Debit {total_debit} != Credit {total_credit}"
+                f"Debit {debit} != Credit {credit}"
             )
+
 
 
         return RPCEngine.execute(
@@ -132,6 +183,7 @@ class AccountingLedgerService:
 
 
 
+
 # ==============================================================================
 # CUSTOMER SERVICE
 # ==============================================================================
@@ -140,14 +192,12 @@ class AccountingLedgerService:
 class CustomerService:
 
 
-
     def __init__(
         self,
         client: Any
     ):
 
         self.client = client
-
 
 
 
@@ -161,7 +211,6 @@ class CustomerService:
         if not customer_id:
 
             return True
-
 
 
         try:
@@ -183,7 +232,6 @@ class CustomerService:
                 .execute()
 
             )
-
 
 
             if not result.data:
@@ -224,7 +272,6 @@ class CustomerService:
                 )
 
 
-
             return True
 
 
@@ -250,7 +297,6 @@ class CustomerService:
 class SalesService:
 
 
-
     def __init__(
         self,
         client: Any
@@ -263,7 +309,6 @@ class SalesService:
                 client
             )
         )
-
 
 
 
@@ -282,13 +327,11 @@ class SalesService:
     ) -> Dict[str, Any]:
 
 
-
         if not cart:
 
             raise ValidationError(
                 "Cart cannot be empty"
             )
-
 
 
         context = ERPContext.get_current()
@@ -347,40 +390,22 @@ class SalesService:
 
 
 
-            if (
-
-                str(payment_method)
-                .lower()
-
-                ==
-
-                "credit"
-
-            ):
+            if str(payment_method).lower() == "credit":
 
                 self.customer_service.check_credit_limit(
-
                     customer_id,
-
                     total_sale
-
                 )
-
 
 
 
             payload = {
 
-
                 "p_cart":
-
-                    serialize_json(
-                        cart
-                    ),
+                    serialize_json(cart),
 
 
                 "p_paid_amount":
-
                     float(
                         money(
                             paid_amount
@@ -389,48 +414,36 @@ class SalesService:
 
 
                 "p_warehouse_id":
-
                     int(
                         current_warehouse
                     ),
 
 
-
                 "p_customer_id":
-
                     validate_uuid(
                         customer_id
                     ),
 
 
-
                 "p_cashier_id":
-
                     validate_uuid(
                         cashier_id
                     ),
 
 
-
                 "p_counter_id":
-
                     int(
                         counter_id
                     ),
 
 
-
                 "p_payment_method":
-
                     str(
                         payment_method
-                    )
-                    .lower(),
-
+                    ).lower(),
 
 
                 "p_tax_rate":
-
                     float(
                         money(
                             tax_rate
@@ -438,9 +451,7 @@ class SalesService:
                     ),
 
 
-
                 "p_discount":
-
                     float(
                         money(
                             discount
@@ -448,37 +459,26 @@ class SalesService:
                     ),
 
 
-
                 "p_transaction_id":
-
                     tx_id
 
             }
 
 
-
             result = RPCEngine.execute(
-
                 self.client,
-
                 "complete_sale_transaction_rpc",
-
                 payload
-
             )
 
 
-
-            if result.get(
-                "success"
-            ):
+            if result.get("success"):
 
                 success = True
 
                 CacheManager.bump_version(
                     "inventory_version"
                 )
-
 
 
             return result
@@ -489,13 +489,7 @@ class SalesService:
 
 
             if success:
-
-               # ==============================================================================
-# PART 2/3 - INVENTORY / PURCHASE / REFUND / DASHBOARD SERVICES
-# ==============================================================================
-
-
-# ==============================================================================
+                # ==============================================================================
 # INVENTORY SERVICE
 # ==============================================================================
 
@@ -525,13 +519,10 @@ class InventoryService:
 
         context = ERPContext.get_current()
 
-
         context.rotate_transaction()
 
+        tx_id = context.current_transaction_id
 
-        tx_id = (
-            context.current_transaction_id
-        )
 
 
         result = RPCEngine.execute(
@@ -570,7 +561,6 @@ class InventoryService:
         )
 
 
-
         if result.get("success"):
 
             CacheManager.bump_version(
@@ -601,7 +591,6 @@ class PurchaseService:
 
 
 
-
     def receive_stock(
         self,
         product_id: int,
@@ -618,13 +607,9 @@ class PurchaseService:
 
         context = ERPContext.get_current()
 
-
         context.rotate_transaction()
 
-
-        tx_id = (
-            context.current_transaction_id
-        )
+        tx_id = context.current_transaction_id
 
 
 
@@ -635,7 +620,6 @@ class PurchaseService:
             "purchase_receive_rpc",
 
             {
-
 
                 "p_product_id":
                     int(product_id),
@@ -679,7 +663,6 @@ class PurchaseService:
         )
 
 
-
         if result.get("success"):
 
             CacheManager.bump_version(
@@ -710,7 +693,6 @@ class RefundService:
 
 
 
-
     def process_refund(
         self,
         invoice_no: str,
@@ -723,13 +705,9 @@ class RefundService:
 
         context = ERPContext.get_current()
 
-
         context.rotate_transaction()
 
-
-        tx_id = (
-            context.current_transaction_id
-        )
+        tx_id = context.current_transaction_id
 
 
 
@@ -740,7 +718,6 @@ class RefundService:
             "refund_sale_rpc",
 
             {
-
 
                 "p_invoice_no":
                     str(invoice_no),
@@ -770,7 +747,6 @@ class RefundService:
         )
 
 
-
         if result.get("success"):
 
             CacheManager.bump_version(
@@ -779,7 +755,6 @@ class RefundService:
 
 
         return result
-
 
 
 
@@ -802,7 +777,6 @@ class DashboardService:
 
 
 
-
     def get_low_stock_items(
         self,
         warehouse_id: Optional[int] = None
@@ -811,7 +785,6 @@ class DashboardService:
 
 
         try:
-
 
             query = (
 
@@ -826,30 +799,21 @@ class DashboardService:
             )
 
 
-
             if warehouse_id:
 
-
                 query = query.eq(
-
                     "warehouse_id",
-
                     int(warehouse_id)
-
                 )
 
 
 
             rows = (
-
                 query
                 .execute()
                 .data
-
                 or []
-
             )
-
 
 
             return [
@@ -873,13 +837,9 @@ class DashboardService:
             ]
 
 
-
         except Exception:
 
-
             return []
-
-
 
 
 
@@ -919,7 +879,6 @@ class DashboardService:
             )
 
 
-
             if result.get("success"):
 
                 return money(
@@ -930,17 +889,12 @@ class DashboardService:
                 )
 
 
-
             return Decimal("0.00")
-
 
 
         except Exception:
 
-
             return Decimal("0.00")
-
-
 
 
 
@@ -960,7 +914,6 @@ class AuditService:
     ):
 
         self.client = client
-
 
 
 
@@ -1012,263 +965,325 @@ class AuditService:
             )
 
 
-
         except Exception:
 
-
-            return False# ==============================================================================
-# erp_core/services.py
-# ERP ENTERPRISE SERVICE LAYER v30
+            return False
+            # ==============================================================================
+# CACHE DATA LOADERS
 # ==============================================================================
 
 
-import streamlit as st
+@st.cache_data(ttl=300)
+def _get_warehouses_cached(version: int):
 
-from decimal import Decimal
-from typing import (
-    List,
-    Dict,
-    Any,
-    Optional
-)
+    with RepositoryCoordinator(db()) as coord:
 
-
-from .config import (
-    Tables,
-    TABLE_PRODUCT_VIEW,
-    DEFAULT_PAGE_SIZE
-)
-
-from .base_repo import (
-    db,
-    money,
-    validate_uuid,
-    serialize_json
-)
-
-from .context import (
-    ERPContext,
-    CacheManager
-)
-
-from .rpc_engine import (
-    RPCEngine
-)
-
-from .exceptions import (
-    AccountingError,
-    CreditLimitExceededError,
-    ValidationError
-)
-
-from .repositories import (
-    RepositoryCoordinator
-)
+        return coord.warehouses.get_active_warehouses()
 
 
 
-# ==============================================================================
-# SETTINGS SERVICE
-# ==============================================================================
+def get_warehouses():
+
+    return _get_warehouses_cached(
+        CacheManager.get_version(
+            "inventory_version"
+        )
+    )
 
 
-def get_setting(
-    key,
-    default=None
+
+
+
+@st.cache_data(ttl=300)
+def _get_suppliers_cached(version: int):
+
+    with RepositoryCoordinator(db()) as coord:
+
+        return coord.suppliers.get_active_suppliers()
+
+
+
+def get_suppliers():
+
+    return _get_suppliers_cached(
+        CacheManager.get_version(
+            "inventory_version"
+        )
+    )
+
+
+
+
+
+@st.cache_data(ttl=300)
+def _get_customers_cached(version: int):
+
+    with RepositoryCoordinator(db()) as coord:
+
+        return coord.customers.get_active_customers()
+
+
+
+def get_customers():
+
+    return _get_customers_cached(
+        CacheManager.get_version(
+            "inventory_version"
+        )
+    )
+
+
+
+
+
+@st.cache_data(ttl=300)
+def _get_products_cached(
+    warehouse_id,
+    offset,
+    limit,
+    version
 ):
 
-    """
-    ERP Settings Reader
+    with RepositoryCoordinator(db()) as coord:
 
-    Used by:
-    - pages
-    - dashboard
-    - POS
-    """
-
-    try:
-
-        result = (
-            db()
-            .table(
-                Tables.SETTINGS
-            )
-            .select("*")
-            .eq(
-                "key",
-                key
-            )
-            .maybe_single()
-            .execute()
-        )
-
-
-        if result.data:
-
-            return result.data.get(
-                "value",
-                default
-            )
-
-
-    except Exception:
-
-        pass
-
-
-    return default
-
-
-
-
-# ==============================================================================
-# ACCOUNTING SERVICE
-# ==============================================================================
-
-
-class AccountingLedgerService:
-
-
-    def __init__(
-        self,
-        client
-    ):
-
-        self.client = client
-
-
-
-    def post_journal_entry(
-        self,
-        tx_id,
-        description,
-        entries
-    ):
-
-
-        debit = sum(
-            money(
-                x.get(
-                    "debit",
-                    0
-                )
-            )
-            for x in entries
-        )
-
-
-        credit = sum(
-            money(
-                x.get(
-                    "credit",
-                    0
-                )
-            )
-            for x in entries
-        )
-
-
-        if debit != credit:
-
-            raise AccountingError(
-                "Debit Credit mismatch"
-            )
-
-
-        return RPCEngine.execute(
-            self.client,
-            "post_journal_entry_rpc",
-            {
-
-                "p_transaction_id":
-                    tx_id,
-
-                "p_description":
-                    description,
-
-                "p_entries":
-                    serialize_json(entries)
-
-            }
+        return coord.products.get_products(
+            warehouse_id,
+            offset,
+            limit
         )
 
 
 
 
+def get_products(
+    warehouse_id=None,
+    offset=0,
+    limit=DEFAULT_PAGE_SIZE
+):
+
+    return _get_products_cached(
+
+        warehouse_id,
+
+        offset,
+
+        limit,
+
+        CacheManager.get_version(
+            "inventory_version"
+        )
+
+    )
+
+
+
+
+
 # ==============================================================================
-# CUSTOMER SERVICE
+# RPC COMPATIBILITY WRAPPERS
 # ==============================================================================
 
 
-class CustomerService:
+def checkout_sale_rpc(
+    cart,
+    paid_amount,
+    warehouse_id=None,
+    customer_id=None,
+    cashier_id=None,
+    counter_id=1,
+    payment_method="cash",
+    tax_rate=0,
+    discount=0
+
+):
+
+    service = SalesService(
+        db()
+    )
 
 
-    def __init__(
-        self,
-        client
-    ):
+    return service.checkout(
 
-        self.client = client
+        cart,
 
+        paid_amount,
 
+        warehouse_id,
 
-    def check_credit_limit(
-        self,
         customer_id,
-        amount
-    ):
+
+        cashier_id,
+
+        counter_id,
+
+        payment_method,
+
+        tax_rate,
+
+        discount
+
+    )
 
 
-        if not customer_id:
-
-            return True
 
 
-        try:
 
-            res = (
-                self.client
-                .table(
-                    Tables.CUSTOMERS
-                )
-                .select(
-                    "credit_limit,current_balance"
-                )
-                .eq(
-                    "id",
-                    customer_id
-                )
-                .maybe_single()
-                .execute()
-            )
+def purchase_receive_rpc(
+    product_id,
+    supplier_id,
+    warehouse_id,
+    qty,
+    cost,
+    payment_method="credit",
+    remarks="",
+    user_id=None
 
+):
 
-            if not res.data:
-
-                return True
+    service = PurchaseService(
+        db()
+    )
 
 
-            limit = money(
-                res.data.get(
-                    "credit_limit",
-                    0
-                )
-            )
+    return service.receive_stock(
+
+        product_id,
+
+        supplier_id,
+
+        warehouse_id,
+
+        qty,
+
+        cost,
+
+        payment_method,
+
+        remarks,
+
+        user_id
+
+    )
 
 
-            balance = money(
-                res.data.get(
-                    "current_balance",
-                    0
-                )
-            )
 
 
-            if (
-                limit > 0
-                and
-                balance + amount > limit
-            ):
 
-                raise CreditLimitExceededError(
-                    "Customer credit 
+def refund_sale_rpc(
+    invoice_no,
+    refund_items,
+    reason="",
+    cashier_id=None
+
+):
+
+    service = RefundService(
+        db()
+    )
+
+
+    return service.process_refund(
+
+        invoice_no,
+
+        refund_items,
+
+        reason,
+
+        cashier_id
+
+    )
+
+
+
+
+
+# ==============================================================================
+# FIFO COGS
+# ==============================================================================
+
+
+def get_fifo_cogs(
+    product_id: int,
+    qty: int,
+    warehouse_id: int
+
+):
+
+    service = DashboardService(
+        db()
+    )
+
+
+    return service.get_fifo_cogs(
+
+        product_id,
+
+        qty,
+
+        warehouse_id
+
+    )
+
+
+
+
+
+# ==============================================================================
+# AUDIT LOG
+# ==============================================================================
+
+
+def create_audit_log(
+    action: str,
+    details: str,
+    user_id: Optional[str] = None
+
+):
+
+    service = AuditService(
+        db()
+    )
+
+
+    return service.create_audit_log(
+
+        action,
+
+        details,
+
+        user_id
+
+    )
+
+
+
+
+
+# ==============================================================================
+# AUTH CHECK
+# ==============================================================================
+
+
+def require_login():
+
+    context = ERPContext.get_current()
+
+
+    user = context.current_user
+
+
+
+    if not user:
+
+        st.warning(
+            "Please log in to access this module."
+        )
+
+        st.stop()
+
+
+
+    return user
+
+               
