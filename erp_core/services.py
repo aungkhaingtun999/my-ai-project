@@ -1285,15 +1285,15 @@ def get_fifo_cogs(
 
 
 
-# ==============================================================================
+# =# ==============================================================================
 # INVENTORY VIEW SERVICE
-# ERP SEARCH + PAGINATION SUPPORT
+# ERP SEARCH + PAGINATION SUPPORT v30.9
 # ==============================================================================
 
 
 @st.cache_data(ttl=300)
 def _inventory_view_cached(
-    search,
+    search_key,
     warehouse_id,
     limit,
     version
@@ -1302,16 +1302,151 @@ def _inventory_view_cached(
     try:
 
         query = (
-
             db()
-            .table(
-                TABLE_PRODUCT_VIEW
-            )
+            .table(TABLE_PRODUCT_VIEW)
             .select("*")
-
         )
 
 
+        # SEARCH
+        if search_key:
+
+            query = query.or_(
+                "name.ilike.%{}%,barcode.ilike.%{}%,sku.ilike.%{}%".format(
+                    search_key,
+                    search_key,
+                    search_key
+                )
+            )
+
+
+        # WAREHOUSE FILTER
+        if warehouse_id:
+
+            query = query.eq(
+                "warehouse_id",
+                int(warehouse_id)
+            )
+
+
+        # PAGINATION
+        if limit:
+
+            query = query.limit(
+                int(limit)
+            )
+
+
+        result = query.execute()
+
+        return result.data or []
+
+
+    except Exception as e:
+
+        return []
+
+
+
+def get_inventory_view(
+    search=None,
+    warehouse_id=None,
+    limit=DEFAULT_PAGE_SIZE
+):
+
+    return _inventory_view_cached(
+
+        search or "",
+
+        warehouse_id,
+
+        limit,
+
+        CacheManager.get_version(
+            "inventory_version"
+        )
+    )============================================================================
+# # ==============================================================================
+# INVENTORY VIEW SERVICE
+# ERP SEARCH + PAGINATION SUPPORT v30.9
+# ==============================================================================
+
+
+@st.cache_data(ttl=300)
+def _inventory_view_cached(
+    search_key,
+    warehouse_id,
+    limit,
+    version
+):
+
+    try:
+
+        query = (
+            db()
+            .table(TABLE_PRODUCT_VIEW)
+            .select("*")
+        )
+
+
+        # SEARCH
+        if search_key:
+
+            query = query.or_(
+                "name.ilike.%{}%,barcode.ilike.%{}%,sku.ilike.%{}%".format(
+                    search_key,
+                    search_key,
+                    search_key
+                )
+            )
+
+
+        # WAREHOUSE FILTER
+        if warehouse_id:
+
+            query = query.eq(
+                "warehouse_id",
+                int(warehouse_id)
+            )
+
+
+        # PAGINATION
+        if limit:
+
+            query = query.limit(
+                int(limit)
+            )
+
+
+        result = query.execute()
+
+        return result.data or []
+
+
+    except Exception as e:
+
+        return []
+
+
+
+def get_inventory_view(
+    search=None,
+    warehouse_id=None,
+    limit=DEFAULT_PAGE_SIZE
+):
+
+    return _inventory_view_cached(
+
+        search or "",
+
+        warehouse_id,
+
+        limit,
+
+        CacheManager.get_version(
+            "inventory_version"
+        )
+    )
         # -----------------------------
         # SEARCH SUPPORT
         # -----------------------------
