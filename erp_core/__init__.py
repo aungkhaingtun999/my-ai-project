@@ -82,6 +82,8 @@ from .services import (
     get_suppliers,
     get_warehouses,
 
+    get_setting,
+
     require_login,
 )
 
