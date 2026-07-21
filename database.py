@@ -1,34 +1,58 @@
 # database.py
-# Robust Root Wrapper & Compatibility Bridge for ERP System
-# This ensures 100% backward compatibility for all pages importing from 'database'.
+# Root Wrapper with Explicit Imports for 100% Reliability
 
 import streamlit as st
 import logging
 from decimal import Decimal
 from typing import Dict, List, Any, Optional, Callable
 
-# Import everything from the core package
+# 1. Import Everything from erp_core package
 from erp_core import *
 
-# --- SAFE FALLBACKS & EXTRA ALIASES (Prevent any potential missing attribute errors) ---
+# 2. Explicitly Re-export Critical Functions & Services to prevent import errors
+from erp_core.base_repo import (
+    db, get_connection, database_health_check, DatabaseHealth, 
+    money, money_float, validate_uuid, serialize_json, safe_execute, CacheManager
+)
 
-try:
-    from erp_core import db, get_connection, ERPContext, CacheManager
-except ImportError:
-    pass
+from erp_core.context import (
+    ERPContext, generate_tx_id, generate_transaction_id
+)
 
-# Ensure critical helper functions are explicitly available at root level
+from erp_core.exceptions import (
+    ERPException, DatabaseError, ValidationError, PermissionDeniedError,
+    TransactionError, DuplicateTransactionError, AccountingError,
+    CreditLimitError, CreditLimitExceededError, RPCError
+)
+
+from erp_core.config import (
+    ERP_VERSION, DEBUG, DEFAULT_PAGE_SIZE, CURRENCY, Tables,
+    TABLE_USERS, TABLE_ROLE_PERMISSIONS, TABLE_PRODUCT_VIEW,
+    TABLE_WAREHOUSES, TABLE_CUSTOMERS, TABLE_SUPPLIERS, TABLE_SALES,
+    log_error, sanitize_payload
+)
+
+from erp_core.repositories import (
+    RepositoryCoordinator, BaseRepository, ProductRepository,
+    WarehouseRepository, CustomerRepository, SupplierRepository, SalesRepository
+)
+
+from erp_core.rpc_engine import RPCEngine
+
+from erp_core.services import (
+    AccountingLedgerService, CustomerService, SalesService,
+    InventoryService, PurchaseService, RefundService,
+    DashboardService, AuditService,
+    checkout_sale_rpc, purchase_receive_rpc, refund_sale_rpc,
+    get_fifo_cogs, create_audit_log, require_login,
+    get_warehouses, get_suppliers, get_customers, get_products
+)
+
+# 3. Fallback Alias Helpers
 def get_db_client():
     """Fallback alias for database client connection."""
     try:
         return db()
     except Exception:
         return None
-
-# Additional runtime safety check for global variables if needed
-if "CURRENCY" not in globals():
-    CURRENCY = "MMK"
-
-if "DEFAULT_PAGE_SIZE" not in globals():
-    DEFAULT_PAGE_SIZE = 100
 
