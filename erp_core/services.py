@@ -11,7 +11,7 @@ from .exceptions import AccountingError, CreditLimitExceededError, ValidationErr
 from .repositories import RepositoryCoordinator
 
 class AccountingLedgerService:
-    def __init__(self, client: Client if "Client" in globals() else Any): self.client = client
+    def __init__(self, client: Any): self.client = client
     def post_journal_entry(self, tx_id: str, description: str, entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         total_debit = sum(money(e.get("debit", 0)) for e in entries)
         total_credit = sum(money(e.get("credit", 0)) for e in entries)
@@ -19,7 +19,7 @@ class AccountingLedgerService:
         return RPCEngine.execute(self.client, "post_journal_entry_rpc", {"p_transaction_id": tx_id, "p_description": description, "p_entries": serialize_json(entries)})
 
 class CustomerService:
-    def __init__(self, client: Client if "Client" in globals() else Any): self.client = client
+    def __init__(self, client: Any): self.client = client
     def check_credit_limit(self, customer_id: str, sale_amount: Decimal) -> bool:
         if not customer_id: return True
         try:
@@ -34,7 +34,7 @@ class CustomerService:
         except Exception: return True
 
 class SalesService:
-    def __init__(self, client: Client if "Client" in globals() else Any):
+    def __init__(self, client: Any):
         self.client = client
         self.customer_service = CustomerService(client)
 
@@ -70,7 +70,7 @@ class SalesService:
             if success: context.rotate_transaction()
 
 class InventoryService:
-    def __init__(self, client: Client if "Client" in globals() else Any): self.client = client
+    def __init__(self, client: Any): self.client = client
     def adjust_stock(self, product_id: int, warehouse_id: int, quantity: int, reason: str, user_id: Optional[str] = None) -> Dict[str, Any]:
         context = ERPContext.get_current()
         context.rotate_transaction()
@@ -80,7 +80,7 @@ class InventoryService:
         return res
 
 class PurchaseService:
-    def __init__(self, client: Client if "Client" in globals() else Any): self.client = client
+    def __init__(self, client: Any): self.client = client
     def receive_stock(self, product_id: int, supplier_id: int, warehouse_id: int, qty: int, cost: Any, payment_method: str = "credit", remarks: str = "", user_id: Optional[str] = None) -> Dict[str, Any]:
         context = ERPContext.get_current()
         context.rotate_transaction()
@@ -90,7 +90,7 @@ class PurchaseService:
         return res
 
 class RefundService:
-    def __init__(self, client: Client if "Client" in globals() else Any): self.client = client
+    def __init__(self, client: Any): self.client = client
     def process_refund(self, invoice_no: str, refund_items: list, reason: str = "", cashier_id: Optional[str] = None) -> Dict[str, Any]:
         context = ERPContext.get_current()
         context.rotate_transaction()
@@ -100,7 +100,7 @@ class RefundService:
         return res
 
 class DashboardService:
-    def __init__(self, client: Client if "Client" in globals() else Any): self.client = client
+    def __init__(self, client: Any): self.client = client
     def get_low_stock_items(self, warehouse_id: Optional[int] = None) -> List[Dict[str, Any]]:
         try:
             query = self.client.table(TABLE_PRODUCT_VIEW).select("id,name,sku,stock,minimum_stock,warehouse_id")
@@ -116,7 +116,7 @@ class DashboardService:
         except: return Decimal("0.00")
 
 class AuditService:
-    def __init__(self, client: Client if "Client" in globals() else Any): self.client = client
+    def __init__(self, client: Any): self.client = client
     def create_audit_log(self, action: str, details: str, user_id: Optional[str] = None) -> bool:
         try:
             payload = {"action": str(action), "details": str(details), "user_id": validate_uuid(user_id)}
@@ -172,3 +172,4 @@ def require_login():
         st.warning("Please log in to access this module.")
         st.stop()
     return user
+    
