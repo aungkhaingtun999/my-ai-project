@@ -244,6 +244,9 @@ def __getattr__(name):
         "get_customers":
             "get_customers",
 
+        "get_default_warehouse_id":
+            "get_default_warehouse_id",
+
 
 
         # Audit
@@ -349,6 +352,8 @@ __all__ = [
     "get_suppliers",
 
     "get_customers",
+
+    "get_default_warehouse_id",
 
     "checkout_sale_rpc",
 
