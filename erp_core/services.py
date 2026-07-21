@@ -1,7 +1,7 @@
 # ==============================================================================
 # erp_core/services.py
-# ERP ENTERPRISE SERVICE LAYER V30 STABLE
-# PART 1/3
+# ERP ENTERPRISE SERVICE LAYER V30.7 STABLE
+# PART 1/3 (FIX 1 APPLIED)
 # ==============================================================================
 
 
@@ -340,11 +340,6 @@ class SalesService:
         context.rotate_transaction()
 
 
-        tx_id = (
-            context.current_transaction_id
-        )
-
-
         success = False
 
 
@@ -456,18 +451,14 @@ class SalesService:
                         money(
                             discount
                         )
-                    ),
-
-
-                "p_transaction_id":
-                    tx_id
+                    )
 
             }
 
 
             result = RPCEngine.execute(
                 self.client,
-                "complete_sale_transaction_rpc",
+                "checkout_sale_rpc",
                 payload
             )
 
@@ -1277,10 +1268,22 @@ def create_audit_log(
 # ==============================================================================
 
 
-def require_login():
+def require_login() -> bool:
+    """
+    Ensures that a user is currently authenticated within the Streamlit session.
+    Redirects or throws an authorization error if no active session exists.
+    """
+    try:
+        context = ERPContext.get_current()
+        
+        if not context or not getattr(context, "current_user_id", None):
+            st.warning("Authentication required. Please log in to continue.")
+            st.stop()
+            return False
+            
+        return True
 
-    if not st.session_state.get("authenticated", False):
-        st.warning("Please log in to continue.")
+    except Exception:
+        st.error("Authentication check failed. Please refresh your session.")
         st.stop()
-
-  
+        return False
