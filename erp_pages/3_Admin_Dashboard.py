@@ -1,626 +1,605 @@
- # ==============================================================================
-# pages/3_Dashboard.py
-# ERP ENTERPRISE EXECUTIVE DASHBOARD v2.6 (Complete Final Release)
+# ==============================================================================
+# database.py
+# ERP ENTERPRISE DATABASE COMPATIBILITY LAYER V30.6
+# Lazy-Loaded Resilient Root Wrapper with Full Product/User CRUD & RPC Support
 # ==============================================================================
 
-from collections import defaultdict
-from datetime import datetime, timedelta
-from decimal import Decimal
+print("DATABASE ROOT WRAPPER LOADING V30.6...")
 
-import pandas as pd
-import streamlit as st
+# ==============================================================================
+# CORE
+# ==============================================================================
 
-from database import get_fifo_cogs, get_supabase
+from erp_core.base_repo import (
+    get_supabase,
+    db,
+    get_connection,
+    DatabaseHealth,
+    database_health_check,
+    money,
+    money_float,
+    validate_uuid,
+    serialize_json,
+    safe_execute,
+)
 
-try:
-    from postgrest.exceptions import APIError
-except ImportError:
-    APIError = Exception
-
-
-supabase = get_supabase()
+safe_query = safe_execute
 
 
 # ==============================================================================
-# HELPERS
+# CONFIG
 # ==============================================================================
 
-def get_myanmar_today():
-    utc_now = datetime.utcnow()
-    mm_time = utc_now + timedelta(hours=6, minutes=30)
-    return mm_time.date()
+from erp_core.config import *
 
 
-def safe_float(value):
-    if value is None:
-        return 0.0
+# ==============================================================================
+# CONTEXT
+# ==============================================================================
 
-    if isinstance(value, Decimal):
-        return float(value)
+from erp_core.context import (
+    ERPContext,
+    CacheManager,
+    generate_tx_id,
+    generate_transaction_id,
+)
 
+
+# ==============================================================================
+# REPOSITORIES
+# ==============================================================================
+
+from erp_core.repositories import (
+    BaseRepository,
+    RepositoryCoordinator,
+    ProductRepository,
+    WarehouseRepository,
+    CustomerRepository,
+    SupplierRepository,
+    SalesRepository,
+)
+
+
+# ==============================================================================
+# SERVICE LAZY LOADER (PREVENTS CIRCULAR IMPORTS)
+# ==============================================================================
+
+def _services():
+    from erp_core import services
+    return services
+
+
+def get_products(*args, **kwargs):
     try:
-        return float(value)
-    except (ValueError, TypeError):
-        return 0.0
-
-
-# ==============================================================================
-# MAIN
-# ==============================================================================
-
-def run():
-    st.title("📊 Executive Dashboard (ERP Level Analytics v2.6)")
-
-    # ==========================================================================
-    # FILTERS
-    # ==========================================================================
-
-    st.sidebar.header("🔍 Global Filters")
-
-    try:
-        warehouses_data = (
-            supabase.table("warehouses").select("id,name").execute().data or []
-        )
+        return _services().get_products(*args, **kwargs)
     except Exception:
-        warehouses_data = []
+        return []
 
-    wh_map = {w["id"]: w["name"] for w in warehouses_data}
-    all_wh_ids = list(wh_map.keys())
 
-    selected_wh_name = st.sidebar.selectbox(
-        "🏪 Warehouse", ["All Branches"] + list(wh_map.values())
-    )
-
-    selected_wh_id = None
-    for wid, name in wh_map.items():
-        if name == selected_wh_name:
-            selected_wh_id = wid
-            break
-
-    # ==========================================================================
-    # DATE RANGE
-    # ==========================================================================
-
-    date_filter = st.sidebar.selectbox(
-        "📅 Date Range",
-        ["All Time", "Today", "This Week", "This Month", "Custom Range"],
-    )
-
-    today = get_myanmar_today()
-    start_date = None
-    end_date = None
-
-    if date_filter == "Today":
-        start_date = today.isoformat()
-        end_date = (today + timedelta(days=1)).isoformat()
-
-    elif date_filter == "This Week":
-        start_date = (today - timedelta(days=today.weekday())).isoformat()
-        end_date = (today + timedelta(days=1)).isoformat()
-
-    elif date_filter == "This Month":
-        start_date = today.replace(day=1).isoformat()
-        end_date = (today + timedelta(days=1)).isoformat()
-
-    elif date_filter == "Custom Range":
-        c1, c2 = st.sidebar.columns(2)
-        with c1:
-            custom_start = st.date_input("Start", today - timedelta(days=30))
-        with c2:
-            custom_end = st.date_input("End", today)
-
-        start_date = custom_start.isoformat()
-        end_date = (custom_end + timedelta(days=1)).isoformat()
-
-    # ==========================================================================
-    # SALES
-    # ==========================================================================
-
+def get_warehouses(*args, **kwargs):
     try:
-        sales_query = supabase.table("sales").select(
-            """
-            id,
-            total,
-            grand_total,
-            created_at,
-            paid_amount,
-            sale_status,
-            refund_amount,
-            warehouse_id
-            """
-        )
+        return _services().get_warehouses(*args, **kwargs)
+    except Exception:
+        return []
 
-        if start_date and end_date:
-            sales_query = sales_query.gte("created_at", start_date).lt(
-                "created_at", end_date
+
+def get_customers(*args, **kwargs):
+    try:
+        return _services().get_customers(*args, **kwargs)
+    except Exception:
+        return []
+
+
+def get_suppliers(*args, **kwargs):
+    try:
+        return _services().get_suppliers(*args, **kwargs)
+    except Exception:
+        return []
+
+
+def get_setting(key, default=None):
+    try:
+        return _services().get_setting(key, default)
+    except Exception:
+        return default
+
+
+def checkout_sale_rpc(*args, **kwargs):
+    return _services().checkout_sale_rpc(*args, **kwargs)
+
+
+def purchase_receive_rpc(*args, **kwargs):
+    return _services().purchase_receive_rpc(*args, **kwargs)
+
+
+def stock_adjustment_rpc(*args, **kwargs):
+    """
+    Inventory stock adjustment compatibility wrapper
+    Used by Inventory / Adjustment pages
+    """
+    try:
+        return _services().stock_adjustment_rpc(*args, **kwargs)
+    except Exception:
+        try:
+            client = db()
+            product_id = kwargs.get("product_id") or (args[0] if args else None)
+            qty = kwargs.get("quantity") or (args[1] if len(args) > 1 else 0)
+            if product_id:
+                table_products = getattr(Tables, "PRODUCTS", "products")
+                client.table(table_products).update({"stock": qty}).eq("id", int(product_id)).execute()
+                return {"success": True}
+        except Exception:
+            pass
+        return {"success": False, "message": "stock_adjustment_rpc service not available"}
+
+
+def save_product_rpc(*args, **kwargs):
+    return save_product(*args, **kwargs)
+
+
+def get_user_permissions(*args, **kwargs):
+    try:
+        user = get_current_user()
+        if isinstance(user, dict):
+            return user.get("permissions", [])
+    except Exception:
+        pass
+    return []
+
+
+def refund_sale_rpc(*args, **kwargs):
+    return _services().refund_sale_rpc(*args, **kwargs)
+
+
+def get_fifo_cogs(*args, **kwargs):
+    try:
+        return _services().get_fifo_cogs(*args, **kwargs)
+    except Exception:
+        return Decimal("0.00")
+
+
+def create_audit_log(*args, **kwargs):
+    try:
+        return _services().create_audit_log(*args, **kwargs)
+    except Exception:
+        return False
+
+
+def require_login():
+    try:
+        return _services().require_login()
+    except Exception:
+        ctx = ERPContext.get_current()
+        if not ctx.current_user:
+            return None
+        return ctx.current_user
+
+
+# ==============================================================================
+# LEGACY & COMPATIBILITY LAYER
+# ==============================================================================
+
+
+def get_db_client():
+    return db()
+
+
+def get_default_warehouse_id():
+    """
+    Return current ERP default warehouse.
+    Used by POS / Inventory / Purchase pages.
+    """
+    try:
+        ctx = ERPContext.get_current()
+        if ctx.current_warehouse_id:
+            return int(ctx.current_warehouse_id)
+    except Exception:
+        pass
+    return 1
+
+
+def get_current_user():
+    try:
+        ctx = ERPContext.get_current()
+        return ctx.current_user
+    except Exception:
+        return None
+
+
+def get_user_role():
+    try:
+        user = get_current_user()
+        if isinstance(user, dict):
+            return user.get("role", "cashier")
+    except Exception:
+        pass
+    return "cashier"
+
+
+def get_company_settings():
+    return {
+        "name": get_setting("company_name", "Enterprise ERP"),
+        "currency": get_setting("currency", "MMK"),
+        "tax_rate": get_setting("default_tax_rate", 0),
+        "address": get_setting("company_address", ""),
+        "phone": get_setting("company_phone", ""),
+    }
+
+
+def get_products_by_barcode(barcode, warehouse_id=None):
+    try:
+        warehouse_id = warehouse_id or get_default_warehouse_id()
+        products = get_products(warehouse_id=warehouse_id, limit=5000)
+        for product in products:
+            if str(product.get("barcode")) == str(barcode) or str(product.get("sku")) == str(barcode):
+                return product
+    except Exception:
+        pass
+    return None
+
+
+def get_receipt(invoice_no):
+    try:
+        table_sales = getattr(Tables, "SALES", "sales")
+        result = (
+            db()
+            .table(table_sales)
+            .select("*,sale_items(*)")
+            .eq("invoice_no", str(invoice_no))
+            .maybe_single()
+            .execute()
+        )
+        return result.data
+    except Exception:
+        try:
+            table_sales = getattr(Tables, "SALES", "sales")
+            result = (
+                db()
+                .table(table_sales)
+                .select("*")
+                .eq("invoice_no", str(invoice_no))
+                .maybe_single()
+                .execute()
+            )
+            return result.data
+        except Exception:
+            return None
+
+
+# ==============================================================================
+# INVENTORY VIEW COMPATIBILITY
+# ==============================================================================
+
+def get_inventory_view(warehouse_id=None):
+    """
+    Return inventory stock view.
+    Used by:
+    - Inventory Page
+    - Dashboard
+    - Reports
+    """
+    try:
+        client = db()
+        table_name = globals().get(
+            "TABLE_PRODUCT_VIEW",
+            "products"
+        )
+        query = client.table(table_name).select("*")
+        if warehouse_id:
+            query = query.eq("warehouse_id", int(warehouse_id))
+        result = query.execute()
+        return result.data or []
+    except Exception:
+        return []
+
+
+# ==============================================================================
+# EXTENDED LEGACY API COMPATIBILITY ALIASES & WRAPPERS
+# ==============================================================================
+
+get_inventory = get_inventory_view
+get_stock_view = get_inventory_view
+
+
+def get_products_list(
+    warehouse_id=None,
+    offset=0,
+    limit=100
+):
+    return get_products(
+        warehouse_id=warehouse_id,
+        offset=offset,
+        limit=limit
+    )
+
+
+def get_stock(
+    warehouse_id=None
+):
+    return get_inventory_view(
+        warehouse_id
+    )
+
+
+def get_settings():
+    return get_company_settings()
+
+
+def current_user():
+    return get_current_user()
+
+
+def get_sales_summary(start_date=None, end_date=None, warehouse_id=None):
+    try:
+        client = db()
+        table_sales = getattr(Tables, "SALES", "sales")
+        query = client.table(table_sales).select("*")
+
+        if start_date:
+            query = query.gte("created_at", str(start_date))
+
+        if end_date:
+            query = query.lte("created_at", str(end_date))
+
+        # warehouse filter with fallback for legacy NULL warehouse records
+        if warehouse_id:
+            query = query.or_(
+                f"warehouse_id.eq.{int(warehouse_id)},warehouse_id.is.null"
             )
 
-        sales_data = sales_query.execute().data or []
-
-    except APIError:
-        st.error("Unable to load filtered sales data")
-        return
-
+        res = query.execute()
+        return res.data or []
     except Exception as e:
-        st.error(f"Sales loading failed: {e}")
-        return
+        print("SALES SUMMARY ERROR:", e)
+        return []
 
-    # ==========================================================================
-    # PRODUCTS
-    # ==========================================================================
 
-    products_data = (
-        supabase.table("products")
-        .select(
-            """
-            id,
-            name,
-            minimum_stock,
-            stock
-            """
-        )
-        .execute()
-        .data
-        or []
-    )
-
-    # ==========================================================================
-    # SALE ITEMS
-    # ==========================================================================
-
+def get_dashboard_stats(warehouse_id=None):
     try:
-        sale_items_data = (
-            supabase.table("sale_items")
-            .select(
-                """
-                id,
-                sale_id,
-                product_id,
-                quantity,
-                unit_price,
-                subtotal,
-                discount_amount,
-                tax_amount,
-                line_total
-                """
-            )
-            .execute()
-            .data
-            or []
+        repo = RepositoryCoordinator(db())
+        products = repo.products.get_products(
+            warehouse_id=warehouse_id,
+            limit=1000
         )
-    except Exception:
-        sale_items_data = (
-            supabase.table("sale_items")
-            .select(
-                """
-                id,
-                sale_id,
-                product_id,
-                quantity,
-                unit_price
-                """
-            )
-            .execute()
-            .data
-            or []
-        )
-
-    # ==========================================================================
-    # REFUND ITEMS
-    # ==========================================================================
-
-    try:
-        refund_items_data = (
-            supabase.table("refund_items")
-            .select(
-                """
-                id,
-                sale_item_id,
-                product_id,
-                quantity
-                """
-            )
-            .execute()
-            .data
-            or []
-        )
-    except Exception:
-        refund_items_data = []
-
-    # ==========================================================================
-    # INVENTORY COST TRANSACTION
-    # ==========================================================================
-
-    try:
-        inv_query = supabase.table("inventory_cost_transactions").select(
-            """
-            sale_id,
-            qty,
-            total_cost,
-            unit_cost,
-            transaction_type,
-            created_at
-            """
-        )
-
-        if start_date and end_date:
-            inv_query = inv_query.gte("created_at", start_date).lt(
-                "created_at", end_date
-            )
-
-        inventory_tx_data = inv_query.execute().data or []
-    except Exception:
-        inventory_tx_data = []
-
-    # ==========================================================================
-    # WAREHOUSE STOCK
-    # ==========================================================================
-
-    warehouse_stock_data = (
-        supabase.table("warehouse_stock")
-        .select(
-            """
-            warehouse_id,
-            product_id,
-            qty
-            """
-        )
-        .execute()
-        .data
-        or []
-    )
-
-    # ==========================================================================
-    # BASIC VALIDATION
-    # ==========================================================================
-
-    if not sales_data or not products_data or not sale_items_data:
-        st.info("Insufficient data available.")
-        return
-
-    # ==========================================================================
-    # WAREHOUSE FILTER
-    # ==========================================================================
-
-    if selected_wh_id is not None and "warehouse_id" in sales_data[0]:
-        sales_data = [
-            s for s in sales_data if s.get("warehouse_id") == selected_wh_id
-        ]
-
-    valid_sale_ids = {s["id"] for s in sales_data}
-
-    sale_items_data = [
-        x for x in sale_items_data if x.get("sale_id") in valid_sale_ids
-    ]
-    valid_sale_item_ids = {item["id"] for item in sale_items_data}
-
-    if refund_items_data:
-        refund_items_data = [
-            r for r in refund_items_data if r.get("sale_item_id") in valid_sale_item_ids
-        ]
-
-    if selected_wh_id is not None:
-        warehouse_stock_data = [
-            x for x in warehouse_stock_data if x.get("warehouse_id") == selected_wh_id
-        ]
-
-    # ==========================================================================
-    # DATAFRAME & MAPPING SETUP
-    # ==========================================================================
-
-    df_sales = pd.DataFrame(sales_data)
-    df_products = pd.DataFrame(products_data)
-    df_items = pd.DataFrame(sale_items_data)
-
-    df_refund_items = (
-        pd.DataFrame(refund_items_data)
-        if refund_items_data
-        else pd.DataFrame(columns=["id", "sale_item_id", "product_id", "quantity"])
-    )
-
-    df_warehouse_stock = (
-        pd.DataFrame(warehouse_stock_data)
-        if warehouse_stock_data
-        else pd.DataFrame()
-    )
-
-    try:
-        df_products["id"] = df_products["id"].astype(int)
-        product_map = {
-            int(k): v
-            for k, v in df_products.set_index("id").to_dict("index").items()
+        return {
+            "total_products": len(products),
+            "low_stock_count": sum(
+                1
+                for p in products
+                if p.get("stock", 0) <= p.get("minimum_stock", 5)
+            ),
+            "warehouse_id": warehouse_id or get_default_warehouse_id()
         }
     except Exception:
-        product_map = df_products.set_index("id").to_dict("index")
+        return {
+            "total_products": 0,
+            "low_stock_count": 0,
+            "warehouse_id": 1
+        }
 
-    if not df_warehouse_stock.empty and "product_id" in df_warehouse_stock.columns:
-        df_warehouse_stock["product_id"] = (
-            df_warehouse_stock["product_id"].apply(safe_float).astype(int)
-        )
 
-    if not df_warehouse_stock.empty and "warehouse_id" in df_warehouse_stock.columns:
-        df_warehouse_stock["warehouse_id"] = (
-            df_warehouse_stock["warehouse_id"].apply(safe_float).astype(int)
-        )
-
-    sale_map = df_sales.set_index("id").to_dict(orient="index")
-
-    if df_sales.empty:
-        st.warning("No sales records found.")
-        return
-
-    # ==========================================================================
-    # KPI ENGINE
-    # ==========================================================================
-
-    total_sales_col = (
-        "grand_total"
-        if "grand_total" in df_sales.columns
-        else ("total" if "total" in df_sales.columns else None)
-    )
-
-    gross_sales = (
-        df_sales[total_sales_col].apply(safe_float).sum()
-        if total_sales_col
-        else 0.0
-    )
-
-    total_refund = (
-        df_sales["refund_amount"].apply(safe_float).sum()
-        if "refund_amount" in df_sales.columns
-        else 0.0
-    )
-
-    net_sales = gross_sales - total_refund
-    total_orders = len(df_sales)
-
-    # ==========================================================================
-    # FIFO COGS
-    # ==========================================================================
-
+def get_users():
     try:
-        fifo = (
-            get_fifo_cogs(
-                sale_ids=list(valid_sale_ids),
-                start_date=start_date,
-                end_date=end_date,
-            )
-            or {}
+        table_users = getattr(Tables, "USERS", "users")
+        res = db().table(table_users).select("*").execute()
+        return res.data or []
+    except Exception:
+        return []
+
+
+def get_roles():
+    try:
+        table_roles = getattr(Tables, "ROLES", "roles")
+        res = (
+            db()
+            .table(table_roles)
+            .select("*")
+            .execute()
         )
-    except TypeError:
+        return res.data or []
+    except Exception:
         try:
-            fifo = get_fifo_cogs(sale_ids=list(valid_sale_ids)) or {}
-        except TypeError:
-            fifo = get_fifo_cogs() or {}
+            table_perms = getattr(Tables, "ROLE_PERMISSIONS", "role_permissions")
+            res = (
+                db()
+                .table(table_perms)
+                .select("*")
+                .execute()
+            )
+            return res.data or []
+        except Exception:
+            return []
 
-    raw_cogs = safe_float(fifo.get("cogs", 0))
-    adjusted_cogs = max(raw_cogs, 0)
 
-    total_profit = net_sales - adjusted_cogs
-    gross_margin = (total_profit / net_sales * 100) if net_sales > 0 else 0
+def save_setting(key, value):
+    try:
+        client = db()
+        table_settings = getattr(Tables, "SETTINGS", "settings")
+        existing = client.table(table_settings).select("id").eq("key", key).maybe_single().execute()
+        if existing and existing.data:
+            client.table(table_settings).update({"value": value}).eq("key", key).execute()
+        else:
+            client.table(table_settings).insert({"key": key, "value": value}).execute()
+        return True
+    except Exception:
+        return False
 
-    # ==========================================================================
-    # KPI METRIC CARDS UI
-    # ==========================================================================
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+# ==============================================================================
+# EXTRA LEGACY COMPATIBILITY
+# ==============================================================================
 
-    col1.metric("💰 Net Sales", f"{net_sales:,.0f} MMK", f"Gross {gross_sales:,.0f}")
-    col2.metric("🔄 Refunds", f"{total_refund:,.0f} MMK")
-    col3.metric("📦 Total COGS", f"{adjusted_cogs:,.0f} MMK")
-    col4.metric(
-        "📈 Gross Profit",
-        f"{total_profit:,.0f} MMK",
-        f"{gross_margin:.1f}% Margin",
+
+def get_sales():
+    return get_sales_summary()
+
+
+def get_inventory_items(
+    warehouse_id=None
+):
+    return get_inventory_view(
+        warehouse_id
     )
-    col5.metric("🧾 Total Orders", f"{total_orders:,}")
 
-    st.divider()
 
-    # ==========================================================================
-    # COMPUTATION FOR CHARTS & TRENDS
-    # ==========================================================================
-
-    sale_revenue_map = defaultdict(float)
-    if not df_items.empty:
-        for _, item in df_items.iterrows():
-            s_id = item.get("sale_id")
-            if not s_id:
-                continue
-            if "line_total" in item and item.get("line_total") is not None:
-                rev = safe_float(item.get("line_total"))
-            else:
-                unit_p = safe_float(item.get("unit_price"))
-                qty = safe_float(item.get("quantity"))
-                disc = safe_float(item.get("discount_amount", 0))
-                tax = safe_float(item.get("tax_amount", 0))
-                rev = (unit_p * qty) - disc + tax
-            sale_revenue_map[s_id] += rev
-
-    for s_id in sale_map.keys():
-        if sale_revenue_map.get(s_id, 0) == 0:
-            s_record = sale_map.get(s_id, {})
-            sale_revenue_map[s_id] = safe_float(
-                s_record.get("grand_total") or s_record.get("total")
-            )
-
-    filtered_tx_data = [
-        tx for tx in inventory_tx_data if tx.get("sale_id") in valid_sale_ids
+def get_low_stock_products(
+    warehouse_id=None
+):
+    products = get_inventory_view(
+        warehouse_id
+    )
+    return [
+        p for p in products
+        if p.get("stock", 0)
+        <=
+        p.get("minimum_stock", 5)
     ]
-    sale_cost_map = defaultdict(float)
-    for tx in filtered_tx_data:
-        sale_id = tx.get("sale_id")
-        if sale_id:
-            tx_qty = safe_float(tx.get("qty"))
-            tx_unit_cost = safe_float(tx.get("unit_cost"))
-            tx_total_cost = safe_float(tx.get("total_cost")) or (tx_unit_cost * tx_qty)
-            tx_type = str(tx.get("transaction_type", "SALE")).upper()
-            if tx_type == "REFUND":
-                sale_cost_map[sale_id] -= abs(tx_total_cost)
-            else:
-                sale_cost_map[sale_id] += tx_total_cost
 
-    daily_profit = defaultdict(float)
-    daily_sales = defaultdict(float)
 
-    for sale_id, cogs_val in sale_cost_map.items():
-        sale = sale_map.get(sale_id)
-        if not sale:
-            continue
-        date_str = str(sale.get("created_at", ""))[:10]
-        if not date_str:
-            continue
+def get_active_products():
+    return get_products()
 
-        base_revenue = sale_revenue_map.get(sale_id, 0.0)
-        refund = (
-            safe_float(sale.get("refund_amount", 0))
-            if "refund_amount" in sale
-            else 0.0
-        )
-        net_revenue = base_revenue - refund
 
-        daily_profit[date_str] += net_revenue - max(cogs_val, 0.0)
-        daily_sales[date_str] += net_revenue
-
-    # ==========================================================================
-    # FINANCIAL PERFORMANCE CHARTS UI
-    # ==========================================================================
-
-    st.subheader("📈 Financial Performance Trends")
-
-    chart_dates = sorted(set(list(daily_sales.keys()) + list(daily_profit.keys())))
-
-    if chart_dates:
-        df_sales_trend = pd.DataFrame(
-            [{"date": d, "Net Sales": daily_sales[d]} for d in chart_dates]
-        )
-
-        df_profit_trend = pd.DataFrame(
-            [{"date": d, "Gross Profit": daily_profit[d]} for d in chart_dates]
-        )
-
-        chart1, chart2 = st.columns(2)
-
-        with chart1:
-            st.markdown("##### 💰 Net Sales Trend")
-            st.line_chart(df_sales_trend, x="date", y="Net Sales")
-
-        with chart2:
-            st.markdown("##### 📈 Gross Profit Trend")
-            st.line_chart(df_profit_trend, x="date", y="Gross Profit")
-    else:
-        st.info("No daily performance data available.")
-
-    st.divider()
-
-    # ==========================================================================
-    # TOP SELLING PRODUCTS UI
-    # ==========================================================================
-
-    st.subheader("🔥 Top Selling Products (Net of Refunds)")
-
-    if not df_items.empty and "product_id" in df_items.columns:
-        gross_qty = (
-            df_items.groupby("product_id")["quantity"]
-            .apply(lambda x: x.apply(safe_float).sum())
-            .to_dict()
-        )
-
-        refunded_qty = defaultdict(float)
-
-        if not df_refund_items.empty and "product_id" in df_refund_items.columns:
-            refunded_qty = (
-                df_refund_items.groupby("product_id")["quantity"]
-                .apply(lambda x: x.apply(safe_float).sum())
-                .to_dict()
-            )
-
-        net_products = {}
-
-        for pid, qty in gross_qty.items():
-            try:
-                pid_key = int(pid)
-            except:
-                pid_key = pid
-
-            net_qty = qty - refunded_qty.get(pid_key, 0)
-            if net_qty > 0:
-                net_products[pid_key] = net_qty
-
-        top_products = sorted(
-            net_products.items(), key=lambda x: x[1], reverse=True
-        )[:5]
-
-        if top_products:
-            for pid, qty in top_products:
-                product = product_map.get(pid, {})
-                st.write(
-                    f"✔ **{product.get('name', 'Unknown')}** — {qty:,.0f} net sold"
-                )
-        else:
-            st.info("No product sales data.")
-    else:
-        st.info("No sale item records.")
-
-    st.divider()
-
-    # ==========================================================================
-    # LOW STOCK ALERTS UI
-    # ==========================================================================
-
-    st.subheader("⚠️ Low Stock Alerts")
-
-    if not df_warehouse_stock.empty and "warehouse_id" in df_warehouse_stock.columns:
-        stock_map = (
-            df_warehouse_stock.groupby(["product_id", "warehouse_id"])["qty"]
-            .apply(lambda x: x.apply(safe_float).sum())
-            .to_dict()
-        )
-
-        warehouse_ids = [selected_wh_id] if selected_wh_id else all_wh_ids
-        low_stock = []
-
-        for pid, product in product_map.items():
-            minimum = safe_float(product.get("minimum_stock", 0))
-            if minimum <= 0:
-                continue
-
-            try:
-                pid_key = int(pid)
-            except Exception:
-                pid_key = pid
-
-            for wid in warehouse_ids:
-                try:
-                    wid_key = int(wid)
-                except Exception:
-                    wid_key = wid
-
-                current = safe_float(stock_map.get((pid_key, wid_key), 0))
-                if current <= minimum:
-                    low_stock.append((
-                        product.get("name", "Unknown"),
-                        wh_map.get(wid, "Unknown"),
-                        current,
-                        minimum,
-                    ))
-
-        if low_stock:
-            for item in low_stock:
-                st.error(
-                    f"🏢 {item[1]} | 📦 {item[0]} → Current: {item[2]:,.0f} (Min"
-                    f" {item[3]:,.0f})"
-                )
-        else:
-            st.success("All warehouse stock levels are healthy 👍")
-    else:
-        st.info("No warehouse stock configuration available.")
+def get_active_users():
+    return get_users()
 
 
 # ==============================================================================
-# ENTRY POINT
+# PRODUCT RPC & CRUD COMPATIBILITY
 # ==============================================================================
 
-if __name__ == "__main__":
-    run()
-    
+def update_product_rpc(*args, **kwargs):
+    """
+    Legacy Product Update RPC Wrapper
+    Used by:
+    - Product Management
+    - Inventory Page
+    - Admin Panel
+    """
+    try:
+        client = db()
+        product_id = kwargs.get(
+            "product_id",
+            args[0] if args else None
+        )
+        data = kwargs.get(
+            "data",
+            args[1] if len(args) > 1 else {}
+        )
+
+        if not product_id:
+            return {
+                "success": False,
+                "message": "Product ID required"
+            }
+
+        table_products = getattr(Tables, "PRODUCTS", "products")
+        result = (
+            client
+            .table(table_products)
+            .update(data)
+            .eq("id", int(product_id))
+            .execute()
+        )
+
+        try:
+            CacheManager.bump_version("inventory_version")
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "data": result.data
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }
+
+
+def add_product_rpc(product_data):
+    try:
+        client = db()
+        table_products = getattr(Tables, "PRODUCTS", "products")
+        res = client.table(table_products).insert(product_data).execute()
+        try:
+            CacheManager.bump_version("inventory_version")
+        except Exception:
+            pass
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def delete_product_rpc(product_id):
+    try:
+        client = db()
+        table_products = getattr(Tables, "PRODUCTS", "products")
+        res = client.table(table_products).delete().eq("id", int(product_id)).execute()
+        try:
+            CacheManager.bump_version("inventory_version")
+        except Exception:
+            pass
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def get_product_by_id(product_id):
+    try:
+        client = db()
+        table_products = getattr(Tables, "PRODUCTS", "products")
+        res = client.table(table_products).select("*").eq("id", int(product_id)).maybe_single().execute()
+        return res.data
+    except Exception:
+        return None
+
+
+def save_product(product_data):
+    try:
+        client = db()
+        table_products = getattr(Tables, "PRODUCTS", "products")
+        p_id = product_data.get("id")
+        if p_id:
+            res = client.table(table_products).update(product_data).eq("id", int(p_id)).execute()
+        else:
+            res = client.table(table_products).insert(product_data).execute()
+        try:
+            CacheManager.bump_version("inventory_version")
+        except Exception:
+            pass
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def delete_product(product_id):
+    return delete_product_rpc(product_id)
+
+
+def create_user(user_data):
+    try:
+        client = db()
+        table_users = getattr(Tables, "USERS", "users")
+        res = client.table(table_users).insert(user_data).execute()
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def update_user(user_id, user_data):
+    try:
+        client = db()
+        table_users = getattr(Tables, "USERS", "users")
+        res = client.table(table_users).update(user_data).eq("id", int(user_id)).execute()
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+# ==============================================================================
+# VERSION
+# ==============================================================================
+
+DATABASE_VERSION = "ERP V30.6 COMPATIBILITY"
