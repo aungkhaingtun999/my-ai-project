@@ -221,6 +221,7 @@ if st.session_state.purchase_cart:
             selected_warehouse["id"],
             item["qty"],
             item["cost"],
+            "cash",
             "Mobile Purchase Entry",
             user_id,
         )
