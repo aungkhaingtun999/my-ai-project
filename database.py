@@ -446,6 +446,19 @@ class AccountMappingEngine:
 
 
 # ==============================================================================
+# PERMISSION SERVICE STUB
+# ==============================================================================
+
+class PermissionService:
+
+    @staticmethod
+    def has_permission(user, permission_name: str) -> bool:
+        if not user:
+            return False
+        return True
+
+
+# ==============================================================================
 # ENTERPRISE BASE REPOSITORY
 # ==============================================================================
 
@@ -756,7 +769,6 @@ class SalesRepository(BaseRepository):
 
 
 # ==============================================================================
-# ER=============================================================================
 # ERP ENTERPRISE RPC GATEWAY ENGINE
 # ==============================================================================
 
@@ -1621,4 +1633,4 @@ __all__ = [
     "PermissionService"
 ]
 
-print("DATABASE.PY V30.8
+print("DATABASE.PY V30.8 FOUNDATION & COMPATIBILITY CORE LOADED SUCCESSFULLY")
