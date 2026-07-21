@@ -31,6 +31,8 @@ from .base_repo import (
     serialize_json
 )
 
+from .config import log_error
+
 
 from .context import (
     ERPContext,
@@ -1266,7 +1268,6 @@ def get_fifo_cogs(
 
 
 # ==============================================================================
-# =============================================================================
 # INVENTORY VIEW COMPATIBILITY WRAPPER
 # ==============================================================================
 
