@@ -1285,3 +1285,23 @@ def get_inventory_view(
 
     except Exception:
         return []
+
+
+# ==============================================================================
+# AUDIT LOG COMPATIBILITY WRAPPER
+# ==============================================================================
+
+def create_audit_log(
+    action,
+    details,
+    user_id=None
+):
+    service = AuditService(
+        db()
+    )
+
+    return service.create_audit_log(
+        action,
+        details,
+        user_id
+    )
