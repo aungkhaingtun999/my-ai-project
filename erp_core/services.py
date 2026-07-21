@@ -1,7 +1,7 @@
 # ==============================================================================
 # erp_core/services.py
-# ERP ENTERPRISE SERVICE LAYER V30.7 STABLE
-# PART 1/3 (FIX 1 APPLIED)
+# ERP ENTERPRISE SERVICE LAYER V30.8 STABLE
+# PART 1/3 (FULL UPDATED CODE)
 # ==============================================================================
 
 
@@ -1196,6 +1196,68 @@ def refund_sale_rpc(
         cashier_id
 
     )
+
+
+
+
+
+def stock_adjustment_rpc(
+    product_id,
+    warehouse_id,
+    quantity,
+    reason,
+    user_id=None
+):
+
+    service = InventoryService(
+        db()
+    )
+
+    return service.adjust_stock(
+        product_id,
+        warehouse_id,
+        quantity,
+        reason,
+        user_id
+    )
+
+
+
+
+
+def update_product_rpc(
+    product_id,
+    data
+):
+
+    try:
+
+        result = (
+            db()
+            .table(
+                Tables.PRODUCTS
+            )
+            .update(
+                data
+            )
+            .eq(
+                "id",
+                product_id
+            )
+            .execute()
+        )
+
+        return {
+            "success": True,
+            "data": result.data
+        }
+
+    except Exception as e:
+
+        return {
+            "success": False,
+            "message": str(e)
+        }
 
 
 
