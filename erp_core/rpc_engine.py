@@ -1,47 +1,446 @@
+# ==============================================================================
 # erp_core/rpc_engine.py
+# ERP ENTERPRISE RPC GATEWAY ENGINE v30
+# ==============================================================================
+
+
 import json
 import time
-from typing import Dict, Any
-from supabase import Client
-try:
-    from postgrest.exceptions import APIError
-except ImportError:
-    APIError = Exception
+
+from typing import (
+    Dict,
+    Any
+)
+
+
+from postgrest.exceptions import APIError
+
+
 from .config import log_error
 
+
+
+
+# ==============================================================================
+# RPC ENGINE
+# ==============================================================================
+
+
 class RPCEngine:
-    SUCCESS_VALUES = [True, "true", "success", "completed", "ok", "done"]
+
+
+    SUCCESS_VALUES = [
+
+        True,
+        "true",
+        "success",
+        "completed",
+        "ok",
+        "done"
+
+    ]
+
+
     MAX_RETRY = 3
 
-    @staticmethod
-    def normalize_response(raw) -> Dict[str, Any]:
-        if raw is None: return {"success": False, "message": "Empty RPC response", "data": None}
-        if isinstance(raw, str):
-            try: raw = json.loads(raw)
-            except: return {"success": False, "message": f"Malformed JSON: {raw}", "data": None}
-        if isinstance(raw, list): raw = raw[0] if raw else {}
-        if isinstance(raw, dict) and "response_json" in raw: raw = raw["response_json"]
-        if isinstance(raw, dict):
-            status_indicator = raw.get("success") if raw.get("success") is not None else raw.get("status")
-            success = str(status_indicator).lower() in [str(v) for v in RPCEngine.SUCCESS_VALUES] or status_indicator is True
-            return {"success": success, "message": raw.get("message", "Operation completed"), "data": raw.get("data", raw)}
-        return {"success": True, "message": "Operation completed", "data": raw}
+
+
+
+    # ------------------------------------------------------------------
+    # NORMALIZE RESPONSE
+    # ------------------------------------------------------------------
+
 
     @staticmethod
-    def execute(client: Client, rpc_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        last_error = None
-        for attempt in range(RPCEngine.MAX_RETRY):
+    def normalize_response(
+        raw
+    ) -> Dict[str,Any]:
+
+
+        """
+        Convert all Supabase RPC responses
+        into standard ERP format.
+
+        Output:
+
+        {
+            success: bool,
+            message: str,
+            data: any
+        }
+
+        """
+
+
+
+        if raw is None:
+
+
+            return {
+
+                "success":False,
+
+                "message":
+                    "Empty RPC response",
+
+                "data":None
+
+            }
+
+
+
+
+        # --------------------------------------------------------------
+        # JSON STRING RESPONSE
+        # --------------------------------------------------------------
+
+
+        if isinstance(
+            raw,
+            str
+        ):
+
+
             try:
-                response = client.rpc(rpc_name, payload).execute()
-                return RPCEngine.normalize_response(response.data)
-            except (APIError, ConnectionError, TimeoutError) as e:
-                last_error = e
-                if attempt < RPCEngine.MAX_RETRY - 1:
-                    time.sleep(0.5 * (attempt + 1))
+
+                raw=json.loads(
+                    raw
+                )
+
+
+            except Exception:
+
+
+                return {
+
+                    "success":False,
+
+                    "message":
+                        raw,
+
+                    "data":None
+
+                }
+
+
+
+
+
+        # --------------------------------------------------------------
+        # Supabase sometimes returns list
+        # --------------------------------------------------------------
+
+
+        if isinstance(
+            raw,
+            list
+        ):
+
+
+            raw = (
+
+                raw[0]
+                if raw
+                else {}
+
+            )
+
+
+
+
+
+        # --------------------------------------------------------------
+        # response_json wrapper
+        # --------------------------------------------------------------
+
+
+        if (
+
+            isinstance(
+                raw,
+                dict
+            )
+
+            and
+
+            "response_json"
+            in raw
+
+        ):
+
+
+            raw = raw[
+                "response_json"
+            ]
+
+
+
+
+
+
+        # --------------------------------------------------------------
+        # Dictionary response
+        # --------------------------------------------------------------
+
+
+        if isinstance(
+            raw,
+            dict
+        ):
+
+
+            status = (
+
+                raw.get(
+                    "success"
+                )
+
+                if
+
+                raw.get(
+                    "success"
+                )
+                is not None
+
+                else
+
+                raw.get(
+                    "status"
+                )
+
+            )
+
+
+
+            success = (
+
+                str(
+                    status
+                )
+                .lower()
+
+                in
+
+                [
+
+                    str(x).lower()
+
+                    for x
+                    in
+
+                    RPCEngine.SUCCESS_VALUES
+
+                ]
+
+            )
+
+
+
+            return {
+
+
+                "success":
+                    success,
+
+
+                "message":
+                    raw.get(
+                        "message",
+                        "Operation completed"
+                    ),
+
+
+                "data":
+                    raw.get(
+                        "data",
+                        raw
+                    )
+
+
+            }
+
+
+
+
+
+        # --------------------------------------------------------------
+        # Other datatype
+        # --------------------------------------------------------------
+
+
+        return {
+
+
+            "success":
+                True,
+
+
+            "message":
+                "Operation completed",
+
+
+            "data":
+                raw
+
+
+        }
+
+
+
+
+
+    # ------------------------------------------------------------------
+    # EXECUTE RPC
+    # ------------------------------------------------------------------
+
+
+    @staticmethod
+    def execute(
+        client,
+        rpc_name:str,
+        payload:Dict[str,Any]
+    ) -> Dict[str,Any]:
+
+
+
+        last_error = None
+
+
+
+
+        for attempt in range(
+            RPCEngine.MAX_RETRY
+        ):
+
+
+
+            try:
+
+
+                response = (
+
+                    client
+                    .rpc(
+                        rpc_name,
+                        payload
+                    )
+                    .execute()
+
+                )
+
+
+
+                return RPCEngine.normalize_response(
+
+                    response.data
+
+                )
+
+
+
+
+
+            except (
+
+                APIError,
+
+                ConnectionError,
+
+                TimeoutError
+
+            ) as e:
+
+
+
+                last_error=e
+
+
+
+
+                if attempt < (
+
+                    RPCEngine.MAX_RETRY - 1
+
+                ):
+
+
+
+                    time.sleep(
+
+                        0.5 *
+                        (
+                            attempt + 1
+                        )
+
+                    )
+
+
                     continue
+
+
+
                 break
+
+
+
+
+
             except Exception as e:
-                last_error = e
+
+
+
+                last_error=e
+
                 break
-        log_error(message="RPC Execution Failed", rpc=rpc_name, payload=payload, exception=last_error)
-        return {"success": False, "message": str(last_error) if last_error else "RPC Failed", "data": None}
+
+
+
+
+
+        # --------------------------------------------------------------
+        # LOG FAILURE
+        # --------------------------------------------------------------
+
+
+        log_error(
+
+            message=
+                "RPC Execution Failed",
+
+            rpc_name=
+                rpc_name,
+
+            payload=
+                payload,
+
+            exception=
+                last_error
+
+        )
+
+
+
+        return {
+
+
+            "success":
+                False,
+
+
+            "message":
+
+                str(
+                    last_error
+                )
+
+                if last_error
+
+                else
+
+                "RPC Failed",
+
+
+            "data":
+                None
+
+                }
