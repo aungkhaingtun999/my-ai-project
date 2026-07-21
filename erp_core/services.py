@@ -1266,6 +1266,7 @@ def get_fifo_cogs(
 
 
 # ==============================================================================
+# =============================================================================
 # INVENTORY VIEW COMPATIBILITY WRAPPER
 # ==============================================================================
 
@@ -1276,4 +1277,10 @@ def get_inventory_view(
 ):
     try:
         with RepositoryCoordinator(db()) as coord:
-            return
+            return coord.products.search(
+                search,
+                warehouse_id
+            )[:limit]
+
+    except Exception:
+        return []
