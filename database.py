@@ -1,7 +1,7 @@
 # ==============================================================================
 # database.py
-# ERP ENTERPRISE DATABASE COMPATIBILITY LAYER V30.5
-# Lazy-Loaded Resilient Root Wrapper
+# ERP ENTERPRISE DATABASE COMPATIBILITY LAYER V30.5 (EXTENDED)
+# Lazy-Loaded Resilient Root Wrapper with Full Product/User CRUD & RPC Support
 # ==============================================================================
 
 print("DATABASE ROOT WRAPPER LOADING V30.5...")
@@ -217,7 +217,6 @@ def get_receipt(invoice_no):
         return result.data
     except Exception:
         try:
-            # Fallback without join if relationship name differs
             table_sales = getattr(Tables, "SALES", "sales")
             result = (
                 db()
@@ -384,6 +383,140 @@ def save_setting(key, value):
 
 
 # ==============================================================================
+# PRODUCT RPC & CRUD COMPATIBILITY
+# ==============================================================================
+
+def update_product_rpc(*args, **kwargs):
+    """
+    Legacy Product Update RPC Wrapper
+    Used by:
+    - Product Management
+    - Inventory Page
+    - Admin Panel
+    """
+    try:
+        client = db()
+        product_id = kwargs.get(
+            "product_id",
+            args[0] if args else None
+        )
+        data = kwargs.get(
+            "data",
+            args[1] if len(args) > 1 else {}
+        )
+
+        if not product_id:
+            return {
+                "success": False,
+                "message": "Product ID required"
+            }
+
+        table_products = getattr(Tables, "PRODUCTS", "products")
+        result = (
+            client
+            .table(table_products)
+            .update(data)
+            .eq("id", int(product_id))
+            .execute()
+        )
+
+        try:
+            CacheManager.bump_version("inventory_version")
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "data": result.data
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }
+
+
+def add_product_rpc(product_data):
+    try:
+        client = db()
+        table_products = getattr(Tables, "PRODUCTS", "products")
+        res = client.table(table_products).insert(product_data).execute()
+        try:
+            CacheManager.bump_version("inventory_version")
+        except Exception:
+            pass
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def delete_product_rpc(product_id):
+    try:
+        client = db()
+        table_products = getattr(Tables, "PRODUCTS", "products")
+        res = client.table(table_products).delete().eq("id", int(product_id)).execute()
+        try:
+            CacheManager.bump_version("inventory_version")
+        except Exception:
+            pass
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def get_product_by_id(product_id):
+    try:
+        client = db()
+        table_products = getattr(Tables, "PRODUCTS", "products")
+        res = client.table(table_products).select("*").eq("id", int(product_id)).maybe_single().execute()
+        return res.data
+    except Exception:
+        return None
+
+
+def save_product(product_data):
+    try:
+        client = db()
+        table_products = getattr(Tables, "PRODUCTS", "products")
+        p_id = product_data.get("id")
+        if p_id:
+            res = client.table(table_products).update(product_data).eq("id", int(p_id)).execute()
+        else:
+            res = client.table(table_products).insert(product_data).execute()
+        try:
+            CacheManager.bump_version("inventory_version")
+        except Exception:
+            pass
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def delete_product(product_id):
+    return delete_product_rpc(product_id)
+
+
+def create_user(user_data):
+    try:
+        client = db()
+        table_users = getattr(Tables, "USERS", "users")
+        res = client.table(table_users).insert(user_data).execute()
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def update_user(user_id, user_data):
+    try:
+        client = db()
+        table_users = getattr(Tables, "USERS", "users")
+        res = client.table(table_users).update(user_data).eq("id", int(user_id)).execute()
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+# ==============================================================================
 # EXTRA LEGACY COMPATIBILITY
 # ==============================================================================
 
@@ -426,190 +559,5 @@ def get_active_users():
 # VERSION
 # ==============================================================================
 
-DATABASE_VERSION = "ERP V30.5 COMPATIBILITY"
-
-def get_db_client():
-    return db()
-
-
-
-def get_default_warehouse_id():
-
-    try:
-        ctx = ERPContext.get_current()
-
-        return int(
-            ctx.current_warehouse_id
-        )
-
-    except Exception:
-
-        return 1
-
-
-
-
-def get_current_user():
-
-    try:
-
-        ctx = ERPContext.get_current()
-
-        return ctx.current_user
-
-    except Exception:
-
-        return None
-
-
-
-
-def get_user_role():
-
-    try:
-
-        user = get_current_user()
-
-        if isinstance(user, dict):
-
-            return user.get(
-                "role",
-                "cashier"
-            )
-
-    except Exception:
-        pass
-
-
-    return "cashier"
-
-
-
-
-def get_company_settings():
-
-    return {
-
-        "name":
-            get_setting(
-                "company_name",
-                "Enterprise ERP"
-            ),
-
-
-        "currency":
-            get_setting(
-                "currency",
-                "MMK"
-            ),
-
-
-        "tax_rate":
-            get_setting(
-                "default_tax_rate",
-                0
-            ),
-
-
-        "address":
-            get_setting(
-                "company_address",
-                ""
-            ),
-
-
-        "phone":
-            get_setting(
-                "company_phone",
-                ""
-            ),
-
-    }
-
-
-
-
-def get_products_by_barcode(
-    barcode,
-    warehouse_id=None
-):
-
-    try:
-
-        warehouse_id = (
-            warehouse_id
-            or
-            get_default_warehouse_id()
-        )
-
-
-        products = get_products(
-            warehouse_id=warehouse_id,
-            limit=5000
-        )
-
-
-        for product in products:
-
-            if (
-
-                str(product.get("barcode"))
-                ==
-                str(barcode)
-
-                or
-
-                str(product.get("sku"))
-                ==
-                str(barcode)
-
-            ):
-
-                return product
-
-
-    except Exception:
-
-        pass
-
-
-    return None
-
-
-
-
-def get_receipt(invoice_no):
-
-    try:
-
-        result = (
-
-            db()
-            .table("sales")
-            .select("*")
-            .eq(
-                "invoice_no",
-                str(invoice_no)
-            )
-            .maybe_single()
-            .execute()
-
-        )
-
-
-        return result.data
-
-
-    except Exception:
-
-        return None
-
-
-
-
-# ==============================================================================
-# VERSION
-# ==============================================================================
-
-
-DATABASE_VERSION = "ERP V30.1 COMPATIBILITY"
+DATABASE_VERSION = "ERP V30.5 EXTENDED COMPATIBILITY"
+            
