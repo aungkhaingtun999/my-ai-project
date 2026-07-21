@@ -1,5 +1,5 @@
 # ==========================================
-# pages/7_Purchase.py
+# pages/4_Purchase.py
 # ERP ENTERPRISE PURCHASE RECEIVE v2
 # ==========================================
 
@@ -11,14 +11,14 @@ import streamlit as st
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from auth import is_authenticated
-from utils.ui import show_table
-from database import (
-    create_audit_log,
+from database import create_audit_log
+from erp_core import (
     get_products,
     get_suppliers,
     get_warehouses,
     purchase_receive_rpc,
 )
+from utils.ui import show_table
 
 # ==========================================
 # PAGE CONFIG
@@ -255,4 +255,3 @@ if st.session_state.purchase_cart:
     st.session_state.purchase_supplier_id = None
     st.session_state.purchase_warehouse_id = None
     st.rerun()
-        
