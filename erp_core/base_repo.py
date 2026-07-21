@@ -26,7 +26,11 @@ get_connection = db
 def money(value) -> Decimal:
     try: return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     except: return Decimal("0.00")
-
+def safe_float(value):
+    try:
+        return float(value or 0)
+    except:
+        return 0.0
 def money_float(value): return float(money(value))
 
 def validate_uuid(value) -> Optional[str]:
