@@ -292,6 +292,14 @@ def __getattr__(name):
                 services,
                 object_name
             )
+            if package_name == "loaders":
+
+    from . import loaders
+
+    return getattr(
+        loaders,
+        object_name
+    )
 
 
 
