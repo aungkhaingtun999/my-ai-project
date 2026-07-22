@@ -4,19 +4,29 @@
 # ==============================================================================
 
 
-from typing import Optional, Dict, Any
+from typing import (
+    Optional,
+    Dict,
+    Any
+)
 
 
-from ..base_repo import db
+from ..base_repo import (
+    db,
+    log_error
+)
 
 
-from ..services import RefundService
+from ..services import (
+    RefundService
+)
+
 
 
 
 
 def refund_sale_rpc(
-    invoice_no: str,
+    sale_id: int,
     refund_items: list,
     reason: str = "",
     cashier_id: Optional[str] = None
@@ -24,19 +34,39 @@ def refund_sale_rpc(
 ) -> Dict[str, Any]:
 
 
-    service = RefundService(
-        db()
-    )
+    try:
+
+        service = RefundService(
+            db()
+        )
 
 
-    return service.process_refund(
+        return service.process_refund(
 
-        invoice_no,
+            sale_id,
 
-        refund_items,
+            refund_items,
 
-        reason,
+            reason,
 
-        cashier_id
+            cashier_id
 
-    )
+        )
+
+
+    except Exception as e:
+
+        log_error(
+            f"refund_sale_rpc error: {e}"
+        )
+
+
+        return {
+
+            "success": False,
+
+            "message": str(e),
+
+            "data": None
+
+        }
