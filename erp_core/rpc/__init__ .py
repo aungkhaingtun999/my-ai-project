@@ -3,6 +3,7 @@
 # ERP ENTERPRISE RPC PACKAGE
 # ==============================================================================
 
+from .engine import RPCEngine
 
 from .checkout_rpc import (
     checkout_sale_rpc
@@ -26,7 +27,7 @@ from .stock_rpc import (
 
 
 __all__ = [
-
+    "RPCEngine",
     "checkout_sale_rpc",
 
     "purchase_receive_rpc",
