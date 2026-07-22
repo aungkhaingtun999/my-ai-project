@@ -207,31 +207,35 @@ def __getattr__(name):
 
 
         "get_setting":
-    ("loaders", "get_setting"),
+            ("loaders", "get_setting"),
 
 
-"get_products":
-    ("loaders", "get_products"),
+        "get_products":
+            ("loaders", "get_products"),
 
 
-"get_inventory_view":
-    ("loaders", "get_inventory_view"),
+        "get_inventory_view":
+            ("loaders", "get_inventory_view"),
 
 
-"get_warehouses":
-    ("loaders", "get_warehouses"),
+        "get_warehouses":
+            ("loaders", "get_warehouses"),
 
 
-"get_suppliers":
-    ("loaders", "get_suppliers"),
+        "get_suppliers":
+            ("loaders", "get_suppliers"),
 
 
-"get_customers":
-    ("loaders", "get_customers"),
+        "get_customers":
+            ("loaders", "get_customers"),
 
 
-"get_default_warehouse_id":
-    ("loaders", "get_default_warehouse_id"),
+        "get_default_warehouse_id":
+            ("loaders", "get_default_warehouse_id"),
+
+
+
+
         # ==============================================================
         # RPC FUNCTIONS
         # ==============================================================
@@ -292,16 +296,15 @@ def __getattr__(name):
                 services,
                 object_name
             )
-            if package_name == "loaders":
 
-    from . import loaders
+        if package_name == "loaders":
 
-    return getattr(
-        loaders,
-        object_name
-    )
+            from . import loaders
 
-
+            return getattr(
+                loaders,
+                object_name
+            )
 
         if package_name == "rpc":
 
