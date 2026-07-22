@@ -22,7 +22,7 @@ try:
 except ImportError:
     APIError = Exception
 
-from .config import log_error
+from ..config import log_error
 
 
 
