@@ -1,7 +1,7 @@
 # ==============================================================================
 # erp_core/__init__.py
 # ERP ENTERPRISE CORE PACKAGE v30.10
-# CLEAN ARCHITECTURE + LAZY SERVICE EXPORT
+# CLEAN ARCHITECTURE + LAZY SERVICE + RPC EXPORT
 # ==============================================================================
 
 
@@ -11,18 +11,21 @@ ERP Core Package
 Architecture:
 
 auth.py
-   |
-   └── erp_core.base_repo
+    |
+    └── erp_core.base_repo
 
 
 pages
-   |
-   └── erp_core.services
+    |
+    └── erp_core.services
 
 
-IMPORTANT:
-Services are loaded lazily.
-Never import services during package initialization.
+RPC
+    |
+    └── erp_core.rpc
+
+
+Services and RPC loaded lazily.
 """
 
 
@@ -83,21 +86,17 @@ from .base_repo import (
 
     get_connection,
 
-
     DatabaseHealth,
 
     database_health_check,
-
 
     money,
 
     money_float,
 
-
     validate_uuid,
 
     serialize_json,
-
 
     safe_execute
 
@@ -133,7 +132,7 @@ from .repositories import (
 # RPC ENGINE
 # ==============================================================================
 
-from .rpc_engine import (
+from .rpc.engine import (
 
     RPCEngine
 
@@ -145,128 +144,168 @@ from .rpc_engine import (
 # VERSION
 # ==============================================================================
 
-ERP_CORE_VERSION = "30.10 LAZY SERVICE ARCHITECTURE"
+ERP_CORE_VERSION = "30.10 LAZY SERVICE + RPC ARCHITECTURE"
+
+
 
 
 
 # ==============================================================================
-# LAZY SERVICE LOADER
+# LAZY LOADER
 # ==============================================================================
 
 
 def __getattr__(name):
 
-    """
-    Lazy import services.
 
-    Prevent:
-
-        auth
-          ↓
-        erp_core
-          ↓
-        services
-          ↓
-        auth
-
-    circular import.
-    """
+    exports = {
 
 
-    service_exports = {
+
+        # ==============================================================
+        # SERVICES
+        # ==============================================================
 
 
-        # Settings
-        "get_setting": "get_setting",
-
-
-        # Service Classes
         "AccountingLedgerService":
-            "AccountingLedgerService",
+            ("services", "AccountingLedgerService"),
+
 
         "CustomerService":
-            "CustomerService",
+            ("services", "CustomerService"),
+
 
         "SalesService":
-            "SalesService",
+            ("services", "SalesService"),
+
 
         "InventoryService":
-            "InventoryService",
+            ("services", "InventoryService"),
+
 
         "PurchaseService":
-            "PurchaseService",
+            ("services", "PurchaseService"),
+
 
         "RefundService":
-            "RefundService",
+            ("services", "RefundService"),
+
 
         "DashboardService":
-            "DashboardService",
+            ("services", "DashboardService"),
+
 
         "AuditService":
-            "AuditService",
+            ("services", "AuditService"),
 
 
 
-        # RPC Wrappers
-        "checkout_sale_rpc":
-            "checkout_sale_rpc",
 
-        "purchase_receive_rpc":
-            "purchase_receive_rpc",
-
-        "refund_sale_rpc":
-            "refund_sale_rpc",
-
-        "stock_adjustment_rpc":
-            "stock_adjustment_rpc",
+        # ==============================================================
+        # SERVICE FUNCTIONS
+        # ==============================================================
 
 
+        "get_setting":
+            ("services", "get_setting"),
 
-        # Inventory / Dashboard
-        "get_fifo_cogs":
-            "get_fifo_cogs",
+
+        "get_products":
+            ("services", "get_products"),
+
 
         "get_inventory_view":
-            "get_inventory_view",
+            ("services", "get_inventory_view"),
 
-
-
-        # Loaders
-        "get_products":
-            "get_products",
 
         "get_warehouses":
-            "get_warehouses",
+            ("services", "get_warehouses"),
+
 
         "get_suppliers":
-            "get_suppliers",
+            ("services", "get_suppliers"),
+
 
         "get_customers":
-            "get_customers",
+            ("services", "get_customers"),
+
 
         "get_default_warehouse_id":
-            "get_default_warehouse_id",
+            ("services", "get_default_warehouse_id"),
 
 
 
-        # Audit
+        # ==============================================================
+        # RPC FUNCTIONS
+        # ==============================================================
+
+
+        "checkout_sale_rpc":
+            ("rpc", "checkout_sale_rpc"),
+
+
+        "purchase_receive_rpc":
+            ("rpc", "purchase_receive_rpc"),
+
+
+        "refund_sale_rpc":
+            ("rpc", "refund_sale_rpc"),
+
+
+        "stock_adjustment_rpc":
+            ("rpc", "stock_adjustment_rpc"),
+
+
+
+
+        # ==============================================================
+        # INVENTORY / ACCOUNTING
+        # ==============================================================
+
+
+        "get_fifo_cogs":
+            ("services", "get_fifo_cogs"),
+
+
+
+        # ==============================================================
+        # AUDIT
+        # ==============================================================
+
+
         "create_audit_log":
-            "create_audit_log"
+            ("services", "create_audit_log"),
+
 
     }
 
 
 
-    if name in service_exports:
+    if name in exports:
 
 
-        from . import services
+        package_name, object_name = exports[name]
 
 
-        return getattr(
-            services,
-            service_exports[name]
-        )
+        if package_name == "services":
+
+            from . import services
+
+            return getattr(
+                services,
+                object_name
+            )
+
+
+
+        if package_name == "rpc":
+
+            from . import rpc
+
+            return getattr(
+                rpc,
+                object_name
+            )
 
 
 
@@ -287,6 +326,7 @@ __all__ = [
 
 
     # Version
+
     "ERP_CORE_VERSION",
 
 
@@ -339,7 +379,7 @@ __all__ = [
 
 
 
-    # Services lazy
+    # Lazy exports
 
     "get_setting",
 
@@ -355,6 +395,10 @@ __all__ = [
 
     "get_default_warehouse_id",
 
+
+
+    # RPC wrappers
+
     "checkout_sale_rpc",
 
     "purchase_receive_rpc",
@@ -363,9 +407,19 @@ __all__ = [
 
     "stock_adjustment_rpc",
 
+
+
+    # Services
+
     "get_fifo_cogs",
 
     "create_audit_log"
 
 
 ]
+
+
+
+print(
+    "ERP_CORE v30.10 LAZY SERVICE + RPC ARCHITECTURE LOADED"
+)
