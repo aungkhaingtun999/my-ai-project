@@ -4,13 +4,23 @@
 # ==============================================================================
 
 
-from typing import Optional, Dict, Any
+from typing import (
+    Optional,
+    Dict,
+    Any
+)
 
 
-from ..base_repo import db
+from ..base_repo import (
+    db,
+    log_error
+)
 
 
-from ..services import PurchaseService
+from ..services import (
+    PurchaseService
+)
+
 
 
 
@@ -21,34 +31,51 @@ def purchase_receive_rpc(
     warehouse_id: int,
     qty: int,
     cost: Any,
-    payment_method: str = "credit",
     remarks: str = "",
     user_id: Optional[str] = None
 
 ) -> Dict[str, Any]:
 
 
-    service = PurchaseService(
-        db()
-    )
+    try:
+
+        service = PurchaseService(
+            db()
+        )
 
 
-    return service.receive_stock(
+        return service.receive_stock(
 
-        product_id,
+            product_id,
 
-        supplier_id,
+            supplier_id,
 
-        warehouse_id,
+            warehouse_id,
 
-        qty,
+            qty,
 
-        cost,
+            cost,
 
-        payment_method,
+            remarks,
 
-        remarks,
+            user_id
 
-        user_id
+        )
 
-    )
+
+    except Exception as e:
+
+        log_error(
+            f"purchase_receive_rpc error: {e}"
+        )
+
+
+        return {
+
+            "success": False,
+
+            "message": str(e),
+
+            "data": None
+
+        }
