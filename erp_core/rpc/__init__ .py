@@ -3,7 +3,7 @@
 # ERP ENTERPRISE RPC PACKAGE v30.11
 # SAFE EXPORT
 # ==============================================================================
-
+print("RPC INIT START")
 
 from .checkout_rpc import (
     checkout_sale_rpc
