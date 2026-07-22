@@ -13,8 +13,14 @@ from typing import (
 )
 
 
-from postgrest.exceptions import APIError
+# ==============================================================================
+# POSTGREST ERROR COMPATIBILITY
+# ==============================================================================
 
+try:
+    from postgrest.exceptions import APIError
+except ImportError:
+    APIError = Exception
 
 from .config import log_error
 
