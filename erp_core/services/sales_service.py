@@ -2,7 +2,7 @@
 # erp_core/services/sales_service.py
 # ERP ENTERPRISE SALES SERVICE
 # ==============================================================================
-
+print("SALES SERVICE START")
 
 from typing import (
     Optional,
