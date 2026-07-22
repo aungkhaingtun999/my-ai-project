@@ -1,6 +1,6 @@
 # ==============================================================================
 # erp_core/repositories/__init__.py
-# ERP ENTERPRISE REPOSITORY EXPORTS
+# ERP ENTERPRISE REPOSITORY EXPORTS v30
 # ==============================================================================
 
 
