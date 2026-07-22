@@ -1,6 +1,6 @@
 # ==============================================================================
 # erp_core/rpc/checkout_rpc.py
-# ERP ENTERPRISE CHECKOUT RPC WRAPPER
+# ERP ENTERPRISE CHECKOUT RPC
 # ==============================================================================
 
 
@@ -17,7 +17,10 @@ from ..base_repo import (
 )
 
 
-from ..services import SalesService
+from ..services.sales_service import (
+    SalesService
+)
+
 
 
 
@@ -35,6 +38,7 @@ def checkout_sale_rpc(
 
 ) -> Dict[str, Any]:
 
+
     try:
 
         service = SalesService(
@@ -42,7 +46,7 @@ def checkout_sale_rpc(
         )
 
 
-        return service.checkout(
+        result = service.checkout(
 
             cart,
 
@@ -65,7 +69,12 @@ def checkout_sale_rpc(
         )
 
 
+        return result
+
+
+
     except Exception as e:
+
 
         log_error(
             f"checkout_sale_rpc error: {e}"
@@ -73,6 +82,9 @@ def checkout_sale_rpc(
 
 
         return {
+
             "success": False,
+
             "message": str(e)
+
         }
