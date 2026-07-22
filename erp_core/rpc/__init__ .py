@@ -5,33 +5,57 @@
 
 
 """
-RPC Layer
+RPC Gateway Layer
 
-Contains transaction gateways only.
+Contains transaction wrappers:
 
-No database initialization here.
+- Checkout
+- Purchase
+- Refund
+- Stock Adjustment
+
 """
 
 
+
+# ==============================================================================
+# CHECKOUT
+# ==============================================================================
 
 from .checkout_rpc import (
     checkout_sale_rpc
 )
 
 
+
+# ==============================================================================
+# PURCHASE
+# ==============================================================================
+
 from .purchase_rpc import (
     purchase_receive_rpc
 )
 
+
+
+# ==============================================================================
+# REFUND
+# ==============================================================================
 
 from .refund_rpc import (
     refund_sale_rpc
 )
 
 
+
+# ==============================================================================
+# STOCK
+# ==============================================================================
+
 from .stock_rpc import (
     stock_adjustment_rpc
 )
+
 
 
 
