@@ -25,7 +25,7 @@ from ..base_repo import (
 )
 
 
-from ..rpc_engine import (
+from ..rpc.engine import (
     RPCEngine
 )
 
