@@ -4,43 +4,34 @@
 # ==============================================================================
 
 
-try:
+"""
+RPC Layer
 
-    from .checkout_rpc import checkout_sale_rpc
+Contains transaction gateways only.
 
-except Exception as e:
-
-    checkout_sale_rpc = None
-
-
-
-try:
-
-    from .purchase_rpc import purchase_receive_rpc
-
-except Exception:
-
-    purchase_receive_rpc = None
+No database initialization here.
+"""
 
 
 
-try:
-
-    from .refund_rpc import refund_sale_rpc
-
-except Exception:
-
-    refund_sale_rpc = None
+from .checkout_rpc import (
+    checkout_sale_rpc
+)
 
 
+from .purchase_rpc import (
+    purchase_receive_rpc
+)
 
-try:
 
-    from .stock_rpc import stock_adjustment_rpc
+from .refund_rpc import (
+    refund_sale_rpc
+)
 
-except Exception:
 
-    stock_adjustment_rpc = None
+from .stock_rpc import (
+    stock_adjustment_rpc
+)
 
 
 
