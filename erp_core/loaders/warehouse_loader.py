@@ -1,15 +1,82 @@
+# ==============================================================================
+# erp_core/loaders/warehouse_loader.py
+# ERP ENTERPRISE WAREHOUSE LOADER v30
+# ==============================================================================
+
+
 import streamlit as st
 
-from ..base_repo import db
-from ..context import CacheManager
-from ..repositories import RepositoryCoordinator
+
+from ..base_repo import (
+    db,
+    log_error
+)
+
+
+from ..context import (
+    CacheManager
+)
+
+
+from ..repositories import (
+    RepositoryCoordinator
+)
+
+
+
+
+
 @st.cache_data(ttl=300)
-def _get_warehouses_cached(version: int):
-    with RepositoryCoordinator(db()) as coord:
-        return coord.warehouses.get_active_warehouses()
+def _get_warehouses_cached(
+    version: int
+):
+
+    try:
+
+        with RepositoryCoordinator(
+            db()
+        ) as coord:
+
+            return coord.warehouses.get_active_warehouses()
+
+
+    except Exception as e:
+
+        log_error(
+            f"warehouse loader error: {e}"
+        )
+
+        return []
+
+
+
 
 
 def get_warehouses():
+
     return _get_warehouses_cached(
-        CacheManager.get_version("inventory_version")
+
+        CacheManager.get_version(
+            "inventory_version"
+        )
+
     )
+
+
+
+
+
+def get_default_warehouse_id():
+
+    warehouses = get_warehouses()
+
+
+    if warehouses:
+
+        return warehouses[0].get(
+            "id",
+            1
+        )
+
+
+    return 1
