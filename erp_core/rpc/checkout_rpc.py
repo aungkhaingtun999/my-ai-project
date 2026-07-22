@@ -4,13 +4,24 @@
 # ==============================================================================
 
 
-from typing import Optional, Dict, Any
+from typing import (
+    Optional,
+    Dict,
+    Any
+)
 
 
-from ..base_repo import db
+from ..base_repo import (
+    db,
+    log_error
+)
 
 
-from ..services import SalesService
+from ..services import (
+    SalesService
+)
+
+
 
 
 
@@ -27,30 +38,44 @@ def checkout_sale_rpc(
 
 ) -> Dict[str, Any]:
 
+    try:
 
-    service = SalesService(
-        db()
-    )
+        service = SalesService(
+            db()
+        )
 
 
-    return service.checkout(
+        return service.checkout(
 
-        cart,
+            cart,
 
-        paid_amount,
+            paid_amount,
 
-        warehouse_id,
+            warehouse_id,
 
-        customer_id,
+            customer_id,
 
-        cashier_id,
+            cashier_id,
 
-        counter_id,
+            counter_id,
 
-        payment_method,
+            payment_method,
 
-        tax_rate,
+            tax_rate,
 
-        discount
+            discount
 
-    )
+        )
+
+
+    except Exception as e:
+
+        log_error(
+            f"checkout_sale_rpc error: {e}"
+        )
+
+
+        return {
+            "success": False,
+            "message": str(e)
+        }
