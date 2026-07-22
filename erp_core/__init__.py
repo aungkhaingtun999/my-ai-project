@@ -1,7 +1,7 @@
 # ==============================================================================
 # erp_core/__init__.py
 # ERP ENTERPRISE CORE PACKAGE v30.11
-# CLEAN ARCHITECTURE + LOADERS + RPC EXPORT
+# CLEAN ARCHITECTURE + LOADERS + RPC LAZY EXPORT
 # ==============================================================================
 
 
@@ -130,29 +130,10 @@ from .rpc.engine import (
 
 
 # ==============================================================================
-# RPC EXPORT
-# IMPORTANT: direct import
-# ==============================================================================
-
-from .rpc import (
-
-    checkout_sale_rpc,
-
-    purchase_receive_rpc,
-
-    refund_sale_rpc,
-
-    stock_adjustment_rpc
-
-)
-
-
-
-# ==============================================================================
 # VERSION
 # ==============================================================================
 
-ERP_CORE_VERSION = "30.11 LOADERS + RPC STABLE"
+ERP_CORE_VERSION = "30.11 LOADERS + RPC LAZY STABLE"
 
 
 
@@ -250,6 +231,27 @@ def __getattr__(name):
         "create_audit_log":
             ("services","create_audit_log"),
 
+
+
+        # ==========================================================
+        # RPC
+        # ==========================================================
+
+        "checkout_sale_rpc":
+            ("rpc","checkout_sale_rpc"),
+
+
+        "purchase_receive_rpc":
+            ("rpc","purchase_receive_rpc"),
+
+
+        "refund_sale_rpc":
+            ("rpc","refund_sale_rpc"),
+
+
+        "stock_adjustment_rpc":
+            ("rpc","stock_adjustment_rpc"),
+
     }
 
 
@@ -278,6 +280,17 @@ def __getattr__(name):
 
             return getattr(
                 services,
+                object_name
+            )
+
+
+
+        if package_name == "rpc":
+
+            from . import rpc
+
+            return getattr(
+                rpc,
                 object_name
             )
 
@@ -399,5 +412,5 @@ __all__ = [
 
 
 print(
-    "ERP_CORE v30.11 LOADERS + RPC STABLE LOADED"
+    "ERP_CORE v30.11 LOADERS + RPC LAZY LOADED"
 )
