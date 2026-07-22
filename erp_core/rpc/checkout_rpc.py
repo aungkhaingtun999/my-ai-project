@@ -17,9 +17,7 @@ from ..base_repo import (
 )
 
 
-from ..services import (
-    SalesService
-)
+from ..services.sales_service import SalesService
 
 
 
