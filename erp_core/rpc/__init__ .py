@@ -5,17 +5,18 @@
 
 
 """
-RPC Gateway Layer
+RPC Layer
 
-Contains transaction wrappers:
-
-- Checkout
-- Purchase
-- Refund
-- Stock Adjustment
+Pages
+ |
+ └── rpc wrappers
+        |
+        ├── checkout_rpc
+        ├── purchase_rpc
+        ├── refund_rpc
+        └── stock_rpc
 
 """
-
 
 
 # ==============================================================================
@@ -58,6 +59,9 @@ from .stock_rpc import (
 
 
 
+# ==============================================================================
+# EXPORT
+# ==============================================================================
 
 __all__ = [
 
@@ -70,3 +74,8 @@ __all__ = [
     "stock_adjustment_rpc",
 
 ]
+
+
+print(
+    "ERP_CORE RPC PACKAGE v30.11 LOADED"
+)
