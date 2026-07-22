@@ -10,3 +10,7 @@ python-dotenv
 bcrypt
 qrcode
 plotly
+try:
+    from postgrest.exceptions import APIError
+except ImportError:
+    APIError = Exception
