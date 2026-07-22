@@ -15,7 +15,8 @@ from .product_loader import (
 
 
 from .warehouse_loader import (
-    get_warehouses
+    get_warehouses,
+    get_default_warehouse_id
 )
 
 
@@ -48,5 +49,7 @@ __all__ = [
     "get_suppliers",
 
     "get_inventory_view",
+
+    "get_default_warehouse_id",
 
 ]
