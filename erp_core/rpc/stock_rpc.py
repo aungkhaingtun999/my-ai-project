@@ -4,13 +4,23 @@
 # ==============================================================================
 
 
-from typing import Optional, Dict, Any
+from typing import (
+    Optional,
+    Dict,
+    Any
+)
 
 
-from ..base_repo import db
+from ..base_repo import (
+    db,
+    log_error
+)
 
 
-from ..services import InventoryService
+from ..services import (
+    InventoryService
+)
+
 
 
 
@@ -25,21 +35,41 @@ def stock_adjustment_rpc(
 ) -> Dict[str, Any]:
 
 
-    service = InventoryService(
-        db()
-    )
+    try:
+
+        service = InventoryService(
+            db()
+        )
 
 
-    return service.adjust_stock(
+        return service.adjust_stock(
 
-        product_id,
+            product_id,
 
-        warehouse_id,
+            warehouse_id,
 
-        quantity,
+            quantity,
 
-        reason,
+            reason,
 
-        user_id
+            user_id
 
-    )
+        )
+
+
+    except Exception as e:
+
+        log_error(
+            f"stock_adjustment_rpc error: {e}"
+        )
+
+
+        return {
+
+            "success": False,
+
+            "message": str(e),
+
+            "data": None
+
+        }
