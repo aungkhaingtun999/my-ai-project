@@ -1,9 +1,33 @@
+# ==============================================================================
+# erp_core/loaders/product_loader.py
+# ERP ENTERPRISE PRODUCT LOADER v30
+# ==============================================================================
+
+
 import streamlit as st
 
-from ..base_repo import db
-from ..context import CacheManager
-from ..config import DEFAULT_PAGE_SIZE
-from ..repositories import RepositoryCoordinator
+
+from ..base_repo import (
+    db,
+    log_error
+)
+
+
+from ..context import (
+    CacheManager
+)
+
+
+from ..config import (
+    DEFAULT_PAGE_SIZE
+)
+
+
+from ..repositories import (
+    RepositoryCoordinator
+)
+
+
 
 
 
@@ -15,13 +39,31 @@ def _get_products_cached(
     version
 ):
 
-    with RepositoryCoordinator(db()) as coord:
+    try:
 
-        return coord.products.get_products(
-            warehouse_id,
-            offset,
-            limit
+        with RepositoryCoordinator(
+            db()
+        ) as coord:
+
+            return coord.products.get_products(
+                warehouse_id,
+                offset,
+                limit
+            )
+
+
+    except Exception as e:
+
+        log_error(
+            f"product loader error: {e}"
         )
+
+        return []
+
+
+
+
+
 def get_products(
     warehouse_id=None,
     offset=0,
