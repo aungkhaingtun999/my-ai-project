@@ -3,7 +3,7 @@
 # ERP ENTERPRISE CHECKOUT RPC
 # ==============================================================================
 
-
+print("CHECKOUT RPC START")
 from typing import (
     Optional,
     Dict,
