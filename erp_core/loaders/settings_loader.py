@@ -1,14 +1,27 @@
-from ..base_repo import db
-from ..config import Tables
+# ==============================================================================
+# erp_core/loaders/settings_loader.py
+# ERP ENTERPRISE SETTINGS LOADER v30
+# ==============================================================================
 
 
-@
+from ..base_repo import (
+    db,
+    log_error
+)
+
+
+from ..config import (
+    Tables
+)
+
+
+
+
 
 def get_setting(
     key: str,
     default=None
 ):
-
     """
     ERP Settings Reader
     """
@@ -38,9 +51,11 @@ def get_setting(
             )
 
 
-    except Exception:
+    except Exception as e:
 
-        pass
+        log_error(
+            f"get_setting error: {e}"
+        )
 
 
     return default
