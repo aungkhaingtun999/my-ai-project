@@ -132,9 +132,15 @@ from .repositories import (
 # RPC ENGINE
 # ==============================================================================
 
-from .rpc.engine import (
+from .rpc import (
 
-    RPCEngine
+    checkout_sale_rpc,
+
+    purchase_receive_rpc,
+
+    refund_sale_rpc,
+
+    stock_adjustment_rpc
 
 )
 
