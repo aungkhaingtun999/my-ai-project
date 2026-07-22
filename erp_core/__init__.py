@@ -131,7 +131,11 @@ from .repositories import (
 # ==============================================================================
 # RPC ENGINE
 # ==============================================================================
+from .rpc.engine import (
 
+    RPCEngine
+
+)
 from .rpc import (
 
     checkout_sale_rpc,
