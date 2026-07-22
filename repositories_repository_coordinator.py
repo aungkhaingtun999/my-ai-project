@@ -1,5 +1,0 @@
-from .product_repository import ProductRepository
-from .warehouse_repository import WarehouseRepository
-from .customer_repository import CustomerRepository
-from .supplier_repository import SupplierRepository
-from .sales_repository import SalesRepository
