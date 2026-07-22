@@ -1,33 +1,32 @@
 # ==============================================================================
 # erp_core/__init__.py
-# ERP ENTERPRISE CORE PACKAGE v30.10
-# CLEAN ARCHITECTURE + LAZY SERVICE + RPC EXPORT
+# ERP ENTERPRISE CORE PACKAGE v30.11
+# CLEAN ARCHITECTURE + LOADERS + RPC EXPORT
 # ==============================================================================
 
 
 """
-ERP Core Package
+ERP Core Package v30.11
 
 Architecture:
 
-auth.py
-    |
-    └── erp_core.base_repo
+Pages
+ |
+ └── erp_core
+       |
+       ├── loaders
+       |      └── data loading
+       |
+       ├── services
+       |      └── business logic
+       |
+       ├── rpc
+       |      └── transaction wrappers
+       |
+       └── repositories
+              └── database access
 
-
-pages
-    |
-    └── erp_core.services
-
-
-RPC
-    |
-    └── erp_core.rpc
-
-
-Services and RPC loaded lazily.
 """
-
 
 
 # ==============================================================================
@@ -39,37 +38,27 @@ from .exceptions import *
 
 
 # ==============================================================================
-# CONFIGURATION
+# CONFIG
 # ==============================================================================
 
 from .config import (
-
     Tables,
-
     TABLE_PRODUCT_VIEW,
-
     DEFAULT_PAGE_SIZE,
-
     log_error
-
 )
 
 
 
 # ==============================================================================
-# CONTEXT ENGINE
+# CONTEXT
 # ==============================================================================
 
 from .context import (
-
     ERPContext,
-
     CacheManager,
-
     generate_tx_id,
-
     generate_transaction_id
-
 )
 
 
@@ -105,7 +94,7 @@ from .base_repo import (
 
 
 # ==============================================================================
-# REPOSITORY LAYER
+# REPOSITORIES
 # ==============================================================================
 
 from .repositories import (
@@ -129,17 +118,33 @@ from .repositories import (
 
 
 # ==============================================================================
+# RPC EXPORT
+# IMPORTANT: direct import
+# ==============================================================================
+
+from .rpc import (
+
+    checkout_sale_rpc,
+
+    purchase_receive_rpc,
+
+    refund_sale_rpc,
+
+    stock_adjustment_rpc
+
+)
+
+
+
+# ==============================================================================
 # RPC ENGINE
 # ==============================================================================
+
 from .rpc.engine import (
 
     RPCEngine
 
 )
-
-    
-
-
 
 
 
@@ -147,7 +152,7 @@ from .rpc.engine import (
 # VERSION
 # ==============================================================================
 
-ERP_CORE_VERSION = "30.10 LAZY SERVICE + RPC ARCHITECTURE"
+ERP_CORE_VERSION = "30.11 LOADERS + RPC STABLE"
 
 
 
@@ -164,122 +169,86 @@ def __getattr__(name):
     exports = {
 
 
-
-        # ==============================================================
-        # SERVICES
-        # ==============================================================
-
-
-        "AccountingLedgerService":
-            ("services", "AccountingLedgerService"),
-
-
-        "CustomerService":
-            ("services", "CustomerService"),
-
-
-        "SalesService":
-            ("services", "SalesService"),
-
-
-        "InventoryService":
-            ("services", "InventoryService"),
-
-
-        "PurchaseService":
-            ("services", "PurchaseService"),
-
-
-        "RefundService":
-            ("services", "RefundService"),
-
-
-        "DashboardService":
-            ("services", "DashboardService"),
-
-
-        "AuditService":
-            ("services", "AuditService"),
-
-
-
-
-        # ==============================================================
-        # SERVICE FUNCTIONS
-        # ==============================================================
-
+        # ==========================================================
+        # LOADERS
+        # ==========================================================
 
         "get_setting":
-            ("loaders", "get_setting"),
+            ("loaders","get_setting"),
 
 
         "get_products":
-            ("loaders", "get_products"),
+            ("loaders","get_products"),
 
 
         "get_inventory_view":
-            ("loaders", "get_inventory_view"),
+            ("loaders","get_inventory_view"),
 
 
         "get_warehouses":
-            ("loaders", "get_warehouses"),
-
-
-        "get_suppliers":
-            ("loaders", "get_suppliers"),
-
-
-        "get_customers":
-            ("loaders", "get_customers"),
+            ("loaders","get_warehouses"),
 
 
         "get_default_warehouse_id":
-            ("loaders", "get_default_warehouse_id"),
+            ("loaders","get_default_warehouse_id"),
+
+
+        "get_suppliers":
+            ("loaders","get_suppliers"),
+
+
+        "get_customers":
+            ("loaders","get_customers"),
 
 
 
+        # ==========================================================
+        # SERVICES
+        # ==========================================================
 
-        # ==============================================================
-        # RPC FUNCTIONS
-        # ==============================================================
-
-
-        "checkout_sale_rpc":
-            ("rpc", "checkout_sale_rpc"),
+        "AccountingLedgerService":
+            ("services","AccountingLedgerService"),
 
 
-        "purchase_receive_rpc":
-            ("rpc", "purchase_receive_rpc"),
+        "CustomerService":
+            ("services","CustomerService"),
 
 
-        "refund_sale_rpc":
-            ("rpc", "refund_sale_rpc"),
+        "SalesService":
+            ("services","SalesService"),
 
 
-        "stock_adjustment_rpc":
-            ("rpc", "stock_adjustment_rpc"),
+        "InventoryService":
+            ("services","InventoryService"),
+
+
+        "PurchaseService":
+            ("services","PurchaseService"),
+
+
+        "RefundService":
+            ("services","RefundService"),
+
+
+        "DashboardService":
+            ("services","DashboardService"),
+
+
+        "AuditService":
+            ("services","AuditService"),
 
 
 
-
-        # ==============================================================
-        # INVENTORY / ACCOUNTING
-        # ==============================================================
-
+        # ==========================================================
+        # SERVICE HELPERS
+        # ==========================================================
 
         "get_fifo_cogs":
-            ("services", "get_fifo_cogs"),
-
-
-
-        # ==============================================================
-        # AUDIT
-        # ==============================================================
+            ("services","get_fifo_cogs"),
 
 
         "create_audit_log":
-            ("services", "create_audit_log"),
-
+            ("services","create_audit_log"),
 
     }
 
@@ -291,14 +260,6 @@ def __getattr__(name):
         package_name, object_name = exports[name]
 
 
-        if package_name == "services":
-
-            from . import services
-
-            return getattr(
-                services,
-                object_name
-            )
 
         if package_name == "loaders":
 
@@ -309,12 +270,14 @@ def __getattr__(name):
                 object_name
             )
 
-        if package_name == "rpc":
 
-            from . import rpc
+
+        if package_name == "services":
+
+            from . import services
 
             return getattr(
-                rpc,
+                services,
                 object_name
             )
 
@@ -336,13 +299,13 @@ def __getattr__(name):
 __all__ = [
 
 
-    # Version
+    # VERSION
 
     "ERP_CORE_VERSION",
 
 
 
-    # Database
+    # DATABASE
 
     "db",
 
@@ -352,7 +315,7 @@ __all__ = [
 
 
 
-    # Money
+    # MONEY
 
     "money",
 
@@ -360,15 +323,7 @@ __all__ = [
 
 
 
-    # Validation
-
-    "validate_uuid",
-
-    "serialize_json",
-
-
-
-    # Context
+    # CONTEXT
 
     "ERPContext",
 
@@ -376,13 +331,7 @@ __all__ = [
 
 
 
-    # RPC
-
-    "RPCEngine",
-
-
-
-    # Config
+    # CONFIG
 
     "Tables",
 
@@ -390,25 +339,9 @@ __all__ = [
 
 
 
-    # Lazy exports
+    # RPC
 
-    "get_setting",
-
-    "get_products",
-
-    "get_inventory_view",
-
-    "get_warehouses",
-
-    "get_suppliers",
-
-    "get_customers",
-
-    "get_default_warehouse_id",
-
-
-
-    # RPC wrappers
+    "RPCEngine",
 
     "checkout_sale_rpc",
 
@@ -420,7 +353,42 @@ __all__ = [
 
 
 
-    # Services
+    # LOADERS
+
+    "get_setting",
+
+    "get_products",
+
+    "get_inventory_view",
+
+    "get_warehouses",
+
+    "get_default_warehouse_id",
+
+    "get_suppliers",
+
+    "get_customers",
+
+
+
+    # SERVICES
+
+    "AccountingLedgerService",
+
+    "CustomerService",
+
+    "SalesService",
+
+    "InventoryService",
+
+    "PurchaseService",
+
+    "RefundService",
+
+    "DashboardService",
+
+    "AuditService",
+
 
     "get_fifo_cogs",
 
@@ -430,7 +398,6 @@ __all__ = [
 ]
 
 
-
 print(
-    "ERP_CORE v30.10 LAZY SERVICE + RPC ARCHITECTURE LOADED"
+    "ERP_CORE v30.11 LOADERS + RPC STABLE LOADED"
 )
