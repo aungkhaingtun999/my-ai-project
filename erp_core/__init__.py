@@ -207,34 +207,31 @@ def __getattr__(name):
 
 
         "get_setting":
-            ("services", "get_setting"),
+    ("loaders", "get_setting"),
 
 
-        "get_products":
-            ("services", "get_products"),
+"get_products":
+    ("loaders", "get_products"),
 
 
-        "get_inventory_view":
-            ("services", "get_inventory_view"),
+"get_inventory_view":
+    ("loaders", "get_inventory_view"),
 
 
-        "get_warehouses":
-            ("services", "get_warehouses"),
+"get_warehouses":
+    ("loaders", "get_warehouses"),
 
 
-        "get_suppliers":
-            ("services", "get_suppliers"),
+"get_suppliers":
+    ("loaders", "get_suppliers"),
 
 
-        "get_customers":
-            ("services", "get_customers"),
+"get_customers":
+    ("loaders", "get_customers"),
 
 
-        "get_default_warehouse_id":
-            ("services", "get_default_warehouse_id"),
-
-
-
+"get_default_warehouse_id":
+    ("loaders", "get_default_warehouse_id"),
         # ==============================================================
         # RPC FUNCTIONS
         # ==============================================================
