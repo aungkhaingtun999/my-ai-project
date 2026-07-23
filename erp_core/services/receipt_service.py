@@ -6,55 +6,80 @@
 
 
 from typing import (
-    Dict,
-    Any,
-    List,
-    Optional
-)
+from typing import Any, Dict, List, Optional
 
-
-from ..loaders.receipt_loader import (
-
+from ..loaders import (
     get_receipt,
-    get_full_receipt,
     get_sale_items,
-    search_receipts,
-    get_recent_receipts
-
+    search_receipts
 )
-
-
-
 
 
 class ReceiptService:
-    """
-    Enterprise Receipt Service
-
-    UI
-     |
-     ▼
-    ReceiptService
-     |
-     ▼
-    receipt_loader
-     |
-     ▼
-    Database
-
-    """
-
 
 
     def __init__(
         self,
         client: Any = None
     ):
-
         self.client = client
 
 
 
+    def get_receipt(
+        self,
+        invoice_no: str
+    ) -> Optional[Dict]:
+
+        if not invoice_no:
+            return None
+
+        return get_receipt(
+            invoice_no
+        )
+
+
+
+    def get_sale_items(
+        self,
+        sale_id: int
+    ) -> List[Dict]:
+
+        if not sale_id:
+            return []
+
+        return get_sale_items(
+            sale_id
+        )
+
+
+
+    def search_receipts(
+        self,
+        keyword: str = ""
+    ) -> List[Dict]:
+
+        return search_receipts(
+            keyword
+        )
+
+
+
+    def load_receipt(
+        self,
+        invoice_no: str
+    ) -> Optional[Dict]:
+
+        receipt = self.get_receipt(
+            invoice_no
+        )
+
+
+        if not receipt:
+            return None
+
+
+        return receipt
     # ==========================================================================
     # GET SINGLE RECEIPT
     # ==========================================================================
