@@ -232,6 +232,8 @@ _EXPORTS = {
 
     "AuditService":
         ("services", "AuditService"),
+     "ReceiptService":
+    ("services", "ReceiptService"),
 
 
 
@@ -511,6 +513,7 @@ __all__ = [
     "DashboardService",
 
     "AuditService",
+    "ReceiptService",
     
 
 
