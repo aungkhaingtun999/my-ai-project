@@ -39,16 +39,11 @@ All heavy modules are loaded lazily.
 # CONFIG
 # ==============================================================================
 
-from .config import (
-
+from ..config import (
     Tables,
-
     TABLE_PRODUCT_VIEW,
-
     DEFAULT_PAGE_SIZE,
-
     log_error
-
 )
 
 
