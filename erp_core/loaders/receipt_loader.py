@@ -77,3 +77,56 @@ def get_receipt(sale_id: int) -> Dict[str, Any]:
             "sale": None,
             "items": []
         }
+        # ==============================================================================
+# RECEIPT SEARCH
+# ==============================================================================
+
+
+def search_receipts(
+    keyword: str = ""
+):
+
+    """
+    Search sales receipts
+    """
+
+    try:
+
+        client = db()
+
+
+        query = (
+            client
+            .table("sales")
+            .select("*")
+        )
+
+
+        if keyword:
+
+            query = query.or_(
+                f"id.eq.{keyword},"
+                f"invoice_no.ilike.%{keyword}%"
+            )
+
+
+        response = (
+            query
+            .order(
+                "created_at",
+                desc=True
+            )
+            .execute()
+        )
+
+
+        return response.data or []
+
+
+    except Exception as e:
+
+        log_error(
+            f"search_receipts error: {e}"
+        )
+
+        return []
