@@ -1,6 +1,7 @@
 # ==============================================================================
-# erp_core/rpc_engine.py
-# ERP ENTERPRISE RPC GATEWAY ENGINE v30
+# erp_core/rpc/engine.py
+# ERP ENTERPRISE RPC GATEWAY ENGINE v30.11
+# SAFE SUPABASE RPC EXECUTOR
 # ==============================================================================
 
 
@@ -9,7 +10,8 @@ import time
 
 from typing import (
     Dict,
-    Any
+    Any,
+    Optional
 )
 
 
@@ -18,11 +20,19 @@ from typing import (
 # ==============================================================================
 
 try:
+
     from postgrest.exceptions import APIError
+
 except ImportError:
+
     APIError = Exception
 
-from ..config import log_error
+
+
+from ..config import (
+    log_error
+)
+
 
 
 
@@ -52,31 +62,16 @@ class RPCEngine:
 
 
 
-    # ------------------------------------------------------------------
+
+    # ==================================================================
     # NORMALIZE RESPONSE
-    # ------------------------------------------------------------------
+    # ==================================================================
 
 
     @staticmethod
     def normalize_response(
-        raw
-    ) -> Dict[str,Any]:
-
-
-        """
-        Convert all Supabase RPC responses
-        into standard ERP format.
-
-        Output:
-
-        {
-            success: bool,
-            message: str,
-            data: any
-        }
-
-        """
-
+        raw: Any
+    ) -> Dict[str, Any]:
 
 
         if raw is None:
@@ -84,20 +79,21 @@ class RPCEngine:
 
             return {
 
-                "success":False,
+                "success": False,
 
                 "message":
                     "Empty RPC response",
 
-                "data":None
+                "data": None
 
             }
 
 
 
 
+
         # --------------------------------------------------------------
-        # JSON STRING RESPONSE
+        # JSON STRING
         # --------------------------------------------------------------
 
 
@@ -109,7 +105,7 @@ class RPCEngine:
 
             try:
 
-                raw=json.loads(
+                raw = json.loads(
                     raw
                 )
 
@@ -119,12 +115,11 @@ class RPCEngine:
 
                 return {
 
-                    "success":False,
+                    "success": False,
 
-                    "message":
-                        raw,
+                    "message": raw,
 
-                    "data":None
+                    "data": None
 
                 }
 
@@ -133,7 +128,7 @@ class RPCEngine:
 
 
         # --------------------------------------------------------------
-        # Supabase sometimes returns list
+        # LIST RESPONSE
         # --------------------------------------------------------------
 
 
@@ -146,7 +141,9 @@ class RPCEngine:
             raw = (
 
                 raw[0]
+
                 if raw
+
                 else {}
 
             )
@@ -156,7 +153,7 @@ class RPCEngine:
 
 
         # --------------------------------------------------------------
-        # response_json wrapper
+        # RESPONSE JSON WRAPPER
         # --------------------------------------------------------------
 
 
@@ -170,6 +167,7 @@ class RPCEngine:
             and
 
             "response_json"
+
             in raw
 
         ):
@@ -183,9 +181,8 @@ class RPCEngine:
 
 
 
-
         # --------------------------------------------------------------
-        # Dictionary response
+        # DICT RESPONSE
         # --------------------------------------------------------------
 
 
@@ -205,8 +202,7 @@ class RPCEngine:
 
                 raw.get(
                     "success"
-                )
-                is not None
+                ) is not None
 
                 else
 
@@ -231,10 +227,7 @@ class RPCEngine:
 
                     str(x).lower()
 
-                    for x
-                    in
-
-                    RPCEngine.SUCCESS_VALUES
+                    for x in RPCEngine.SUCCESS_VALUES
 
                 ]
 
@@ -246,22 +239,25 @@ class RPCEngine:
 
 
                 "success":
+
                     success,
 
 
                 "message":
+
                     raw.get(
                         "message",
                         "Operation completed"
                     ),
 
 
+
                 "data":
+
                     raw.get(
                         "data",
                         raw
                     )
-
 
             }
 
@@ -270,24 +266,19 @@ class RPCEngine:
 
 
         # --------------------------------------------------------------
-        # Other datatype
+        # OTHER RESPONSE
         # --------------------------------------------------------------
 
 
         return {
 
-
-            "success":
-                True,
-
+            "success": True,
 
             "message":
                 "Operation completed",
 
-
             "data":
                 raw
-
 
         }
 
@@ -295,21 +286,26 @@ class RPCEngine:
 
 
 
-    # ------------------------------------------------------------------
+    # ==================================================================
     # EXECUTE RPC
-    # ------------------------------------------------------------------
+    # ==================================================================
 
 
     @staticmethod
     def execute(
+
         client,
-        rpc_name:str,
-        payload:Dict[str,Any]
-    ) -> Dict[str,Any]:
+
+        rpc_name: str,
+
+        payload: Dict[str, Any]
+
+    ) -> Dict[str, Any]:
 
 
 
-        last_error = None
+        last_error: Optional[Exception] = None
+
 
 
 
@@ -319,17 +315,21 @@ class RPCEngine:
         ):
 
 
-
             try:
 
 
                 response = (
 
                     client
+
                     .rpc(
+
                         rpc_name,
+
                         payload
+
                     )
+
                     .execute()
 
                 )
@@ -358,8 +358,7 @@ class RPCEngine:
 
 
 
-                last_error=e
-
+                last_error = e
 
 
 
@@ -370,12 +369,14 @@ class RPCEngine:
                 ):
 
 
-
                     time.sleep(
 
                         0.5 *
+
                         (
+
                             attempt + 1
+
                         )
 
                     )
@@ -394,8 +395,7 @@ class RPCEngine:
             except Exception as e:
 
 
-
-                last_error=e
+                last_error = e
 
                 break
 
@@ -403,34 +403,44 @@ class RPCEngine:
 
 
 
-        # --------------------------------------------------------------
-        # LOG FAILURE
-        # --------------------------------------------------------------
+        # ==================================================================
+        # FAILED LOG
+        # ==================================================================
 
 
-        log_error(
+        try:
 
-            message=
-                "RPC Execution Failed",
 
-            rpc_name=
-                rpc_name,
+            log_error(
 
-            payload=
-                payload,
+                message=
+                    "RPC Execution Failed",
 
-            exception=
-                last_error
+                rpc_name=
+                    rpc_name,
 
-        )
+                payload=
+                    payload,
+
+                exception=
+                    last_error
+
+            )
+
+
+        except Exception:
+
+
+            pass
+
+
 
 
 
         return {
 
 
-            "success":
-                False,
+            "success": False,
 
 
             "message":
@@ -446,7 +456,7 @@ class RPCEngine:
                 "RPC Failed",
 
 
-            "data":
-                None
 
-                }
+            "data": None
+
+        }
