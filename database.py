@@ -1,385 +1,148 @@
 # ==============================================================================
-# erp_core/database.py
-# ERP ENTERPRISE DATABASE GATEWAY v31
-# CORE DATABASE CONNECTION + COMPATIBILITY LAYER
+# database.py
+# ERP ENTERPRISE DATABASE GATEWAY v32
+# Legacy Compatibility Bridge
 # ==============================================================================
 
+"""
+Legacy bridge.
 
-import streamlit as st
+Old pages:
+    from database import ...
 
-from typing import Any
+New architecture:
+    erp_core/
 
+This file only re-exports ERP Core APIs.
+"""
 
-from supabase import (
-    create_client,
-    Client
+from erp_core import (
+
+    # ------------------------------------------------------------------
+    # Database
+    # ------------------------------------------------------------------
+    db,
+    get_supabase,
+    get_connection,
+    DatabaseHealth,
+    database_health_check,
+
+    # ------------------------------------------------------------------
+    # Loaders
+    # ------------------------------------------------------------------
+    get_setting,
+    get_products,
+    get_inventory_view,
+    get_warehouses,
+    get_default_warehouse_id,
+    get_suppliers,
+    get_customers,
+
+    # ------------------------------------------------------------------
+    # RPC
+    # ------------------------------------------------------------------
+    checkout_sale_rpc,
+    purchase_receive_rpc,
+    refund_sale_rpc,
+    stock_adjustment_rpc,
+
+    # ------------------------------------------------------------------
+    # Services
+    # ------------------------------------------------------------------
+    SalesService,
+    PurchaseService,
+    InventoryService,
+    RefundService,
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    get_fifo_cogs,
+    create_audit_log,
+
+    # ------------------------------------------------------------------
+    # Utilities
+    # ------------------------------------------------------------------
+    money,
+    money_float,
+    validate_uuid,
+    serialize_json,
+    safe_execute,
 )
 
-
-from .config import (
-    Tables,
-    log_error
-)
-
-
-from .exceptions import (
-    DatabaseError
-)
+ERP_DATABASE_VERSION = "32.0 Legacy Gateway"
 
 
 # ==============================================================================
-# VERSION
+# SERVICE FACTORIES
 # ==============================================================================
 
-ERP_DATABASE_VERSION = "31.0 Gateway"
+def get_sales_service():
+    return SalesService(db())
 
 
-# ==============================================================================
-# SUPABASE CONNECTION
-# ==============================================================================
+def get_purchase_service():
+    return PurchaseService(db())
 
 
-@st.cache_resource
-def get_supabase() -> Client:
+def get_inventory_service():
+    return InventoryService(db())
 
-    """
-    Create and cache Supabase client.
 
-    Single database connection gateway.
-    """
-
-    try:
-
-        return create_client(
-
-            st.secrets["SUPABASE_URL"],
-
-            st.secrets["SUPABASE_KEY"]
-
-        )
-
-
-    except Exception as e:
-
-        log_error(
-
-            message="Supabase connection failed",
-
-            exception=e
-
-        )
-
-        raise DatabaseError(
-            "Cannot connect database"
-        )
-
-
-
-
-
-def db() -> Client:
-
-    """
-    Main database accessor.
-    """
-
-    return get_supabase()
-
-
-
-# legacy alias
-
-get_connection = db
-
-
-
-# ==============================================================================
-# DATABASE HEALTH CHECK
-# ==============================================================================
-
-
-class DatabaseHealth:
-
-
-    @staticmethod
-    def check() -> bool:
-
-
-        try:
-
-            result = (
-
-                db()
-
-                .table(
-                    Tables.PRODUCTS
-                )
-
-                .select(
-                    "id"
-                )
-
-                .limit(
-                    1
-                )
-
-                .execute()
-
-            )
-
-
-            return result is not None
-
-
-
-        except Exception as e:
-
-
-            log_error(
-
-                message=
-                "Database health check failed",
-
-                exception=e
-
-            )
-
-
-            return False
-
-
-
-
-
-def database_health_check():
-
-    return DatabaseHealth.check()
-
-
-
-# ==============================================================================
-# COMPATIBILITY EXPORTS
-# ==============================================================================
-#
-# Old pages may still use:
-#
-# from erp_core.database import get_products
-#
-# Keep these bridges during migration.
-#
-# ==============================================================================
-
-
-
-# -------------------------
-# Loaders
-# -------------------------
-
-
-try:
-
-    from .loaders import (
-
-        get_products,
-
-        get_customers,
-
-        get_suppliers,
-
-        get_warehouses,
-
-        get_inventory_view,
-
-        get_setting
-
-    )
-
-
-except Exception:
-
-
-    get_products = None
-
-    get_customers = None
-
-    get_suppliers = None
-
-    get_warehouses = None
-
-    get_inventory_view = None
-
-    get_setting = None
-
-
-
-
-
-# -------------------------
-# RPC
-# -------------------------
-
-
-try:
-
-    from .rpc import (
-
-        checkout_sale_rpc,
-
-        purchase_receive_rpc,
-
-        refund_sale_rpc,
-
-        stock_adjustment_rpc
-
-    )
-
-
-except Exception:
-
-
-    checkout_sale_rpc = None
-
-    purchase_receive_rpc = None
-
-    refund_sale_rpc = None
-
-    stock_adjustment_rpc = None
-
-
-
-
-
-# -------------------------
-# Services
-# -------------------------
-
-
-try:
-
-    from .services import (
-
-        SalesService,
-
-        PurchaseService,
-
-        InventoryService,
-
-        RefundService
-
-    )
-
-
-    def get_sales_service():
-
-        return SalesService(
-            db()
-        )
-
-
-
-    def get_purchase_service():
-
-        return PurchaseService(
-            db()
-        )
-
-
-
-    def get_inventory_service():
-
-        return InventoryService(
-            db()
-        )
-
-
-
-    def get_refund_service():
-
-        return RefundService(
-            db()
-        )
-
-
-
-except Exception:
-
-
-    SalesService = None
-
-    PurchaseService = None
-
-    InventoryService = None
-
-    RefundService = None
-
-
-
+def get_refund_service():
+    return RefundService(db())
 
 
 # ==============================================================================
 # EXPORTS
 # ==============================================================================
 
-
 __all__ = [
 
-
-    # database
-
+    # Database
     "db",
-
     "get_supabase",
-
     "get_connection",
-
     "DatabaseHealth",
-
     "database_health_check",
 
-
-
-    # loaders
-
+    # Loaders
+    "get_setting",
     "get_products",
-
+    "get_inventory_view",
+    "get_warehouses",
+    "get_default_warehouse_id",
+    "get_suppliers",
     "get_customers",
 
-    "get_suppliers",
-
-    "get_warehouses",
-
-    "get_inventory_view",
-
-    "get_setting",
-
-
-
-    # rpc
-
+    # RPC
     "checkout_sale_rpc",
-
     "purchase_receive_rpc",
-
     "refund_sale_rpc",
-
     "stock_adjustment_rpc",
 
+    # Services
+    "SalesService",
+    "PurchaseService",
+    "InventoryService",
+    "RefundService",
 
-
-    # service factory
-
+    # Factories
     "get_sales_service",
-
     "get_purchase_service",
-
     "get_inventory_service",
-
     "get_refund_service",
 
+    # Helpers
+    "get_fifo_cogs",
+    "create_audit_log",
 
+    # Utils
+    "money",
+    "money_float",
+    "validate_uuid",
+    "serialize_json",
+    "safe_execute",
 ]
 
-
-print(
-    "ERP DATABASE GATEWAY v31 LOADED SUCCESSFULLY"
-)
+print("DATABASE GATEWAY v32 READY")
