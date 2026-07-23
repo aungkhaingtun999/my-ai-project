@@ -10,10 +10,7 @@ import pandas as pd
 from datetime import datetime
 from utils.timezone import format_datetime
 from utils.receipt_pdf import generate_pdf
-from utils.thermal_receipt import (
-    print_thermal,
-    build_receipt_data
-)
+from utils.thermal_receipt import print_thermal
 import streamlit as st
 
 # Root path
@@ -269,18 +266,10 @@ def run():
                 
                 if result.get("success", False):
                     data = result.get("data", {})
-
-                    if isinstance(data, list):
-                        data = data[0] if data else {}
-
-                    invoice_no = (
-                        data.get("invoice_no")
-                        or
-                        data.get("sale_no")
-                        or
-                        "INV-" + datetime.now().strftime("%Y%m%d%H%M%S")
-                    )
-
+                    if isinstance(data, list): data = data[0] if data else {}
+                    invoice_no = data.get("invoice_no") or data.get("sale_no") or "INV-" + datetime.now().strftime("%Y%m%d%H%M%S")
+                    
+                    # Mapping cart items to receipt engine format (DTO)
                     receipt_items = []
                     for item in st.session_state.cart:
                         receipt_items.append({
@@ -291,22 +280,19 @@ def run():
                             "total": float(item["selling_price"]) * int(item["qty"])
                         })
 
-                    raw_sale = {
+                    st.session_state.sale_data = {
                         "invoice_no": invoice_no,
-                        "created_at": format_datetime(),
+                        "date": format_datetime(),
                         "cashier": st.session_state.get("username", "Unknown"),
+                        "items": receipt_items,
                         "subtotal": subtotal,
+                        "tax_rate": st.session_state.tax_rate,
                         "tax_amount": tax_amount,
                         "discount": discount,
-                        "total": grand_total,
-                        "paid_amount": received,
-                        "change_amount": change
+                        "grand_total": grand_total,
+                        "paid": received,
+                        "change": change
                     }
-
-                    st.session_state.sale_data = build_receipt_data(
-                        raw_sale,
-                        receipt_items
-                    )
                     st.session_state.show_receipt = True
                     st.session_state.processing = False
                     st.rerun()
@@ -344,29 +330,12 @@ def run():
         
         c1, c2, c3 = st.columns(3)
         if c1.button("🖨 Print Receipt", use_container_width=True):
-            receipt = build_receipt_data(
-                data,
-                data.get("items", [])
-            )
-            print_thermal(receipt)
+            print_thermal(data)
             st.success("Receipt sent to printer.")
-
         if c2.button("📄 Generate PDF", use_container_width=True):
-            receipt = build_receipt_data(
-                data,
-                data.get("items", [])
-            )
-            pdf_bytes, filename = generate_pdf(receipt)
+            pdf_bytes, filename = generate_pdf(data)
             if pdf_bytes:
-                st.download_button(
-                    "⬇ Download PDF",
-                    data=pdf_bytes,
-                    file_name=f"{filename}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key="download_receipt_pdf"
-                )
-
+                st.download_button("⬇ Download PDF", data=pdf_bytes, file_name=f"{filename}.pdf", mime="application/pdf", use_container_width=True, key="download_receipt_pdf")
         if c3.button("🆕 New Sale", use_container_width=True):
             st.session_state.cart = []
             st.session_state.sale_data = None
