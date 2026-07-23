@@ -263,6 +263,11 @@ _EXPORTS = {
             "rpc.stock_rpc",
             "stock_adjustment_rpc"
         ),
+ "update_product_rpc":
+(
+    "rpc.stock_rpc",
+    "update_product_rpc"
+),
 
 
 
