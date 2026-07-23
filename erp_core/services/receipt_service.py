@@ -1,105 +1,318 @@
 # ==============================================================================
 # erp_core/services/receipt_service.py
-# ERP ENTERPRISE RECEIPT SERVICE
+# ERP ENTERPRISE RECEIPT SERVICE v1.0
 # Business Logic Layer
 # ==============================================================================
 
-from typing import Any, Dict, List, Optional
 
-from ..loaders import (
-    get_receipt,
-    get_sale_items,
-    search_receipts
+from typing import (
+    Dict,
+    Any,
+    List,
+    Optional
 )
+
+
+from ..loaders.receipt_loader import (
+
+    get_receipt,
+    get_full_receipt,
+    get_sale_items,
+    search_receipts,
+    get_recent_receipts
+
+)
+
+
+
 
 
 class ReceiptService:
     """
     Enterprise Receipt Service
 
-    UI  ---> ReceiptService ---> Loader ---> Database
+    UI
+     |
+     ▼
+    ReceiptService
+     |
+     ▼
+    receipt_loader
+     |
+     ▼
+    Database
+
     """
 
-    def __init__(self, client: Any = None):
+
+
+    def __init__(
+        self,
+        client: Any = None
+    ):
+
         self.client = client
 
-    # --------------------------------------------------------------------------
-    # Receipt
-    # --------------------------------------------------------------------------
+
+
+    # ==========================================================================
+    # GET SINGLE RECEIPT
+    # ==========================================================================
 
     def get_receipt(
         self,
-        invoice_no: str
-    ) -> Optional[Dict]:
+        receipt_key: Any
+    ) -> Optional[Dict[str, Any]]:
 
-        if not invoice_no:
-            return None
 
-        return get_receipt(invoice_no)
+        return get_receipt(
+            receipt_key
+        )
 
-    # --------------------------------------------------------------------------
-    # Items
-    # --------------------------------------------------------------------------
+
+
+
+    # ==========================================================================
+    # GET SALE ITEMS
+    # ==========================================================================
 
     def get_sale_items(
         self,
         sale_id: int
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
 
-        if not sale_id:
-            return []
 
-        return get_sale_items(sale_id)
+        return get_sale_items(
+            sale_id
+        )
 
-    # --------------------------------------------------------------------------
-    # Search
-    # --------------------------------------------------------------------------
 
-    def search_receipts(
+
+
+    # ==========================================================================
+    # SEARCH
+    # ==========================================================================
+
+    def search(
         self,
         keyword: str = ""
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
 
-        return search_receipts(keyword)
 
-    # --------------------------------------------------------------------------
-    # Full Receipt
-    # --------------------------------------------------------------------------
+        return search_receipts(
+            keyword
+        )
+
+
+
+
+    # ==========================================================================
+    # RECENT RECEIPTS
+    # ==========================================================================
+
+    def recent(
+        self,
+        limit: int = 20
+    ) -> List[Dict[str, Any]]:
+
+
+        return get_recent_receipts(
+            limit
+        )
+
+
+
+
+    # ==========================================================================
+    # COMPLETE RECEIPT
+    # ==========================================================================
 
     def load_receipt(
         self,
-        invoice_no: str
-    ) -> Optional[Dict]:
+        receipt_key: Any
+    ) -> Optional[Dict[str, Any]]:
         """
-        Returns
+        Return:
 
         {
-            receipt:{},
-            items:[]
+            success: True,
+            sale: {},
+            items: []
         }
+
         """
 
-        receipt = self.get_receipt(invoice_no)
 
-        if not receipt:
-            return None
-
-        items = self.get_sale_items(
-            receipt["id"]
+        result = get_full_receipt(
+            receipt_key
         )
 
+
+        if not result.get(
+            "success"
+        ):
+
+            return None
+
+
+
+        return result
+
+
+
+
+    # ==========================================================================
+    # RECEIPT SUMMARY
+    # ==========================================================================
+
+    def build_summary(
+        self,
+        receipt_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Prepare data for UI / PDF
+        """
+
+
+        sale = receipt_data.get(
+            "sale",
+            {}
+        )
+
+
+        items = receipt_data.get(
+            "items",
+            []
+        )
+
+
         return {
-            "receipt": receipt,
-            "items": items
+
+
+            "invoice_no":
+                sale.get(
+                    "invoice_no",
+                    "-"
+                ),
+
+
+
+            "date":
+                sale.get(
+                    "created_at"
+                ),
+
+
+
+            "subtotal":
+                sale.get(
+                    "subtotal",
+                    0
+                ),
+
+
+
+            "discount":
+                sale.get(
+                    "discount",
+                    0
+                ),
+
+
+
+            "tax":
+                sale.get(
+                    "tax",
+                    0
+                ),
+
+
+
+            "total":
+                sale.get(
+                    "total",
+                    sale.get(
+                        "total_amount",
+                        0
+                    )
+                ),
+
+
+
+            "paid_amount":
+                sale.get(
+                    "paid_amount",
+                    0
+                ),
+
+
+
+            "change_amount":
+                sale.get(
+                    "change_amount",
+                    0
+                ),
+
+
+
+            "payment_method":
+                sale.get(
+                    "payment_method",
+                    "-"
+                ),
+
+
+
+            "status":
+                sale.get(
+                    "status",
+                    sale.get(
+                        "sale_status",
+                        "-"
+                    )
+                ),
+
+
+
+            "items":
+                items
+
         }
 
-    # --------------------------------------------------------------------------
-    # Exists
-    # --------------------------------------------------------------------------
 
-    def receipt_exists(
+
+
+    # ==========================================================================
+    # VALIDATION
+    # ==========================================================================
+
+    def exists(
         self,
-        invoice_no: str
+        receipt_key: Any
     ) -> bool:
 
-        return self.get_receipt(invoice_no) is not None
+
+        return (
+            self.get_receipt(
+                receipt_key
+            )
+            is not None
+        )
+
+
+
+
+# ==============================================================================
+# EXPORT
+# ==============================================================================
+
+__all__ = [
+
+    "ReceiptService"
+
+]
+
+
+print(
+    "RECEIPT SERVICE v1.0 READY"
+)
