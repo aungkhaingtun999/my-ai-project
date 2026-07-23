@@ -263,11 +263,12 @@ _EXPORTS = {
             "rpc.stock_rpc",
             "stock_adjustment_rpc"
         ),
- "update_product_rpc":
-(
-    "rpc.stock_rpc",
-    "update_product_rpc"
-),
+ 
+    "update_product_rpc":
+        (
+            "rpc.stock_rpc",
+            "update_product_rpc"
+        ),
 
 
 
@@ -478,6 +479,8 @@ __all__ = [
     "refund_sale_rpc",
 
     "stock_adjustment_rpc",
+    
+    "update_product_rpc",  # <--- ထည့်သွင်းပြီးပါပြီ
 
 
 
