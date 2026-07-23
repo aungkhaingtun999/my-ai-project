@@ -269,9 +269,6 @@ def run():
                 
                 if result.get("success", False):
                     data = result.get("data", {})
-                                    if result.get("success", False):
-
-                    data = result.get("data", {})
 
                     if isinstance(data, list):
                         data = data[0] if data else {}
@@ -284,73 +281,6 @@ def run():
                         "INV-" + datetime.now().strftime("%Y%m%d%H%M%S")
                     )
 
-
-                    receipt_items = []
-
-                    for item in st.session_state.cart:
-
-                        receipt_items.append(
-                            {
-                                "name": item["name"],
-                                "product_id": item["id"],
-                                "quantity": int(item["qty"]),
-                                "unit_price": float(item["selling_price"]),
-                                "total": (
-                                    float(item["selling_price"])
-                                    *
-                                    int(item["qty"])
-                                )
-                            }
-                        )
-
-
-                    raw_sale = {
-
-                        "invoice_no": invoice_no,
-
-                        "created_at": format_datetime(),
-
-                        "cashier":
-                            st.session_state.get(
-                                "username",
-                                "Unknown"
-                            ),
-
-                        "subtotal":
-                            subtotal,
-
-                        "tax_amount":
-                            tax_amount,
-
-                        "discount":
-                            discount,
-
-                        "total":
-                            grand_total,
-
-                        "paid_amount":
-                            received,
-
-                        "change_amount":
-                            change
-                    }
-
-
-                    st.session_state.sale_data = build_receipt_data(
-                        raw_sale,
-                        receipt_items
-                    )
-
-
-                    st.session_state.show_receipt = True
-
-                    st.session_state.processing = False
-
-                    st.rerun()
-                    if isinstance(data, list): data = data[0] if data else {}
-                    invoice_no = data.get("invoice_no") or data.get("sale_no") or "INV-" + datetime.now().strftime("%Y%m%d%H%M%S")
-                    
-                    # Mapping cart items to receipt engine format (DTO)
                     receipt_items = []
                     for item in st.session_state.cart:
                         receipt_items.append({
@@ -362,41 +292,21 @@ def run():
                         })
 
                     raw_sale = {
+                        "invoice_no": invoice_no,
+                        "created_at": format_datetime(),
+                        "cashier": st.session_state.get("username", "Unknown"),
+                        "subtotal": subtotal,
+                        "tax_amount": tax_amount,
+                        "discount": discount,
+                        "total": grand_total,
+                        "paid_amount": received,
+                        "change_amount": change
+                    }
 
-    "invoice_no": invoice_no,
-
-    "created_at": format_datetime(),
-
-    "cashier":
-        st.session_state.get(
-            "username",
-            "Unknown"
-        ),
-
-    "subtotal":
-        subtotal,
-
-    "tax_amount":
-        tax_amount,
-
-    "discount":
-        discount,
-
-    "total":
-        grand_total,
-
-    "paid_amount":
-        received,
-
-    "change_amount":
-        change
-}
-
-
-                   st.session_state.sale_data = build_receipt_data(
-    raw_sale,
-    receipt_items
-)
+                    st.session_state.sale_data = build_receipt_data(
+                        raw_sale,
+                        receipt_items
+                    )
                     st.session_state.show_receipt = True
                     st.session_state.processing = False
                     st.rerun()
@@ -404,8 +314,8 @@ def run():
                     st.error(result.get("message", "Sale failed."))
                     st.session_state.processing = False
             except Exception as e:
-                    st.session_state.processing = False
-                    st.error(f"Checkout Error: {e}")
+                st.session_state.processing = False
+                st.error(f"Checkout Error: {e}")
 
     # --------------------------------------------------------------------------
     # PART 3/3 - RECEIPT + PRINT + RESET ENGINE
@@ -434,26 +344,29 @@ def run():
         
         c1, c2, c3 = st.columns(3)
         if c1.button("🖨 Print Receipt", use_container_width=True):
+            receipt = build_receipt_data(
+                data,
+                data.get("items", [])
+            )
+            print_thermal(receipt)
+            st.success("Receipt sent to printer.")
 
-    receipt = build_receipt_data(
-        data,
-        data.get("items", [])
-    )
-
-    print_thermal(receipt)
-
-        st.success(
-        "Receipt sent to printer."
-    )
         if c2.button("📄 Generate PDF", use_container_width=True):
             receipt = build_receipt_data(
-    data,
-    data.get("items", [])
-)
+                data,
+                data.get("items", [])
+            )
+            pdf_bytes, filename = generate_pdf(receipt)
+            if pdf_bytes:
+                st.download_button(
+                    "⬇ Download PDF",
+                    data=pdf_bytes,
+                    file_name=f"{filename}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="download_receipt_pdf"
+                )
 
-pdf_bytes, filename = generate_pdf(receipt)
-        if pdf_bytes:
-                st.download_button("⬇ Download PDF", data=pdf_bytes, file_name=f"{filename}.pdf", mime="application/pdf", use_container_width=True, key="download_receipt_pdf")
         if c3.button("🆕 New Sale", use_container_width=True):
             st.session_state.cart = []
             st.session_state.sale_data = None
