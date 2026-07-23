@@ -202,19 +202,19 @@ _EXPORTS = {
     # -------------------------
 
     "checkout_sale_rpc":
-        ("rpc.checkout_rpc", "checkout_sale_rpc"),
+        ("rpc", "checkout_sale_rpc"),
 
 
     "purchase_receive_rpc":
-        ("rpc.purchase_rpc", "purchase_receive_rpc"),
+        ("rpc", "purchase_receive_rpc"),
 
 
     "refund_sale_rpc":
-        ("rpc.refund_rpc", "refund_sale_rpc"),
+        ("rpc", "refund_sale_rpc"),
 
 
     "stock_adjustment_rpc":
-        ("rpc.stock_rpc", "stock_adjustment_rpc"),
+        ("rpc", "stock_adjustment_rpc"),
 
 
 
@@ -258,7 +258,7 @@ def __getattr__(name):
 
     # RPC DIRECT IMPORT
 
-    if module_name.startswith("rpc."):
+    if module_name == "rpc":
 
         module = __import__(
             f"erp_core.{module_name}",
