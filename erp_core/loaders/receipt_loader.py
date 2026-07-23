@@ -27,12 +27,28 @@ def get_sale_items(sale_id: int) -> List[Dict[str, Any]]:
         return []
 
 
-def get_receipt(sale_id: int) -> Dict[str, Any]:
-    """
-    Load complete receipt data (Sale Header + Items)
-    """
+def get_receipt(sale_id):
+
     try:
-        client = db()
+        client=db()
+
+        response=(
+            client
+            .table("sales")
+            .select("*")
+            .eq("id",sale_id)
+            .single()
+            .execute()
+        )
+
+        return response.data or {}
+
+    except Exception as e:
+        log_error(
+            f"get_receipt error:{e}"
+        )
+
+        return {}
 
         # ------------------------------------------
         # SALE HEADER
