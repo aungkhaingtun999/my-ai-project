@@ -1,630 +1,179 @@
-# ==============================================================================
+# ==========================================
 # utils/receipt_pdf.py
-# ERP ENTERPRISE RECEIPT PDF ENGINE v4.8
-# SALE_ITEMS COMPATIBLE VERSION
-# ==============================================================================
+# ERP ENTERPRISE RECEIPT PDF GENERATOR
+# ==========================================
 
-
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-
-import io
-import json
 import os
-import re
-
-import streamlit as st
-
-
-# ==============================================================================
-# SHOP CONFIG
-# ==============================================================================
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
 
 
-def get_shop_info():
-
-    config_path = os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "pages",
-        "config.json"
-    )
-
+def num(val):
     try:
-
-        with open(
-            config_path,
-            "r",
-            encoding="utf-8"
-        ) as f:
-
-            return json.load(f)
+        return float(val or 0)
+    except (ValueError, TypeError):
+        return 0.0
 
 
-    except Exception:
-
-        return {
-
-            "shop_name":
-                "MY POS SYSTEM",
-
-            "address":
-                "Tachileik, Shan State, Myanmar",
-
-            "phone":
-                "09-267772367",
-
-            "footer_msg":
-                "Thank you for shopping with us!"
-
-        }
-
-
-
-# ==============================================================================
-# SAFE NUMBER
-# ==============================================================================
-
-
-def num(value):
-
-    try:
-
-        return float(
-            value or 0
-        )
-
-    except Exception:
-
-        return 0
-
-
-
-# ==============================================================================
-# SAFE FILE NAME
-# ==============================================================================
-
-
-def safe_filename(name):
-
-    return re.sub(
-        r"[^A-Za-z0-9_\-]",
-        "_",
-        str(name)
-    )
-
-
-
-# ==============================================================================
-# ITEM NORMALIZER
-# ==============================================================================
-
-
-def normalize_item(item):
-def normalize_item(item):
-
+def generate_pdf(receipt_data):
     """
-    Support:
-
-    Database format:
-    quantity
-    unit_price
-    total
-
-
-    Receipt page format:
-    name
-    qty
-    price
-    amount
-
+    Generates a professional receipt PDF from receipt data dictionary.
+    Returns a tuple of (pdf_bytes, filename) or None on failure.
     """
-
-    return {
-
-        "name":
-            item.get(
-                "name",
-                f"Product #{item.get('product_id','')}"
-            ),
-
-
-        "qty":
-            int(
-                item.get(
-                    "qty",
-                    item.get(
-                        "quantity",
-                        0
-                    )
-                )
-            ),
-
-
-        "price":
-            num(
-                item.get(
-                    "price",
-                    item.get(
-                        "unit_price",
-                        0
-                    )
-                )
-            ),
-
-
-        "amount":
-            num(
-
-                item.get(
-                    "amount",
-
-                    item.get(
-                        "total",
-                        0
-                    )
-
-                )
-
-            )
-
-    }
-
-
-
-
-# ==============================================================================
-# PDF GENERATOR
-# ==============================================================================
-
-
-def generate_pdf(data):
-
     try:
-
-
-        receipt = data or {}
-
-        shop = get_shop_info()
-
-
-
-        raw_items = (
-
-            receipt.get("items")
-
-            or
-
-            receipt.get("cart")
-
-            or
-
-            []
-
-        )
-
-
-
-        items = [
-
-            normalize_item(i)
-
-            for i in raw_items
-
-        ]
-
-
-
-        invoice_no = (
-
-            receipt.get("invoice_no")
-
-            or
-
-            "INV-PENDING"
-
-        )
-
-
-
-        date_str = (
-
-            receipt.get("date")
-
-            or
-
-            "N/A"
-
-        )
-
-
-
-        cashier = (
-
-            receipt.get("cashier")
-
-            or
-
-            "Admin"
-
-        )
-
-
-
-        subtotal = num(
-            receipt.get(
-                "subtotal"
-            )
-        )
-
-
-        discount = num(
-            receipt.get(
-                "discount"
-            )
-        )
-
-
-        tax_amount = num(
-            receipt.get(
-                "tax_amount",
-                receipt.get(
-                    "tax"
-                )
-            )
-        )
-
-
-        grand_total = num(
-            receipt.get(
-                "grand_total",
-                receipt.get(
-                    "total"
-                )
-            )
-        )
-
-
-        paid = num(
-            receipt.get(
-                "paid"
-            )
-        )
-
-
-        change = num(
-            receipt.get(
-                "change"
-            )
-        )
-
-
-
-        buffer = io.BytesIO()
-
-
-        pdf = canvas.Canvas(
-            buffer,
-            pagesize=A4
-        )
-
-
-        width,height = A4
-
-
-        y = height - 50
-
-
-
-        # --------------------------------------------------
-        # HEADER
-        # --------------------------------------------------
-
-
-        pdf.setFont(
-            "Helvetica-Bold",
-            18
-        )
-
-
-        pdf.drawCentredString(
-            width/2,
-            y,
-            shop.get(
-                "shop_name",
-                "MY POS SYSTEM"
-            )
-        )
-
-
-        y -= 20
-
-
-        pdf.setFont(
-            "Helvetica",
-            10
-        )
-
-
-        pdf.drawCentredString(
-            width/2,
-            y,
-            shop.get(
-                "address",
-                ""
-            )
-        )
-
-
-        y -= 15
-
-
-        pdf.drawCentredString(
-            width/2,
-            y,
-            "Tel : "
-            +
-            shop.get(
-                "phone",
-                ""
-            )
-        )
-
-
-
-        # --------------------------------------------------
-        # RECEIPT INFO
-        # --------------------------------------------------
-
-
-        y -= 35
-
-
-        pdf.drawString(
-            50,
-            y,
-            f"Receipt : {invoice_no}"
-        )
-
-
-        y -= 15
-
-
-        pdf.drawString(
-            50,
-            y,
-            f"Date : {date_str}"
-        )
-
-
-        y -= 15
-
-
-        pdf.drawString(
-            50,
-            y,
-            f"Cashier : {cashier}"
-        )
-
-
-        y -= 25
-
-
-        pdf.line(
-            50,
-            y,
-            550,
-            y
-        )
-
-
-
-        # --------------------------------------------------
-        # ITEM HEADER
-        # --------------------------------------------------
-
-
-        y -= 20
-
-
-        pdf.setFont(
-            "Helvetica-Bold",
-            10
-        )
-
-
-        pdf.drawString(
-            50,
-            y,
-            "Item"
-        )
-
-
-        pdf.drawString(
-            280,
-            y,
-            "Qty"
-        )
-
-
-        pdf.drawString(
-            350,
-            y,
-            "Price"
-        )
-
-
-        pdf.drawString(
-            460,
-            y,
-            "Amount"
-        )
-
-
-        y -= 20
-
-
-        pdf.setFont(
-            "Helvetica",
-            10
-        )
-
-
-
-        # --------------------------------------------------
-        # ITEMS
-        # --------------------------------------------------
-
-
-        for item in items:
-
-
-            if y < 120:
-
-                pdf.showPage()
-
-                y = height - 50
-
-
-
-            pdf.drawString(
-                50,
-                y,
-                item["name"][:30]
-            )
-
-
-            pdf.drawRightString(
-                315,
-                y,
-                str(
-                    item["qty"]
-                )
-            )
-
-
-            pdf.drawRightString(
-                420,
-                y,
-                f"{item['price']:,.0f}"
-            )
-
-
-            pdf.drawRightString(
-                550,
-                y,
-                f"{item['amount']:,.0f}"
-            )
-
-
-            y -= 18
-
-
-
-
-        # --------------------------------------------------
-        # TOTAL
-        # --------------------------------------------------
-
+        invoice_no = receipt_data.get("invoice_no", "INV-UNKNOWN")
+        filename = f"Receipt_{invoice_no}"
+        
+        # Temporary file path for generation
+        pdf_path = f"{filename}.pdf"
+
+        # Setup canvas
+        pdf = canvas.Canvas(pdf_path, pagesize=letter)
+        width, height = letter
+
+        # ==========================================
+        # HEADER SECTION
+        # ==========================================
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(50, height - 50, "ERP ENTERPRISE")
+        
+        pdf.setFont("Helvetica", 10)
+        pdf.drawRightString(width - 50, height - 50, f"Date: {receipt_data.get('date', '-')}")
+        
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawString(50, height - 75, "OFFICIAL RECEIPT")
+        
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(50, height - 95, f"Invoice No: {invoice_no}")
+        pdf.drawString(50, height - 110, f"Cashier: {receipt_data.get('cashier', 'Admin')}")
+
+        # ==========================================
+        # TABLE HEADERS
+        # ==========================================
+        y = height - 145
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(50, y, "Item Description")
+        pdf.drawRightString(315, y, "Qty")
+        pdf.drawRightString(420, y, "Price (MMK)")
+        pdf.drawRightString(550, y, "Amount (MMK)")
 
         y -= 10
+        pdf.setStrokeColor(colors.gray)
+        pdf.setLineWidth(0.5)
+        pdf.line(50, y, width - 50, y)
 
+        # ==========================================
+        # ITEMS SECTION
+        # ==========================================
+        y -= 20
+        pdf.setFont("Helvetica", 10)
 
-        pdf.line(
-            50,
-            y,
-            550,
-            y
-        )
+        items = receipt_data.get("items", [])
 
-
-        y -= 25
-
-
-        for line in [
-
-            f"Subtotal : {subtotal:,.0f} MMK",
-
-            f"Discount : {discount:,.0f} MMK",
-
-            f"Tax Amount : {tax_amount:,.0f} MMK",
-
-            f"Paid : {paid:,.0f} MMK",
-
-            f"Change : {change:,.0f} MMK"
-
-        ]:
-
-
-            pdf.drawRightString(
-                550,
-                y,
-                line
+        for item in items:
+            # Product Name fallback mapping
+            name = (
+                item.get("name")
+                or item.get("product_name")
+                or f"Product #{item.get('product_id', '')}"
             )
 
+            # Quantity fallback mapping
+            qty = int(
+                item.get("quantity")
+                or item.get("qty")
+                or 0
+            )
+
+            # Unit Price fallback mapping
+            price = num(
+                item.get("unit_price")
+                or item.get("selling_price")
+                or item.get("price")
+            )
+
+            # Total from database or calculated fallback
+            amount = num(
+                item.get("total")
+                or item.get("amount")
+            )
+
+            if amount == 0:
+                amount = qty * price
+
+            if y < 120:
+                pdf.showPage()
+                y = height - 50
+
+            pdf.drawString(50, y, str(name)[:30])
+            pdf.drawRightString(315, y, str(qty))
+            pdf.drawRightString(420, y, f"{price:,.0f}")
+            pdf.drawRightString(550, y, f"{amount:,.0f}")
 
             y -= 18
 
+        # ==========================================
+        # FINANCIAL TOTALS SECTION
+        # ==========================================
+        y -= 10
+        pdf.line(300, y, width - 50, y)
+        y -= 20
 
+        subtotal = num(receipt_data.get("subtotal"))
+        discount = num(receipt_data.get("discount"))
+        tax = num(receipt_data.get("tax_amount"))
+        grand_total = num(receipt_data.get("grand_total"))
+        paid = num(receipt_data.get("paid"))
+        change = num(receipt_data.get("change"))
 
+        pdf.setFont("Helvetica", 10)
+        
+        pdf.drawString(350, y, "Subtotal:")
+        pdf.drawRightString(550, y, f"{subtotal:,.0f} MMK")
+        y -= 15
 
-        pdf.setFont(
-            "Helvetica-Bold",
-            14
-        )
+        if discount > 0:
+            pdf.drawString(350, y, "Discount:")
+            pdf.drawRightString(550, y, f"-{discount:,.0f} MMK")
+            y -= 15
 
+        if tax > 0:
+            pdf.drawString(350, y, "Tax:")
+            pdf.drawRightString(550, y, f"{tax:,.0f} MMK")
+            y -= 15
 
-        pdf.drawRightString(
-            550,
-            y-10,
-            f"GRAND TOTAL : {grand_total:,.0f} MMK"
-        )
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(350, y, "GRAND TOTAL:")
+        pdf.drawRightString(550, y, f"{grand_total:,.0f} MMK")
+        y -= 20
 
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(350, y, "Paid:")
+        pdf.drawRightString(550, y, f"{paid:,.0f} MMK")
+        y -= 15
 
+        pdf.drawString(350, y, "Change:")
+        pdf.drawRightString(550, y, f"{change:,.0f} MMK")
 
-        pdf.setFont(
-            "Helvetica-Oblique",
-            10
-        )
-
-
-        pdf.drawCentredString(
-            width/2,
-            60,
-            shop.get(
-                "footer_msg",
-                "Thank you!"
-            )
-        )
-
-
+        # ==========================================
+        # FOOTER
+        # ==========================================
+        y -= 40
+        pdf.setFont("Helvetica-Oblique", 9)
+        pdf.drawCentredString(width / 2.0, y, "Thank you for your business!")
 
         pdf.save()
 
+        # Read bytes and cleanup temp file
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
 
-        buffer.seek(0)
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)
 
-
-        result = buffer.getvalue()
-
-
-        buffer.close()
-
-
-
-        return (
-            result,
-            safe_filename(invoice_no)
-        )
-
-
+        return pdf_bytes, filename
 
     except Exception as e:
-
-
-        st.error(
-            f"PDF Generation Error : {e}"
-        )
-
-
-        return None, None
+        print(f"Error generating PDF: {e}")
+        return None
