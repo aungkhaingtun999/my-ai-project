@@ -37,6 +37,7 @@ from erp_core import (
     get_default_warehouse_id,
     get_suppliers,
     get_customers,
+    get_receipt,
 
     # ------------------------------------------------------------------
     # RPC
@@ -114,7 +115,8 @@ __all__ = [
     "get_warehouses",
     "get_default_warehouse_id",
     "get_suppliers",
-    "get_customers",
+    "get_customers"
+    "get_receipt",
 
     # RPC
     "checkout_sale_rpc",
