@@ -3,6 +3,7 @@ from datetime import datetime
 from database import get_supabase
 from utils.ui import show_table
 
+
 supabase = get_supabase()
 
 
@@ -11,12 +12,12 @@ def run():
     st.title("👥 Customer Management")
 
 
-    # ==================================================
-    # FETCH CUSTOMER DATA
-    # ==================================================
+    # ================================
+    # LOAD CUSTOMERS
+    # ================================
 
     try:
-        response = (
+        result = (
             supabase
             .table("customers")
             .select("*")
@@ -24,41 +25,186 @@ def run():
             .execute()
         )
 
-        data = response.data or []
+        customers = result.data or []
 
     except Exception as e:
-        st.error(f"Error fetching data: {e}")
-        data = []
+        st.error(e)
+        customers = []
 
 
     st.subheader("Customer List")
 
 
-    if data:
-        st.dataframe(
-            data,
-            use_container_width=True,
-            hide_index=True
-        )
-
-    else:
+    if not customers:
         st.info("No customers found.")
 
+    else:
 
-    show_table("customers")
+        for c in customers:
+
+            with st.expander(
+                f"👤 {c.get('full_name')}"
+            ):
+
+                st.write(
+                    f"Code : {c.get('customer_code')}"
+                )
+
+                st.write(
+                    f"Phone : {c.get('phone')}"
+                )
+
+                st.write(
+                    f"Address : {c.get('address')}"
+                )
+
+
+                col1, col2 = st.columns(2)
+
+
+                # =====================
+                # EDIT
+                # =====================
+
+                with col1:
+
+                    if st.button(
+                        "✏️ Edit",
+                        key=f"edit_{c['id']}"
+                    ):
+
+                        st.session_state.edit_customer = c
+
+
+                # =====================
+                # DELETE
+                # =====================
+
+                with col2:
+
+                    if st.button(
+                        "🗑 Delete",
+                        key=f"delete_{c['id']}"
+                    ):
+
+                        try:
+
+                            supabase.table(
+                                "customers"
+                            ).delete().eq(
+                                "id",
+                                c["id"]
+                            ).execute()
+
+
+                            st.success(
+                                "Customer deleted"
+                            )
+
+                            st.rerun()
+
+
+                        except Exception as e:
+
+                            st.error(e)
+
 
 
     st.divider()
 
 
-    # ==================================================
+
+    # ================================
+    # EDIT FORM
+    # ================================
+
+    if "edit_customer" in st.session_state:
+
+
+        c = st.session_state.edit_customer
+
+
+        st.subheader(
+            "✏️ Edit Customer"
+        )
+
+
+        new_name = st.text_input(
+            "Customer Name",
+            value=c.get("full_name","")
+        )
+
+
+        new_phone = st.text_input(
+            "Phone",
+            value=c.get("phone","")
+        )
+
+
+        new_address = st.text_area(
+            "Address",
+            value=c.get("address","")
+        )
+
+
+        if st.button(
+            "💾 Update Customer"
+        ):
+
+            try:
+
+                supabase.table(
+                    "customers"
+                ).update({
+
+                    "full_name":
+                        new_name,
+
+                    "phone":
+                        new_phone,
+
+                    "address":
+                        new_address,
+
+                    "updated_at":
+                        datetime.now().isoformat()
+
+                }).eq(
+                    "id",
+                    c["id"]
+                ).execute()
+
+
+                st.success(
+                    "Customer updated"
+                )
+
+
+                del st.session_state.edit_customer
+
+                st.rerun()
+
+
+            except Exception as e:
+
+                st.error(e)
+
+
+
+    st.divider()
+
+
+
+    # ================================
     # ADD CUSTOMER
-    # ==================================================
+    # ================================
 
-    st.subheader("➕ Add Customer")
+    st.subheader(
+        "➕ Add Customer"
+    )
 
 
-    full_name = st.text_input(
+    name = st.text_input(
         "Customer Name"
     )
 
@@ -71,22 +217,25 @@ def run():
     )
 
 
-    if st.button("Save Customer"):
+    if st.button(
+        "Save Customer"
+    ):
 
 
-        if not full_name.strip():
+        if not name.strip():
 
             st.error(
-                "Customer name is required."
+                "Customer name required"
             )
 
-            st.stop()
-
+            return
 
 
         try:
 
-            customer_data = {
+            supabase.table(
+                "customers"
+            ).insert({
 
                 "customer_code":
                     "CUS" +
@@ -94,31 +243,25 @@ def run():
                     .strftime("%Y%m%d%H%M%S"),
 
                 "full_name":
-                    full_name.strip(),
+                    name,
 
                 "phone":
-                    phone.strip(),
+                    phone,
 
                 "address":
-                    address.strip(),
+                    address,
 
                 "loyalty_points":
                     0,
 
                 "is_active":
                     True
-            }
 
-
-            supabase.table(
-                "customers"
-            ).insert(
-                customer_data
-            ).execute()
+            }).execute()
 
 
             st.success(
-                "Customer added successfully!"
+                "Customer added"
             )
 
             st.rerun()
@@ -126,9 +269,7 @@ def run():
 
         except Exception as e:
 
-            st.error(
-                f"An error occurred: {e}"
-            )
+            st.error(e)
 
 
 
