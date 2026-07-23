@@ -298,35 +298,35 @@ def run():
 
 
             rows.append(
+{
+"Product":
+    item.get(
+        "products",
+        {}
+    ).get(
+        "name",
+        "Unknown"
+    ),
 
-                {
+"Qty":
+    item.get(
+        "quantity",
+        0
+    ),
 
-                    "Product ID":
-                        item.get(
-                            "product_id"
-                        ),
+"Unit Price":
+    item.get(
+        "unit_price",
+        0
+    ),
 
-
-                    "Qty":
-                        item.get(
-                            "quantity"
-                        ),
-
-
-                    "Unit Price":
-                        item.get(
-                            "unit_price"
-                        ),
-
-
-                    "Total":
-                        item.get(
-                            "total"
-                        )
-
-                }
-
-            )
+"Total":
+    item.get(
+        "total",
+        0
+    )
+}
+)
 
 
         st.dataframe(
