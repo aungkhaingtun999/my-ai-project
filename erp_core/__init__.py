@@ -186,6 +186,9 @@ _EXPORTS = {
 
     "get_customers":
         ("loaders", "get_customers"),
+    
+    "get_receipt":
+        ("loaders", "get_receipt"),
 
 
 
@@ -466,7 +469,8 @@ __all__ = [
 
     "get_suppliers",
 
-    "get_customers",
+    "get_customers"
+    "get_receipt",
 
 
 
