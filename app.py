@@ -1,104 +1,391 @@
-import streamlit as st
-import importlib.util
-import os
-from auth import login_page, is_authenticated
-from sidebar import show_sidebar
+# ==============================================================================
+# app.py
+# ERP ENTERPRISE APPLICATION CONTROLLER
+# SAFE PAGE ROUTER v30.12
+# ==============================================================================
 
-# ==========================================
-# PAGE CONFIG (MUST BE FIRST)
-# ==========================================
-st.set_page_config(
-    page_title="Myanmar ERP Enterprise",
-    page_icon="🏭",
-    layout="wide",
-    initial_sidebar_state="expanded"
+
+import os
+import sys
+import importlib.util
+
+import streamlit as st
+
+
+from auth import (
+    login_page,
+    is_authenticated
 )
 
-# ==========================================
-# SESSION INIT
-# ==========================================
+
+from sidebar import (
+    show_sidebar
+)
+
+
+
+# ==============================================================================
+# PATH SETUP
+# ==============================================================================
+
+
+BASE_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
+
+
+if BASE_DIR not in sys.path:
+
+    sys.path.insert(
+        0,
+        BASE_DIR
+    )
+
+
+
+# ==============================================================================
+# PAGE CONFIG
+# ==============================================================================
+
+
+st.set_page_config(
+
+    page_title="Myanmar ERP Enterprise",
+
+    page_icon="🏭",
+
+    layout="wide",
+
+    initial_sidebar_state="expanded"
+
+)
+
+
+
+# ==============================================================================
+# SESSION INITIALIZER
+# ==============================================================================
+
+
 def init_state():
+
+
     defaults = {
+
+
         "user": None,
-        "active_page": "1_POS", # Default Landing Page ID
-        "language": "English",
-        "auth_checked": False
+
+
+        "active_page":
+            "1_POS",
+
+
+        "language":
+            "English",
+
+
+        "auth_checked":
+            False
+
+
     }
-    for k, v in defaults.items():  
-        st.session_state.setdefault(k, v)
 
-init_state()
 
-# ==========================================
-# DYNAMIC FILE LOADER (PRODUCTION ENGINE)
-# ==========================================
-def page_router():
-    # Security Gate: Login မရှိပါက Page Load မပေးပါ
-    if not st.session_state.get("user"):
-        st.error("Please login first")
-        return
+    for key, value in defaults.items():
 
-    # Sidebar မှလာသော page_id ကိုရယူခြင်း
-    page_id = st.session_state.get("active_page", "1_POS")
+        if key not in st.session_state:
 
-    # Dashboard Logic
-    if page_id == "dashboard":
-        st.title("🏭 ERP Control Dashboard")
-        st.info("Welcome to Enterprise Core.")
-        return
+            st.session_state[key] = value
 
-    # Absolute Path တည်ဆောက်ခြင်း
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(BASE_DIR, "erp_pages", f"{page_id}.py")
 
-    # File တည်ရှိမှု စစ်ဆေးခြင်း
+
+
+
+
+# ==============================================================================
+# SAFE PAGE LOADER
+# ==============================================================================
+
+
+def load_page(page_id):
+
+
+    page_folder = os.path.join(
+
+        BASE_DIR,
+
+        "erp_pages"
+
+    )
+
+
+    file_path = os.path.join(
+
+        page_folder,
+
+        f"{page_id}.py"
+
+    )
+
+
+
     if not os.path.exists(file_path):
-        st.error(f"Page file not found: {file_path}")
+
+        st.error(
+
+            f"Page file not found:\n{file_path}"
+
+        )
+
         return
+
+
+
+
 
     try:
-        # Load Module Dynamically
-        spec = importlib.util.spec_from_file_location("erp_page", file_path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
 
-        # Execute Page Logic (Support run(), main(), or Legacy)
-        if hasattr(module, "run"):
-            module.run()
-        
-        elif hasattr(module, "main"):
-            module.main()
-        
-        else:
-            # Legacy page support
-            st.warning(
-                f"{page_id}.py has no run() or main() function.\n"
-                "Executing legacy page..."
+
+        module_name = (
+
+            f"erp_pages.{page_id}"
+
+        )
+
+
+
+        spec = importlib.util.spec_from_file_location(
+
+            module_name,
+
+            file_path
+
+        )
+
+
+
+        if spec is None:
+
+            raise ImportError(
+
+                f"Cannot load module {module_name}"
+
             )
-            # Module import လုပ်တဲ့အချိန်မှာ top-level code က 
-            # အလုပ်လုပ်ပြီးသားဖြစ်နေလို့ ဒီနေရာမှာ ဘာမှထပ်ခေါ်စရာမလိုပါ
+
+
+
+        module = importlib.util.module_from_spec(
+
+            spec
+
+        )
+
+
+
+        # Important:
+        # Register module before execute
+        # to support relative imports
+
+
+        sys.modules[module_name] = module
+
+
+
+        spec.loader.exec_module(
+
+            module
+
+        )
+
+
+
+
+
+        if hasattr(module, "run"):
+
+
+            module.run()
+
+
+
+        elif hasattr(module, "main"):
+
+
+            module.main()
+
+
+
+        else:
+
+
+            st.warning(
+
+                f"{page_id}.py loaded without run() or main()"
+
+            )
+
+
+
+
 
     except Exception as e:
-        st.error(f"Page Load Error: {e}")
 
-# ==========================================
-# MAIN CONTROLLER
-# ==========================================
+
+        st.error(
+
+            f"Page Load Error: {e}"
+
+        )
+
+
+        with st.expander(
+            "Debug Trace"
+        ):
+
+            st.exception(e)
+
+
+
+
+
+
+
+# ==============================================================================
+# PAGE ROUTER
+# ==============================================================================
+
+
+def page_router():
+
+
+    if not st.session_state.get(
+        "user"
+    ):
+
+
+        st.error(
+
+            "Please login first"
+
+        )
+
+        return
+
+
+
+
+
+    page_id = st.session_state.get(
+
+        "active_page",
+
+        "1_POS"
+
+    )
+
+
+
+
+
+    if page_id == "dashboard":
+
+
+        st.title(
+
+            "🏭 ERP Control Dashboard"
+
+        )
+
+
+        st.info(
+
+            "Welcome to Enterprise Core."
+
+        )
+
+
+        return
+
+
+
+
+
+    load_page(
+
+        page_id
+
+    )
+
+
+
+
+
+
+
+# ==============================================================================
+# MAIN APPLICATION
+# ==============================================================================
+
+
 def main():
-    # 1. Login Gate
+
+
+    init_state()
+
+
+
     if not is_authenticated():
+
+
         login_page()
+
         st.stop()
 
-    # 2. Render Sidebar
-    try:
-        show_sidebar()
-    except Exception as e:
-        st.sidebar.error("Sidebar loading error.")
 
-    # 3. Render Main Page
+
+
+
+    try:
+
+
+        show_sidebar()
+
+
+
+    except Exception as e:
+
+
+        st.sidebar.error(
+
+            "Sidebar loading error"
+
+        )
+
+
+        with st.sidebar.expander(
+            "Debug"
+        ):
+
+            st.exception(e)
+
+
+
+
+
     page_router()
 
-if __name__ == "__main__":
-    main()
 
+
+
+
+
+
+# ==============================================================================
+# ENTRY POINT
+# ==============================================================================
+
+
+if __name__ == "__main__":
+
+
+    main()
