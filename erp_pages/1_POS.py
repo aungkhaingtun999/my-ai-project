@@ -318,14 +318,14 @@ def run():
         st.info(f"Invoice No: {data['invoice_no']}\nDate: {data['date']}\nCashier: {data['cashier']}")
         
         receipt_df = pd.DataFrame([
-            {
-                "Product": i.get("name", "Unknown"),
-                "Qty": i.get("quantity", i.get("qty", 1)),
-                "Price": f"{i.get('unit_price', i.get('selling_price', 0)):,.0f}",
-                "Amount": f"{i.get('total', i.get('qty', 1) * i.get('selling_price', 0)):,.0f} MMK"
-            }
-            for i in data.get("items", [])
-        ])
+{
+    "Product": i["name"],
+    "Qty": i["quantity"],
+    "Price": f"{i['unit_price']:,.0f}",
+    "Amount": f"{i['total']:,.0f} MMK"
+}
+for i in data["items"]
+])
         
         st.dataframe(receipt_df, use_container_width=True, hide_index=True)
         
