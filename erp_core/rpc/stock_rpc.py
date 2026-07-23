@@ -73,3 +73,65 @@ def stock_adjustment_rpc(
             "data": None
 
         }
+# ==============================================================================
+# PRODUCT UPDATE RPC
+# ==============================================================================
+
+
+def update_product_rpc(
+    product_id: int,
+    name: str,
+    sku: str,
+    barcode: str,
+    purchase_price: float,
+    selling_price: float,
+    minimum_stock: int,
+    unit: str,
+    notes: str,
+    is_active: bool
+
+) -> Dict[str, Any]:
+
+
+    try:
+
+        service = InventoryService(
+            db()
+        )
+
+
+        return service.update_product(
+
+            product_id,
+
+            {
+                "name": name,
+                "sku": sku,
+                "barcode": barcode,
+                "purchase_price": purchase_price,
+                "selling_price": selling_price,
+                "minimum_stock": minimum_stock,
+                "unit": unit,
+                "notes": notes,
+                "is_active": is_active
+            }
+
+        )
+
+
+    except Exception as e:
+
+        log_error(
+            f"update_product_rpc error: {e}"
+        )
+
+
+        return {
+
+            "success": False,
+
+            "message": str(e),
+
+            "data": None
+
+        }
