@@ -189,6 +189,8 @@ _EXPORTS = {
     
     "get_receipt":
         ("loaders", "get_receipt"),
+    "get_sale_items":
+    ("loaders", "get_sale_items"),
 
 
 
@@ -471,6 +473,7 @@ __all__ = [
 
     "get_customers"
     "get_receipt",
+    "get_sale_items",
 
 
 
