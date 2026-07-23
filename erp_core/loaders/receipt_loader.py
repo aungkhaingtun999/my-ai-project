@@ -1,16 +1,10 @@
 # ==============================================================================
 # erp_core/loaders/receipt_loader.py
-# ERP ENTERPRISE RECEIPT LOADER
-# PRODUCTION VERSION
+# ERP ENTERPRISE RECEIPT LOADER v1.0
 # ==============================================================================
 
 
-from typing import (
-    Dict,
-    Any,
-    List
-)
-
+from typing import Dict, Any, List
 
 from ..base_repo import (
     db,
@@ -23,22 +17,15 @@ from ..base_repo import (
 # SALE ITEMS
 # ==============================================================================
 
-
 def get_sale_items(
-    sale_id: int
-) -> List[Dict[str, Any]]:
+    sale_id:int
+)->List[Dict[str,Any]]:
 
-    """
-    Load sale_items by sale_id
-    """
 
     try:
 
-        client = db()
-
-
         response = (
-            client
+            db()
             .table("sale_items")
             .select("*")
             .eq(
@@ -55,7 +42,7 @@ def get_sale_items(
     except Exception as e:
 
         log_error(
-            f"get_sale_items error: {e}"
+            f"get_sale_items error : {e}"
         )
 
         return []
@@ -63,46 +50,29 @@ def get_sale_items(
 
 
 
-
 # ==============================================================================
-# SINGLE RECEIPT
+# GET RECEIPT
 # ==============================================================================
-
 
 def get_receipt(
-    sale_id: int
-) -> Dict[str, Any]:
+    invoice_no:str
+)->Dict[str,Any]:
 
-    """
-    Load sales header only
-
-    Return:
-
-    {
-        id,
-        invoice_no,
-        total,
-        paid_amount,
-        ...
-    }
-
-    """
 
     try:
 
-        client = db()
-
-
         response = (
-            client
+
+            db()
             .table("sales")
             .select("*")
             .eq(
-                "id",
-                sale_id
+                "invoice_no",
+                invoice_no
             )
             .single()
             .execute()
+
         )
 
 
@@ -111,9 +81,11 @@ def get_receipt(
 
     except Exception as e:
 
+
         log_error(
-            f"get_receipt error: {e}"
+            f"get_receipt error : {e}"
         )
+
 
         return {}
 
@@ -125,19 +97,16 @@ def get_receipt(
 # FULL RECEIPT
 # ==============================================================================
 
-
 def get_full_receipt(
-    receipt_key: int
-) -> Dict[str, Any]:
+    invoice_no:str
+)->Dict[str,Any]:
 
-    """
-    Load receipt header + items
-    """
 
     try:
 
+
         sale = get_receipt(
-            receipt_key
+            invoice_no
         )
 
 
@@ -145,46 +114,49 @@ def get_full_receipt(
 
             return {
 
-                "success": False,
+                "success":False,
 
-                "sale": None,
+                "sale":None,
 
-                "items": []
+                "items":[]
 
             }
 
 
 
         items = get_sale_items(
-            sale.get("id")
+            sale["id"]
         )
 
 
         return {
 
-            "success": True,
 
-            "sale": sale,
+            "success":True,
 
-            "items": items
+            "sale":sale,
+
+            "items":items
+
 
         }
 
 
     except Exception as e:
 
+
         log_error(
-            f"get_full_receipt error: {e}"
+            f"get_full_receipt error : {e}"
         )
 
 
         return {
 
-            "success": False,
+            "success":False,
 
-            "sale": None,
+            "sale":None,
 
-            "items": []
+            "items":[]
 
         }
 
@@ -196,52 +168,46 @@ def get_full_receipt(
 # SEARCH RECEIPTS
 # ==============================================================================
 
-
 def search_receipts(
-    keyword: str = ""
-) -> List[Dict[str, Any]]:
+    keyword:str=""
+)->List[Dict[str,Any]]:
 
-    """
-    Search by invoice_no
-    """
 
     try:
 
-        client = db()
-
 
         query = (
-            client
+
+            db()
             .table("sales")
             .select("*")
+
         )
 
 
         if keyword:
 
-            if keyword.isdigit():
 
-                query = query.or_(
-                    f"id.eq.{keyword},"
-                    f"invoice_no.ilike.%{keyword}%"
-                )
+            query = (
 
-            else:
-
-                query = query.ilike(
+                query
+                .ilike(
                     "invoice_no",
                     f"%{keyword}%"
                 )
 
+            )
 
 
-        response = (
+        response=(
+
             query
             .order(
                 "created_at",
                 desc=True
             )
             .execute()
+
         )
 
 
@@ -253,7 +219,7 @@ def search_receipts(
 
 
         log_error(
-            f"search_receipts error: {e}"
+            f"search_receipts error : {e}"
         )
 
 
