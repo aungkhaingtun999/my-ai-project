@@ -354,7 +354,7 @@ def prepare_receipt(data):
 
 
 
-    return {
+            return {}
 
 
         "shop":
