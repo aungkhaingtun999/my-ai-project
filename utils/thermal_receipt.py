@@ -469,71 +469,166 @@ def print_thermal(data):
         return False
 
 
-# ==============================================================================
+# =# ==============================================================================
 # RECEIPT DATA BUILDER
 # ERP ENTERPRISE RECEIPT DATA STANDARD
 # ==============================================================================
 
-def build_receipt_data(
-    sale,
-    items
-):
+def build_receipt_data(sale, items):
+
     """
-    Convert database sale + sale_items
+    Convert database sales + sale_items
     into common receipt format
 
     Used by:
         - receipt_pdf.py
         - thermal_receipt.py
-        - printer.py
     """
+
     try:
+
         sale = sale or {}
         items = items or []
 
         clean_items = []
 
+
         for item in items:
+
             if not item:
                 continue
 
-            qty = item.get("quantity", 0)
-            price = item.get("unit_price", 0)
-            total = item.get("total")
 
-            # fallback calculation
-            if total is None:
-                total = num(qty) * num(price)
+            qty = item.get(
+                "quantity",
+                0
+            )
+
+            price = item.get(
+                "unit_price",
+                0
+            )
+
+            total = item.get(
+                "total",
+                0
+            )
+
+
+            if not total:
+                total = (
+                    num(qty)
+                    *
+                    num(price)
+                )
+
 
             clean_items.append(
                 {
-                    "name": (
-                        item.get("name")
-                        or
-                        item.get("product_name")
-                        or
-                        f"Product #{item.get('product_id','')}"
-                    ),
-                    "product_id": item.get("product_id"),
-                    "quantity": qty,
-                    "unit_price": price,
-                    "total": total
+                    "name":
+                        (
+                            item.get("name")
+                            or
+                            item.get("product_name")
+                            or
+                            f"Product #{item.get('product_id','')}"
+                        ),
+
+                    "product_id":
+                        item.get(
+                            "product_id"
+                        ),
+
+                    "quantity":
+                        qty,
+
+                    "unit_price":
+                        price,
+
+                    "total":
+                        total
                 }
             )
 
-        return {
-            "invoice_no": sale.get("invoice_no", "-"),
-            "date": sale.get("created_at", "-"),
-            "cashier": sale.get("cashier", "Admin"),
-            "items": clean_items,
-            "subtotal": sale.get("subtotal", 0),
-            "discount": sale.get("discount", 0),
-            "tax_amount": sale.get("tax", sale.get("tax_amount", 0)),
-            "grand_total": sale.get("total", 0),
-            "paid": sale.get("paid_amount", 0),
-            "change": sale.get("change_amount", 0)
+
+        receipt = {
+
+            "invoice_no":
+                sale.get(
+                    "invoice_no",
+                    "-"
+                ),
+
+            "date":
+                sale.get(
+                    "created_at",
+                    "-"
+                ),
+
+            "cashier":
+                sale.get(
+                    "cashier",
+                    "Admin"
+                ),
+
+            "items":
+                clean_items,
+
+
+            "subtotal":
+                sale.get(
+                    "subtotal",
+                    0
+                ),
+
+
+            "discount":
+                sale.get(
+                    "discount",
+                    0
+                ),
+
+
+            "tax_amount":
+                sale.get(
+                    "tax_amount",
+                    sale.get(
+                        "tax",
+                        0
+                    )
+                ),
+
+
+            "grand_total":
+                sale.get(
+                    "total",
+                    0
+                ),
+
+
+            "paid":
+                sale.get(
+                    "paid_amount",
+                    0
+                ),
+
+
+            "change":
+                sale.get(
+                    "change_amount",
+                    0
+                )
         }
 
+
+        return receipt
+
+
     except Exception as e:
-        print("BUILD RECEIPT DATA ERROR:", e)
+
+        print(
+            "BUILD RECEIPT DATA ERROR:",
+            e
+        )
+
         return {}
