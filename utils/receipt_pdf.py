@@ -101,20 +101,18 @@ def safe_filename(name):
 
 
 def normalize_item(item):
+def normalize_item(item):
 
     """
-    Convert database sale_items format
+    Support:
 
-    DB:
-
-    product_id
+    Database format:
     quantity
     unit_price
     total
 
 
-    PDF:
-
+    Receipt page format:
     name
     qty
     price
@@ -134,9 +132,9 @@ def normalize_item(item):
         "qty":
             int(
                 item.get(
-                    "quantity",
+                    "qty",
                     item.get(
-                        "qty",
+                        "quantity",
                         0
                     )
                 )
@@ -146,9 +144,9 @@ def normalize_item(item):
         "price":
             num(
                 item.get(
-                    "unit_price",
+                    "price",
                     item.get(
-                        "price",
+                        "unit_price",
                         0
                     )
                 )
@@ -157,10 +155,17 @@ def normalize_item(item):
 
         "amount":
             num(
+
                 item.get(
-                    "total",
-                    0
+                    "amount",
+
+                    item.get(
+                        "total",
+                        0
+                    )
+
                 )
+
             )
 
     }
