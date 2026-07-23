@@ -45,6 +45,7 @@ from erp_core import (
     purchase_receive_rpc,
     refund_sale_rpc,
     stock_adjustment_rpc,
+    update_product_rpc,
 
     # ------------------------------------------------------------------
     # Services
@@ -120,6 +121,7 @@ __all__ = [
     "purchase_receive_rpc",
     "refund_sale_rpc",
     "stock_adjustment_rpc",
+    "update_product_rpc",
 
     # Services
     "SalesService",
