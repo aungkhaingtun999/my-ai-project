@@ -191,6 +191,8 @@ _EXPORTS = {
         ("loaders", "get_receipt"),
     "get_sale_items":
     ("loaders", "get_sale_items"),
+    "search_receipts":
+    ("loaders", "search_receipts"),
 
 
 
@@ -518,6 +520,7 @@ __all__ = [
     "create_audit_log"
 
 ]
+    "search_receipts",
 
 
 
