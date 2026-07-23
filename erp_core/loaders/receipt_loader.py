@@ -28,6 +28,43 @@ def get_receipt(
     try:
 
         client = db()
+        # ==============================================================================
+# SALE ITEMS LOADER
+# ==============================================================================
+
+
+def get_sale_items(
+    sale_id: int
+):
+
+    """
+    Load items belonging to a sale
+    """
+
+    try:
+
+        client = db()
+
+
+        response = (
+            client
+            .table("sale_items")
+            .select("*")
+            .eq("sale_id", sale_id)
+            .execute()
+        )
+
+
+        return response.data or []
+
+
+    except Exception as e:
+
+        log_error(
+            f"get_sale_items error: {e}"
+        )
+
+        return []
 
 
         # ------------------------------------------
