@@ -10,7 +10,10 @@ import pandas as pd
 from datetime import datetime
 from utils.timezone import format_datetime
 from utils.receipt_pdf import generate_pdf
-from utils.thermal_receipt import print_thermal
+from utils.thermal_receipt import (
+    print_thermal,
+    build_receipt_data
+)
 import streamlit as st
 
 # Root path
@@ -280,19 +283,42 @@ def run():
                             "total": float(item["selling_price"]) * int(item["qty"])
                         })
 
-                    st.session_state.sale_data = {
-                        "invoice_no": invoice_no,
-                        "date": format_datetime(),
-                        "cashier": st.session_state.get("username", "Unknown"),
-                        "items": receipt_items,
-                        "subtotal": subtotal,
-                        "tax_rate": st.session_state.tax_rate,
-                        "tax_amount": tax_amount,
-                        "discount": discount,
-                        "grand_total": grand_total,
-                        "paid": received,
-                        "change": change
-                    }
+                    raw_sale = {
+
+    "invoice_no": invoice_no,
+
+    "created_at": format_datetime(),
+
+    "cashier":
+        st.session_state.get(
+            "username",
+            "Unknown"
+        ),
+
+    "subtotal":
+        subtotal,
+
+    "tax_amount":
+        tax_amount,
+
+    "discount":
+        discount,
+
+    "total":
+        grand_total,
+
+    "paid_amount":
+        received,
+
+    "change_amount":
+        change
+}
+
+
+                   st.session_state.sale_data = build_receipt_data(
+    raw_sale,
+    receipt_items
+)
                     st.session_state.show_receipt = True
                     st.session_state.processing = False
                     st.rerun()
@@ -330,11 +356,25 @@ def run():
         
         c1, c2, c3 = st.columns(3)
         if c1.button("🖨 Print Receipt", use_container_width=True):
-            print_thermal(data)
-            st.success("Receipt sent to printer.")
+
+    receipt = build_receipt_data(
+        data,
+        data.get("items", [])
+    )
+
+    print_thermal(receipt)
+
+        st.success(
+        "Receipt sent to printer."
+    )
         if c2.button("📄 Generate PDF", use_container_width=True):
-            pdf_bytes, filename = generate_pdf(data)
-            if pdf_bytes:
+            receipt = build_receipt_data(
+    data,
+    data.get("items", [])
+)
+
+pdf_bytes, filename = generate_pdf(receipt)
+        if pdf_bytes:
                 st.download_button("⬇ Download PDF", data=pdf_bytes, file_name=f"{filename}.pdf", mime="application/pdf", use_container_width=True, key="download_receipt_pdf")
         if c3.button("🆕 New Sale", use_container_width=True):
             st.session_state.cart = []
