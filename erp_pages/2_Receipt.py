@@ -356,6 +356,8 @@ def run():
     with c2:
 
         if st.button("📄 PDF"):
+            st.write("DEBUG ITEMS")
+            st.write(items)
 
             receipt_data = {
                 "invoice_no": receipt.get("invoice_no"),
