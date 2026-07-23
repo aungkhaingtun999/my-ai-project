@@ -409,7 +409,9 @@ def normalize_items(items):
 
 
     return result
-    # ==============================================================================
+
+
+# ==============================================================================
 # RECEIPT DATA BUILDER
 # ERP STANDARD RECEIPT FORMAT
 # ==============================================================================
@@ -775,26 +777,31 @@ def create_receipt_text(data):
     ):
 
 
-        name = item.get(
-            "name",
-            "-"
+        name = (
+            item.get("name")
+            or item.get("product_name")
+            or item.get("product")
+            or f"Product #{item.get('product_id','')}"
         )
 
 
-        qty = num(
-            item.get(
-                "quantity",
-                0
-            )
-        )
+        qty = item.get("quantity")
+
+        if qty is None:
+            qty = item.get("qty", 0)
+
+        qty = num(qty)
 
 
-        price = num(
-            item.get(
-                "unit_price",
-                0
-            )
-        )
+        price = item.get("unit_price")
+
+        if price is None:
+            price = item.get("selling_price")
+
+        if price is None:
+            price = item.get("price", 0)
+
+        price = num(price)
 
 
         amount = num(
@@ -901,7 +908,11 @@ def create_receipt_text(data):
 
 
     return text
-    # ==============================================================================
+
+
+
+
+# ==============================================================================
 # THERMAL PRINT ENGINE
 # ==============================================================================
 
