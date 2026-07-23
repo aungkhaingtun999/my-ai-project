@@ -108,7 +108,7 @@ __all__ = [
     "get_connection",
     "DatabaseHealth",
     "database_health_check",
-
+    "search_receipts",
     # Loaders
     "get_setting",
     "get_products",
@@ -117,8 +117,9 @@ __all__ = [
     "get_default_warehouse_id",
     "get_suppliers",
     "get_customers"
-    "get_receipt",
-    "get_sale_items",
+    get_receipt,
+    get_sale_items,
+    search_receipts,
 
     # RPC
     "checkout_sale_rpc",
