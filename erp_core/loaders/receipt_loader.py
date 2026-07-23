@@ -33,12 +33,7 @@ def get_receipt(sale_id: int) -> Dict[str, Any]:
     """
     Load complete receipt data
 
-    Returns:
-        {
-            "success": True,
-            "sale": {},
-            "items": []
-        }
+    return sale
     """
     try:
         client = db()
