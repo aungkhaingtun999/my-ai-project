@@ -115,3 +115,34 @@ class InventoryService:
 
 
         return result
+            def update_product(
+        self,
+        product_id: int,
+        data: Dict[str, Any]
+
+    ) -> Dict[str, Any]:
+
+
+        result = RPCEngine.execute(
+
+            self.client,
+
+            "update_product_rpc",
+
+            {
+                "p_product_id": int(product_id),
+
+                "p_data": data
+            }
+
+        )
+
+
+        if result.get("success"):
+
+            CacheManager.bump_version(
+                "inventory_version"
+            )
+
+
+        return result
