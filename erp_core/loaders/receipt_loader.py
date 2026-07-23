@@ -78,6 +78,80 @@ def get_receipt(sale_id: int) -> Dict[str, Any]:
             "items": []
         }
         # ==============================================================================
+# FULL RECEIPT
+# ==============================================================================
+
+def get_full_receipt(
+    receipt_key
+):
+    """
+    Load complete receipt
+
+    Returns:
+
+    {
+        "success": True,
+        "sale": {},
+        "items": []
+    }
+
+    """
+
+    try:
+
+        sale = get_receipt(
+            receipt_key
+        )
+
+
+        if not sale:
+
+            return {
+
+                "success": False,
+
+                "sale": None,
+
+                "items": []
+
+            }
+
+
+
+        items = get_sale_items(
+            sale.get("id")
+        )
+
+
+        return {
+
+            "success": True,
+
+            "sale": sale,
+
+            "items": items
+
+        }
+
+
+
+    except Exception as e:
+
+        log_error(
+            f"get_full_receipt error: {e}"
+        )
+
+
+        return {
+
+            "success": False,
+
+            "sale": None,
+
+            "items": []
+
+        }
+        # ==============================================================================
 # RECEIPT SEARCH
 # ==============================================================================
 
