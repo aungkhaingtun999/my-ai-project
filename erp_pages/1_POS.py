@@ -269,10 +269,28 @@ def run():
                     if isinstance(data, list): data = data[0] if data else {}
                     invoice_no = data.get("invoice_no") or data.get("sale_no") or "INV-" + datetime.now().strftime("%Y%m%d%H%M%S")
                     
+                    receipt_items = []
+                    for item in st.session_state.cart:
+                        receipt_items.append({
+                            "name": item["name"],
+                            "product_id": item["id"],
+                            "quantity": item["qty"],
+                            "unit_price": item["selling_price"],
+                            "total": item["qty"] * item["selling_price"]
+                        })
+
                     st.session_state.sale_data = {
-                        "invoice_no": invoice_no, "date": format_datetime(), "cashier": st.session_state.get("username", "Unknown"),
-                        "items": list(st.session_state.cart), "subtotal": subtotal, "tax_rate": st.session_state.tax_rate,
-                        "tax_amount": tax_amount, "discount": discount, "grand_total": grand_total, "paid": received, "change": change
+                        "invoice_no": invoice_no,
+                        "date": format_datetime(),
+                        "cashier": st.session_state.get("username", "Unknown"),
+                        "items": receipt_items,
+                        "subtotal": subtotal,
+                        "tax_rate": st.session_state.tax_rate,
+                        "tax_amount": tax_amount,
+                        "discount": discount,
+                        "grand_total": grand_total,
+                        "paid": received,
+                        "change": change
                     }
                     st.session_state.show_receipt = True
                     st.session_state.processing = False
@@ -297,7 +315,16 @@ def run():
         st.title("🧾 Sales Receipt")
         st.info(f"Invoice No: {data['invoice_no']}\nDate: {data['date']}\nCashier: {data['cashier']}")
         
-        receipt_df = pd.DataFrame([{"Product": i["name"], "Qty": i["qty"], "Price": f"{i['selling_price']:,.0f}", "Amount": f"{(i['selling_price']*i['qty']):,.0f} MMK"} for i in data["items"]])
+        receipt_df = pd.DataFrame([
+            {
+                "Product": i["name"],
+                "Qty": i["quantity"],
+                "Price": f"{i['unit_price']:,.0f}",
+                "Amount": f"{i['total']:,.0f} MMK"
+            }
+            for i in data["items"]
+        ])
+        
         st.dataframe(receipt_df, use_container_width=True, hide_index=True)
         
         st.divider()
