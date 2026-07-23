@@ -33,6 +33,9 @@ from .supplier_loader import (
 from .inventory_loader import (
     get_inventory_view
 )
+from .receipt_loader import (
+    get_receipt
+)
 
 
 
