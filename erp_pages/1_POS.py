@@ -40,7 +40,7 @@ def run():
     # SECURITY CHECK
     # --------------------------------------------------------------------------
     if not is_authenticated():
-        st.warning("Please login first")
+        st.warning("Please log in first.")
         st.stop()
 
     # --------------------------------------------------------------------------
@@ -80,7 +80,7 @@ def run():
     warehouse_id = get_default_warehouse_id()
 
     if not warehouse_id:
-        st.error("Default warehouse not configured")
+        st.error("Default warehouse is not configured.")
         st.stop()
 
     # --------------------------------------------------------------------------
@@ -93,7 +93,7 @@ def run():
         st.stop()
 
     if not products:
-        st.warning("No products available")
+        st.warning("No products available.")
         st.stop()
 
     # --------------------------------------------------------------------------
@@ -146,7 +146,7 @@ def run():
                 existing_qty = sum(item["qty"] for item in st.session_state.cart if item["id"] == selected["id"])
 
                 if existing_qty + qty > available:
-                    st.error(f"Insufficient stock. Available {available}")
+                    st.error(f"Insufficient stock. Available: {available}")
                 else:
                     found = False
                     for item in st.session_state.cart:
@@ -163,7 +163,7 @@ def run():
                             "selling_price": price,
                             "qty": int(qty)
                         })
-                    st.success("Added to cart")
+                    st.success("Added to cart.")
                     st.rerun()
 
     # --------------------------------------------------------------------------
@@ -191,9 +191,9 @@ def run():
         total_qty = sum(item["qty"] for item in st.session_state.cart)
 
         st.info(f"""
-        Product Lines : {len(st.session_state.cart)}
-        Total Quantity : {total_qty}
-        Subtotal : {subtotal:,.0f} MMK
+        Product Lines: {len(st.session_state.cart)}
+        Total Quantity: {total_qty}
+        Subtotal: {subtotal:,.0f} MMK
         """)
 
         st.subheader("❌ Remove Product")
@@ -224,7 +224,7 @@ def run():
                 step=100.0,
                 disabled=True
             )
-            st.error("⛔ Discount is restricted by Admin.")
+            st.error("⛔ Discounts are restricted by the administrator.")
         else:
             discount = st.number_input(
                 "Discount",
@@ -232,22 +232,22 @@ def run():
                 value=0.0,
                 step=100.0
             )
-            st.success("✅ Discount is allowed.")
+            st.success("✅ Discounts are allowed.")
 
         tax_amount = round(subtotal * st.session_state.tax_rate / 100, 2)
         grand_total = max(0, subtotal + tax_amount - discount)
 
         st.success(f"""
-        Subtotal : {subtotal:,.0f} MMK
-        Tax : {tax_amount:,.0f} MMK
-        Discount : {discount:,.0f} MMK
-        GRAND TOTAL : {grand_total:,.0f} MMK
+        Subtotal: {subtotal:,.0f} MMK
+        Tax: {tax_amount:,.0f} MMK
+        Discount: {discount:,.0f} MMK
+        GRAND TOTAL: {grand_total:,.0f} MMK
         """)
 
         payment_method = st.selectbox("Payment Method", ["Cash", "Card", "Mobile"])
         received = st.number_input("Received Amount", min_value=float(grand_total), value=float(grand_total), step=100.0) if payment_method == "Cash" else grand_total
         change = max(0, received - grand_total)
-        st.write(f"Change : {change:,.0f} MMK")
+        st.write(f"Change: {change:,.0f} MMK")
 
         if st.button("✅ Confirm Sale", disabled=st.session_state.processing, use_container_width=True):
             st.session_state.processing = True
@@ -269,20 +269,39 @@ def run():
                     if isinstance(data, list): data = data[0] if data else {}
                     invoice_no = data.get("invoice_no") or data.get("sale_no") or "INV-" + datetime.now().strftime("%Y%m%d%H%M%S")
                     
+                    # Mapping cart items to receipt engine format (DTO)
+                    receipt_items = []
+                    for item in st.session_state.cart:
+                        receipt_items.append({
+                            "name": item["name"],
+                            "product_id": item["id"],
+                            "quantity": int(item["qty"]),
+                            "unit_price": float(item["selling_price"]),
+                            "total": float(item["selling_price"]) * int(item["qty"])
+                        })
+
                     st.session_state.sale_data = {
-                        "invoice_no": invoice_no, "date": format_datetime(), "cashier": st.session_state.get("username", "Unknown"),
-                        "items": list(st.session_state.cart), "subtotal": subtotal, "tax_rate": st.session_state.tax_rate,
-                        "tax_amount": tax_amount, "discount": discount, "grand_total": grand_total, "paid": received, "change": change
+                        "invoice_no": invoice_no,
+                        "date": format_datetime(),
+                        "cashier": st.session_state.get("username", "Unknown"),
+                        "items": receipt_items,
+                        "subtotal": subtotal,
+                        "tax_rate": st.session_state.tax_rate,
+                        "tax_amount": tax_amount,
+                        "discount": discount,
+                        "grand_total": grand_total,
+                        "paid": received,
+                        "change": change
                     }
                     st.session_state.show_receipt = True
                     st.session_state.processing = False
                     st.rerun()
                 else:
-                    st.error(result.get("message", "Sale failed"))
+                    st.error(result.get("message", "Sale failed."))
                     st.session_state.processing = False
             except Exception as e:
                 st.session_state.processing = False
-                st.error(f"Checkout Error : {e}")
+                st.error(f"Checkout Error: {e}")
 
     # --------------------------------------------------------------------------
     # PART 3/3 - RECEIPT + PRINT + RESET ENGINE
@@ -290,23 +309,29 @@ def run():
     if st.session_state.show_receipt:
         data = st.session_state.sale_data
         if not data:
-            st.error("Receipt data missing")
+            st.error("Receipt data is missing.")
             st.stop()
 
         st.divider()
         st.title("🧾 Sales Receipt")
-        st.info(f"Invoice No : {data['invoice_no']}\nDate : {data['date']}\nCashier : {data['cashier']}")
+        st.info(f"Invoice No: {data['invoice_no']}\nDate: {data['date']}\nCashier: {data['cashier']}")
         
-        receipt_df = pd.DataFrame([{"Product": i["name"], "Qty": i["qty"], "Price": f"{i['selling_price']:,.0f}", "Amount": f"{(i['selling_price']*i['qty']):,.0f} MMK"} for i in data["items"]])
+        receipt_df = pd.DataFrame([{
+            "Product": i["name"], 
+            "Qty": i["quantity"], 
+            "Price": f"{i['unit_price']:,.0f}", 
+            "Amount": f"{i['total']:,.0f} MMK"
+        } for i in data["items"]])
+        
         st.dataframe(receipt_df, use_container_width=True, hide_index=True)
         
         st.divider()
-        st.write(f"### Payment Summary\nSubtotal : **{data['subtotal']:,.0f} MMK**\nTax ({data['tax_rate']}%): **{data['tax_amount']:,.0f} MMK**\nDiscount : **{data['discount']:,.0f} MMK**\n# GRAND TOTAL\n## {data['grand_total']:,.0f} MMK\nPaid : {data['paid']:,.0f} MMK\nChange : {data['change']:,.0f} MMK")
+        st.write(f"### Payment Summary\nSubtotal: **{data['subtotal']:,.0f} MMK**\nTax ({data['tax_rate']}%): **{data['tax_amount']:,.0f} MMK**\nDiscount: **{data['discount']:,.0f} MMK**\n# GRAND TOTAL\n## {data['grand_total']:,.0f} MMK\nPaid: {data['paid']:,.0f} MMK\nChange: {data['change']:,.0f} MMK")
         
         c1, c2, c3 = st.columns(3)
         if c1.button("🖨 Print Receipt", use_container_width=True):
             print_thermal(data)
-            st.success("Receipt sent to printer")
+            st.success("Receipt sent to printer.")
         if c2.button("📄 Generate PDF", use_container_width=True):
             pdf_bytes, filename = generate_pdf(data)
             if pdf_bytes:
