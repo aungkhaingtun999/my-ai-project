@@ -50,6 +50,7 @@ from erp_core import (
     PurchaseService,
     InventoryService,
     RefundService,
+    ReceiptService,
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -121,6 +122,7 @@ __all__ = [  # Fixed from 'all =' to '__all__ ='
     "PurchaseService",
     "InventoryService",
     "RefundService",
+    "ReceiptService",
     # Factories
     "get_sales_service",
     "get_purchase_service",
