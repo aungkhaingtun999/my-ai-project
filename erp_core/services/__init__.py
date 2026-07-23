@@ -38,7 +38,9 @@ print(
 # CORE IMPORTS
 # ==============================================================================
 
-
+from .receipt_service import (
+    ReceiptService
+)
 from erp_core.exceptions import *
 
 
@@ -201,6 +203,7 @@ __all__ = [
     "AccountingLedgerService",
 
     "AuditService",
+    "ReceiptService",
 
     "get_fifo_cogs",
 
