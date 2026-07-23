@@ -269,6 +269,84 @@ def run():
                 
                 if result.get("success", False):
                     data = result.get("data", {})
+                                    if result.get("success", False):
+
+                    data = result.get("data", {})
+
+                    if isinstance(data, list):
+                        data = data[0] if data else {}
+
+                    invoice_no = (
+                        data.get("invoice_no")
+                        or
+                        data.get("sale_no")
+                        or
+                        "INV-" + datetime.now().strftime("%Y%m%d%H%M%S")
+                    )
+
+
+                    receipt_items = []
+
+                    for item in st.session_state.cart:
+
+                        receipt_items.append(
+                            {
+                                "name": item["name"],
+                                "product_id": item["id"],
+                                "quantity": int(item["qty"]),
+                                "unit_price": float(item["selling_price"]),
+                                "total": (
+                                    float(item["selling_price"])
+                                    *
+                                    int(item["qty"])
+                                )
+                            }
+                        )
+
+
+                    raw_sale = {
+
+                        "invoice_no": invoice_no,
+
+                        "created_at": format_datetime(),
+
+                        "cashier":
+                            st.session_state.get(
+                                "username",
+                                "Unknown"
+                            ),
+
+                        "subtotal":
+                            subtotal,
+
+                        "tax_amount":
+                            tax_amount,
+
+                        "discount":
+                            discount,
+
+                        "total":
+                            grand_total,
+
+                        "paid_amount":
+                            received,
+
+                        "change_amount":
+                            change
+                    }
+
+
+                    st.session_state.sale_data = build_receipt_data(
+                        raw_sale,
+                        receipt_items
+                    )
+
+
+                    st.session_state.show_receipt = True
+
+                    st.session_state.processing = False
+
+                    st.rerun()
                     if isinstance(data, list): data = data[0] if data else {}
                     invoice_no = data.get("invoice_no") or data.get("sale_no") or "INV-" + datetime.now().strftime("%Y%m%d%H%M%S")
                     
@@ -326,8 +404,8 @@ def run():
                     st.error(result.get("message", "Sale failed."))
                     st.session_state.processing = False
             except Exception as e:
-                st.session_state.processing = False
-                st.error(f"Checkout Error: {e}")
+                    st.session_state.processing = False
+                    st.error(f"Checkout Error: {e}")
 
     # --------------------------------------------------------------------------
     # PART 3/3 - RECEIPT + PRINT + RESET ENGINE
