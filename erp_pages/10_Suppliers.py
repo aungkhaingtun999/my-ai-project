@@ -8,6 +8,7 @@ import streamlit as st
 import time
 from database import get_supabase
 from utils.ui import show_table
+
 # ----------------------------------------------------------
 # DATABASE
 # ----------------------------------------------------------
@@ -75,7 +76,7 @@ def Show_table(suppliers):
 # ----------------------------------------------------------
 # MAIN RUN FUNCTION
 # ----------------------------------------------------------
-   def run():
+def run():
 
     st.set_page_config(
         page_title="Supplier Management",
@@ -83,19 +84,14 @@ def Show_table(suppliers):
         layout="wide"
     )
 
-
     st.title("🏭 Supplier Management")
-
 
     # Supplier List
     st.subheader("📋 Supplier List")
 
     suppliers = get_suppliers()
 
-
     Show_table(suppliers)
-
-
 
     # ==================================================
     # EDIT / DELETE SUPPLIER
@@ -105,7 +101,6 @@ def Show_table(suppliers):
 
     st.subheader("✏️ Edit / Delete Supplier")
 
-
     if suppliers:
 
         supplier_map = {
@@ -113,69 +108,56 @@ def Show_table(suppliers):
             for s in suppliers
         }
 
-
         selected_supplier = st.selectbox(
             "Select Supplier",
             supplier_map.keys()
         )
 
-
         supplier = supplier_map[selected_supplier]
-
 
         edit_company = st.text_input(
             "Supplier Name",
             value=supplier.get("company_name","")
         )
 
-
         edit_contact = st.text_input(
             "Contact Person",
             value=supplier.get("contact_name","")
         )
-
 
         edit_phone = st.text_input(
             "Phone",
             value=supplier.get("phone","")
         )
 
-
         edit_email = st.text_input(
             "Email",
             value=supplier.get("email","")
         )
-
 
         edit_address = st.text_area(
             "Address",
             value=supplier.get("address","")
         )
 
-
         if st.button("💾 Update Supplier"):
 
             supabase.table(
                 "suppliers"
             ).update({
-
                 "company_name": edit_company,
                 "contact_name": edit_contact,
                 "phone": edit_phone,
                 "email": edit_email,
                 "address": edit_address
-
             }).eq(
                 "id",
                 supplier["id"]
             ).execute()
 
-
             st.success("Supplier Updated")
             time.sleep(1)
             st.rerun()
-
-
 
         if st.button("🗑 Delete Supplier"):
 
@@ -186,17 +168,13 @@ def Show_table(suppliers):
                 supplier["id"]
             ).execute()
 
-
             st.success("Supplier Deleted")
             time.sleep(1)
             st.rerun()
 
-
     else:
 
         st.info("No suppliers found")
-
-
 
     # ==================================================
     # ADD SUPPLIER
@@ -220,4 +198,17 @@ def Show_table(suppliers):
         )
 
         if submit:
-            ...                     
+            if not company_name:
+                st.warning("Please enter the Supplier Name.")
+            else:
+                result = add_supplier(
+                    company_name=company_name,
+                    phone=phone,
+                    address=address,
+                    email=email,
+                    contact_name=contact_name
+                )
+                if result is not None:
+                    st.success("Supplier Saved Successfully!")
+                    time.sleep(1)
+                    st.rerun()
