@@ -473,9 +473,10 @@ __all__ = [
 
     "get_suppliers",
 
-    "get_customers"
+    "get_customers",
     "get_receipt",
     "get_sale_items",
+    "search_receipts",
 
 
 
@@ -489,7 +490,7 @@ __all__ = [
 
     "stock_adjustment_rpc",
     
-    "update_product_rpc",  # <--- ထည့်သွင်းပြီးပါပြီ
+    "update_product_rpc",
 
 
 
@@ -520,7 +521,7 @@ __all__ = [
     "create_audit_log"
 
 ]
-    "search_receipts",
+
 
 
 
