@@ -1,6 +1,6 @@
 # ==========================================
 # pages/6_Receipt.py
-# ERP ENTERPRISE RECEIPT VIEWER v3
+# ERP ENTERPRISE RECEIPT VIEWER v3.2
 # AUTOCOMPLETE + AUTO LOAD ENGINE
 # ==========================================
 
@@ -13,6 +13,7 @@ from database import (
     search_receipts
 )
 from utils.receipt_pdf import generate_pdf
+from utils.thermal_receipt import build_receipt_data
 from utils.ui import show_table
 
 
@@ -26,11 +27,9 @@ def run():
         layout="wide"
     )
 
-
     st.title(
         "🧾 ERP Enterprise Receipt Viewer"
     )
-
 
     # ==========================================
     # SESSION STATE
@@ -39,11 +38,8 @@ def run():
     if "selected_receipt" not in st.session_state:
         st.session_state.selected_receipt = None
 
-
     if "receipt_data" not in st.session_state:
         st.session_state.receipt_data = None
-
-
 
     # ==========================================
     # SEARCH INPUT
@@ -58,48 +54,38 @@ def run():
         placeholder="Type INV number..."
     )
 
-
-
     # ==========================================
     # FLOATING AUTOCOMPLETE RESULT
     # ==========================================
 
     if search_text:
 
-
         results = search_receipts(
             search_text
         )
 
-
         if results:
-
 
             st.caption(
                 "Matching Receipts"
             )
 
-
             for r in results:
-
 
                 invoice = r.get(
                     "invoice_no",
                     "-"
                 )
 
-
                 total = r.get(
                     "total",
                     0
                 )
 
-
                 date = r.get(
                     "created_at",
                     ""
                 )
-
 
                 label = (
                     f"🧾 {invoice}"
@@ -109,27 +95,20 @@ def run():
                     f"{date}"
                 )
 
-
                 if st.button(
                     label,
                     key=f"receipt_{r.get('id')}"
                 ):
 
-
                     st.session_state.selected_receipt = invoice
-
 
                     receipt = get_receipt(
                         invoice
                     )
 
-
                     st.session_state.receipt_data = receipt
 
-
                     st.rerun()
-
-
 
     # ==========================================
     # MANUAL LOAD SUPPORT
@@ -140,17 +119,13 @@ def run():
         and st.session_state.selected_receipt
     ):
 
-
         receipt = get_receipt(
             st.session_state.selected_receipt
         )
 
-
         if receipt:
 
             st.session_state.receipt_data = receipt
-
-
 
     # ==========================================
     # RECEIPT DISPLAY
@@ -158,18 +133,13 @@ def run():
 
     receipt = st.session_state.receipt_data
 
-
-
     if not receipt:
-
 
         st.info(
             "🔎 Search and select receipt"
         )
 
         st.stop()
-
-
 
     # ==========================================
     # LOAD ITEMS
@@ -179,18 +149,13 @@ def run():
         "id"
     )
 
-
     items = []
 
-
     if sale_id:
-
 
         items = get_sale_items(
             str(sale_id)
         )
-
-
 
     # ==========================================
     # HEADER SUMMARY
@@ -198,15 +163,11 @@ def run():
 
     st.divider()
 
-
     st.subheader(
         "🧾 Receipt Summary"
     )
 
-
     c1, c2, c3 = st.columns(3)
-
-
 
     with c1:
 
@@ -218,16 +179,12 @@ def run():
             )
         )
 
-
-
     with c2:
 
         st.metric(
             "Total",
-            f"{receipt.get('total',0):,.0f} MMK"
+            f"{receipt.get('total', 0):,.0f} MMK"
         )
-
-
 
     with c3:
 
@@ -239,29 +196,21 @@ def run():
             )
         )
 
-
-
     c1, c2, c3 = st.columns(3)
-
-
 
     with c1:
 
         st.metric(
             "Paid",
-            f"{receipt.get('paid_amount',0):,.0f} MMK"
+            f"{receipt.get('paid_amount', 0):,.0f} MMK"
         )
-
-
 
     with c2:
 
         st.metric(
             "Change",
-            f"{receipt.get('change_amount',0):,.0f} MMK"
+            f"{receipt.get('change_amount', 0):,.0f} MMK"
         )
-
-
 
     with c3:
 
@@ -273,29 +222,21 @@ def run():
             )
         )
 
-
-
     # ==========================================
     # ITEMS
     # ==========================================
 
     st.divider()
 
-
     st.subheader(
         "🛒 Sale Items"
     )
 
-
-
     if items:
-
 
         rows = []
 
-
         for item in items:
-
 
             rows.append(
 
@@ -306,18 +247,15 @@ def run():
                             "product_id"
                         ),
 
-
                     "Qty":
                         item.get(
                             "quantity"
                         ),
 
-
                     "Unit Price":
                         item.get(
                             "unit_price"
                         ),
-
 
                     "Total":
                         item.get(
@@ -328,22 +266,17 @@ def run():
 
             )
 
-
         st.dataframe(
             pd.DataFrame(rows),
             use_container_width=True,
             hide_index=True
         )
 
-
     else:
-
 
         st.warning(
             "No items found"
         )
-
-
 
     # ==========================================
     # FINANCIAL
@@ -351,48 +284,35 @@ def run():
 
     st.divider()
 
-
     st.subheader(
         "💰 Financial Details"
     )
 
-
-
     col1, col2 = st.columns(2)
-
-
 
     with col1:
 
-
         st.write(
             "Subtotal:",
-            f"{receipt.get('subtotal',0):,.0f} MMK"
+            f"{receipt.get('subtotal', 0):,.0f} MMK"
         )
-
 
         st.write(
             "Discount:",
-            f"{receipt.get('discount',0):,.0f} MMK"
+            f"{receipt.get('discount', 0):,.0f} MMK"
         )
-
-
 
     with col2:
 
-
         st.write(
             "Tax:",
-            f"{receipt.get('tax',0):,.0f} MMK"
+            f"{receipt.get('tax', 0):,.0f} MMK"
         )
-
 
         st.write(
             "Grand Total:",
-            f"{receipt.get('total',0):,.0f} MMK"
+            f"{receipt.get('total', 0):,.0f} MMK"
         )
-
-
 
     if receipt.get(
         "created_at"
@@ -403,18 +323,13 @@ def run():
             receipt["created_at"]
         )
 
-
-
     # ==========================================
     # ACTION AREA
     # ==========================================
 
     st.divider()
 
-
     c1, c2, c3 = st.columns(3)
-
-
 
     with c1:
 
@@ -423,94 +338,14 @@ def run():
             disabled=True
         )
 
-
-
     with c2:
 
-        if st.button("📄 PDF"):
+        if st.button("📄 Prepare PDF"):
 
-            pdf_items = []
-
-            for item in items:
-
-                pdf_items.append({
-
-                    "name":
-                        f"Product #{item.get('product_id')}",
-
-                    "quantity":
-                        item.get(
-                            "quantity",
-                            0
-                        ),
-
-                    "unit_price":
-                        item.get(
-                            "unit_price",
-                            0
-                        ),
-
-                    "total":
-                        item.get(
-                            "total",
-                            0
-                        )
-
-                })
-
-            receipt_data = {
-
-                "invoice_no":
-                    receipt.get("invoice_no"),
-
-                "date":
-                    receipt.get("created_at"),
-
-                "cashier":
-                    receipt.get(
-                        "cashier",
-                        "Admin"
-                    ),
-
-                "items":
-                    pdf_items,
-
-                "subtotal":
-                    receipt.get(
-                        "subtotal",
-                        0
-                    ),
-
-                "discount":
-                    receipt.get(
-                        "discount",
-                        0
-                    ),
-
-                "tax_amount":
-                    receipt.get(
-                        "tax",
-                        0
-                    ),
-
-                "grand_total":
-                    receipt.get(
-                        "total",
-                        0
-                    ),
-
-                "paid":
-                    receipt.get(
-                        "paid_amount",
-                        0
-                    ),
-
-                "change":
-                    receipt.get(
-                        "change_amount",
-                        0
-                    )
-            }
+            receipt_data = build_receipt_data(
+                receipt,
+                items
+            )
 
             result = generate_pdf(
                 receipt_data
@@ -518,23 +353,25 @@ def run():
 
             if result:
 
-                pdf_bytes, filename = result
+                st.session_state.pdf_result = result
 
-                st.download_button(
+        if "pdf_result" in st.session_state and st.session_state.pdf_result:
 
-                    label="⬇️ Download Receipt PDF",
+            pdf_bytes, filename = st.session_state.pdf_result
 
-                    data=pdf_bytes,
+            st.download_button(
 
-                    file_name=f"{filename}.pdf",
+                label="⬇️ Download Receipt PDF",
 
-                    mime="application/pdf",
+                data=pdf_bytes,
 
-                    use_container_width=True
+                file_name=f"{filename}.pdf",
 
-                )
+                mime="application/pdf",
 
+                use_container_width=True
 
+            )
 
     with c3:
 
@@ -546,9 +383,10 @@ def run():
 
             st.session_state.receipt_data = None
 
+            if "pdf_result" in st.session_state:
+                del st.session_state.pdf_result
+
             st.rerun()
-
-
 
     # ==========================================
     # EXPORT
@@ -560,7 +398,7 @@ def run():
 
         data=str(receipt),
 
-        file_name=f"{receipt.get('invoice_no','receipt')}.txt"
+        file_name=f"{receipt.get('invoice_no', 'receipt')}.txt"
 
     )
 
