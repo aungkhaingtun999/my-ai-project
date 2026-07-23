@@ -189,57 +189,97 @@ def generate_pdf(receipt_data):
         )
 
 
-        items = receipt_data.get(
-            "items",
-            []
-        )
-
+        items = receipt_data.get("items") or []
 
 
         for item in items:
-
 
             if item is None:
                 continue
 
 
+            # ------------------------------
+            # PRODUCT NAME
+            # ------------------------------
 
-            name = (
-                item.get("name")
-                or
-                item.get("product_name")
-                or
-                f"Product #{item.get('product_id','')}"
+            product = item.get("products")
+
+
+            if isinstance(product, dict):
+
+                name = (
+                    product.get("name")
+                    or f"Product #{item.get('product_id')}"
+                )
+
+            else:
+
+                name = f"Product #{item.get('product_id','')}"
+
+
+            # ------------------------------
+            # QUANTITY
+            # ------------------------------
+
+            qty = item.get("quantity", 0)
+
+
+            try:
+                qty = int(qty)
+            except:
+                qty = 0
+
+
+
+            # ------------------------------
+            # UNIT PRICE
+            # ------------------------------
+
+            price = item.get(
+                "unit_price",
+                0
             )
 
 
+            try:
+                price = float(price)
 
-            qty = int(
-                item.get("quantity",0)
+            except:
+                price = 0
+
+
+
+            # ------------------------------
+            # AMOUNT
+            # ------------------------------
+
+            amount = item.get(
+                "total",
+                0
             )
 
 
+            try:
+                amount = float(amount)
 
-            price = num(
-                item.get("unit_price")
-            )
-
-
-
-            # IMPORTANT FIX
-            # sale_items.total ကို တိုက်ရိုက်ယူ
-
-            amount = num(
-                item.get("total")
-            )
+            except:
+                amount = 0
 
 
 
-            # fallback
+            # safety calculation
 
-            if amount <= 0:
+            if amount == 0 and qty > 0:
 
                 amount = qty * price
+
+
+
+            if y < 120:
+
+                pdf.showPage()
+
+                y = height - 50
 
 
 
@@ -253,7 +293,7 @@ def generate_pdf(receipt_data):
             pdf.drawRightString(
                 315,
                 y,
-                str(qty)
+                f"{qty}"
             )
 
 
