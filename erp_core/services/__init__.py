@@ -1,454 +1,327 @@
 # ==============================================================================
-# erp_core/__init__.py
-# ERP ENTERPRISE CORE PACKAGE v30.11
-# CLEAN ARCHITECTURE
-# LAZY LOADERS + SERVICES + RPC
+# erp_core/services/__init__.py
+# ERP ENTERPRISE SERVICE LAYER v30.12
+# SAFE SERVICE EXPORT PACKAGE
 # ==============================================================================
 
 
 """
-ERP Core Package
+ERP Service Layer
 
-Architecture:
+Structure:
 
-Pages
+erp_core
  |
- ├── loaders
- |       └── data loading layer
- |
- ├── services
- |       └── business logic layer
- |
- └── rpc
-         └── transaction gateway
+ └── services
+        |
+        ├── sales_service.py
+        ├── customer_service.py
+        ├── purchase_service.py
+        ├── inventory_service.py
+        └── dashboard_service.py
 
 
-All heavy modules are loaded lazily.
+This file only exports service classes.
+
+No database initialization.
+No heavy imports.
 """
 
 
-# ==============================================================================
-# EXCEPTIONS
-# ==============================================================================
 
-
+print("SERVICES PACKAGE START")
 
 
 
 # ==============================================================================
-# CONFIG
+# CORE DEPENDENCY CHECK
 # ==============================================================================
+
+
+from ..exceptions import *
+
 
 from ..config import (
-    Tables,
-    TABLE_PRODUCT_VIEW,
-    DEFAULT_PAGE_SIZE,
+
     log_error
-)
-
-
-
-# ==============================================================================
-# CONTEXT
-# ==============================================================================
-
-from .context import (
-
-    ERPContext,
-
-    CacheManager,
-
-    generate_tx_id,
-
-    generate_transaction_id
 
 )
 
 
 
 # ==============================================================================
-# DATABASE CORE
+# CUSTOMER SERVICE
 # ==============================================================================
 
-from .base_repo import (
 
-    get_supabase,
+try:
 
-    db,
+    from .customer_service import (
 
-    get_connection,
+        CustomerService
 
-    DatabaseHealth,
+    )
 
-    database_health_check,
+except Exception as e:
 
-    money,
+    print(
+        "CustomerService import failed:",
+        e
+    )
 
-    money_float,
-
-    validate_uuid,
-
-    serialize_json,
-
-    safe_execute
-
-)
-
-
-
-# ==============================================================================
-# REPOSITORIES
-# ==============================================================================
-
-from .repositories import (
-
-    RepositoryCoordinator,
-
-    BaseRepository,
-
-    ProductRepository,
-
-    WarehouseRepository,
-
-    CustomerRepository,
-
-    SupplierRepository,
-
-    SalesRepository
-
-)
-
-
-
-# ==============================================================================
-# RPC ENGINE ONLY
-# (Do not import rpc package here)
-# ==============================================================================
-
-from .rpc.engine import (
-
-    RPCEngine
-
-)
-
-
-
-# ==============================================================================
-# VERSION
-# ==============================================================================
-
-ERP_CORE_VERSION = "30.11 LAZY LOADERS + SERVICES + RPC"
+    CustomerService = None
 
 
 
 
 
 # ==============================================================================
-# LAZY EXPORT MAP
+# SALES SERVICE
 # ==============================================================================
 
 
-_EXPORTS = {
+try:
 
+    from .sales_service import (
 
-    # --------------------------------------------------
-    # LOADERS
-    # --------------------------------------------------
+        SalesService
 
-    "get_setting":
-        ("loaders", "get_setting"),
+    )
 
+except Exception as e:
 
-    "get_products":
-        ("loaders", "get_products"),
+    print(
+        "SalesService import failed:",
+        e
+    )
 
-
-    "get_inventory_view":
-        ("loaders", "get_inventory_view"),
-
-
-    "get_warehouses":
-        ("loaders", "get_warehouses"),
-
-
-    "get_suppliers":
-        ("loaders", "get_suppliers"),
-
-
-    "get_customers":
-        ("loaders", "get_customers"),
-
-
-    "get_default_warehouse_id":
-        ("loaders", "get_default_warehouse_id"),
-
-
-
-
-    # --------------------------------------------------
-    # SERVICES
-    # --------------------------------------------------
-
-    "AccountingLedgerService":
-        ("services", "AccountingLedgerService"),
-
-
-    "CustomerService":
-        ("services", "CustomerService"),
-
-
-    "SalesService":
-        ("services", "SalesService"),
-
-
-    "InventoryService":
-        ("services", "InventoryService"),
-
-
-    "PurchaseService":
-        ("services", "PurchaseService"),
-
-
-    "RefundService":
-        ("services", "RefundService"),
-
-
-    "DashboardService":
-        ("services", "DashboardService"),
-
-
-    "AuditService":
-        ("services", "AuditService"),
-
-
-
-    # --------------------------------------------------
-    # RPC FUNCTIONS
-    # --------------------------------------------------
-
-    "checkout_sale_rpc":
-        ("rpc", "checkout_sale_rpc"),
-
-
-    "purchase_receive_rpc":
-        ("rpc", "purchase_receive_rpc"),
-
-
-    "refund_sale_rpc":
-        ("rpc", "refund_sale_rpc"),
-
-
-    "stock_adjustment_rpc":
-        ("rpc", "stock_adjustment_rpc"),
-
-
-
-    # --------------------------------------------------
-    # OTHER FUNCTIONS
-    # --------------------------------------------------
-
-    "get_fifo_cogs":
-        ("services", "get_fifo_cogs"),
-
-
-    "create_audit_log":
-        ("services", "create_audit_log"),
-
-}
+    SalesService = None
 
 
 
 
 
 # ==============================================================================
-# PYTHON LAZY IMPORT ENGINE
+# PURCHASE SERVICE
 # ==============================================================================
 
 
-def __getattr__(name):
+try:
 
+    from .purchase_service import (
 
-    if name not in _EXPORTS:
+        PurchaseService
 
-        raise AttributeError(
-            f"module 'erp_core' has no attribute '{name}'"
-        )
+    )
 
+except Exception as e:
 
+    print(
+        "PurchaseService import failed:",
+        e
+    )
 
-    package_name, object_name = _EXPORTS[name]
-
-
-
-    # --------------------------------------------------
-    # LOADERS
-    # --------------------------------------------------
-
-    if package_name == "loaders":
-
-        from . import loaders
-
-        return getattr(
-            loaders,
-            object_name
-        )
-
-
-
-    # --------------------------------------------------
-    # SERVICES
-    # --------------------------------------------------
-
-    if package_name == "services":
-
-        from . import services
-
-        return getattr(
-            services,
-            object_name
-        )
-
-
-
-    # --------------------------------------------------
-    # RPC
-    # --------------------------------------------------
-
-    if package_name == "rpc":
-
-        from . import rpc
-
-        return getattr(
-            rpc,
-            object_name
-        )
+    PurchaseService = None
 
 
 
 
 
 # ==============================================================================
-# PUBLIC EXPORTS
+# INVENTORY SERVICE
+# ==============================================================================
+
+
+try:
+
+    from .inventory_service import (
+
+        InventoryService
+
+    )
+
+except Exception as e:
+
+    print(
+        "InventoryService import failed:",
+        e
+    )
+
+    InventoryService = None
+
+
+
+
+
+# ==============================================================================
+# REFUND SERVICE
+# ==============================================================================
+
+
+try:
+
+    from .refund_service import (
+
+        RefundService
+
+    )
+
+except Exception as e:
+
+    print(
+        "RefundService import failed:",
+        e
+    )
+
+    RefundService = None
+
+
+
+
+
+# ==============================================================================
+# DASHBOARD SERVICE
+# ==============================================================================
+
+
+try:
+
+    from .dashboard_service import (
+
+        DashboardService
+
+    )
+
+except Exception as e:
+
+    print(
+        "DashboardService import failed:",
+        e
+    )
+
+    DashboardService = None
+
+
+
+
+
+# ==============================================================================
+# ACCOUNTING SERVICE
+# ==============================================================================
+
+
+try:
+
+    from .accounting_service import (
+
+        AccountingLedgerService
+
+    )
+
+except Exception as e:
+
+    print(
+        "AccountingLedgerService import failed:",
+        e
+    )
+
+    AccountingLedgerService = None
+
+
+
+
+
+# ==============================================================================
+# AUDIT SERVICE
+# ==============================================================================
+
+
+try:
+
+    from .audit_service import (
+
+        AuditService
+
+    )
+
+except Exception as e:
+
+    print(
+        "AuditService import failed:",
+        e
+    )
+
+    AuditService = None
+
+
+
+
+
+# ==============================================================================
+# HELPER EXPORTS
+# ==============================================================================
+
+
+try:
+
+    from .helpers import (
+
+        get_fifo_cogs,
+
+        create_audit_log
+
+    )
+
+
+except Exception as e:
+
+
+    print(
+        "Service helper import failed:",
+        e
+    )
+
+
+    get_fifo_cogs = None
+
+    create_audit_log = None
+
+
+
+
+
+# ==============================================================================
+# PUBLIC API
 # ==============================================================================
 
 
 __all__ = [
 
 
-    # Version
-
-    "ERP_CORE_VERSION",
-
-
-
-    # Database
-
-    "db",
-
-    "get_supabase",
-
-    "get_connection",
-
-
-
-    # Money
-
-    "money",
-
-    "money_float",
-
-
-
-    # Validation
-
-    "validate_uuid",
-
-    "serialize_json",
-
-
-
-    # Context
-
-    "ERPContext",
-
-    "CacheManager",
-
-
-
-    # Config
-
-    "Tables",
-
-    "TABLE_PRODUCT_VIEW",
-
-
-
-    # RPC Engine
-
-    "RPCEngine",
-
-
-
-    # Loaders
-
-    "get_setting",
-
-    "get_products",
-
-    "get_inventory_view",
-
-    "get_warehouses",
-
-    "get_suppliers",
-
-    "get_customers",
-
-    "get_default_warehouse_id",
-
-
-
-    # RPC
-
-    "checkout_sale_rpc",
-
-    "purchase_receive_rpc",
-
-    "refund_sale_rpc",
-
-    "stock_adjustment_rpc",
-
-
-
-    # Services
-
-    "AccountingLedgerService",
+    "SalesService",
 
     "CustomerService",
 
-    "SalesService",
+    "PurchaseService",
 
     "InventoryService",
-
-    "PurchaseService",
 
     "RefundService",
 
     "DashboardService",
 
+    "AccountingLedgerService",
+
     "AuditService",
-
-
-
-    # Other
 
     "get_fifo_cogs",
 
-    "create_audit_log",
+    "create_audit_log"
 
 ]
 
 
 
 print(
-    "ERP_CORE v30.11 LAZY LOADERS + SERVICES + RPC LOADED"
+    "SERVICES PACKAGE READY"
 )
