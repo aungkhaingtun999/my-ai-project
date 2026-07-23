@@ -3,17 +3,33 @@
 # ERP ENTERPRISE RECEIPT LOADER
 # ==============================================================================
 
-
-from typing import Dict, Any
-
+from typing import Dict, Any, List
 from ..base_repo import db, log_error
 
 
+def get_sale_items(sale_id: int) -> List[Dict[str, Any]]:
+    """
+    Load items belonging to a sale
+    """
+    try:
+        client = db()
 
-def get_receipt(
-    sale_id: int
-) -> Dict[str, Any]:
+        response = (
+            client
+            .table("sale_items")
+            .select("*")
+            .eq("sale_id", sale_id)
+            .execute()
+        )
 
+        return response.data or []
+
+    except Exception as e:
+        log_error(f"get_sale_items error: {e}")
+        return []
+
+
+def get_receipt(sale_id: int) -> Dict[str, Any]:
     """
     Load complete receipt data
 
@@ -24,53 +40,12 @@ def get_receipt(
             "items": []
         }
     """
-
     try:
-
         client = db()
-        # ==============================================================================
-# SALE ITEMS LOADER
-# ==============================================================================
-
-
-def get_sale_items(
-    sale_id: int
-):
-
-    """
-    Load items belonging to a sale
-    """
-
-    try:
-
-        client = db()
-
-
-        response = (
-            client
-            .table("sale_items")
-            .select("*")
-            .eq("sale_id", sale_id)
-            .execute()
-        )
-
-
-        return response.data or []
-
-
-    except Exception as e:
-
-        log_error(
-            f"get_sale_items error: {e}"
-        )
-
-        return []
-
 
         # ------------------------------------------
         # SALE HEADER
         # ------------------------------------------
-
         sale_response = (
             client
             .table("sales")
@@ -80,55 +55,25 @@ def get_sale_items(
             .execute()
         )
 
-
         sale = sale_response.data
 
-
-
         # ------------------------------------------
-        # SALE ITEMS
+        # SALE ITEMS (သီးသန့်ခွဲထားသော get_sale_items ကို ပြန်သုံးခြင်း)
         # ------------------------------------------
-
-        items_response = (
-            client
-            .table("sale_items")
-            .select("*")
-            .eq("sale_id", sale_id)
-            .execute()
-        )
-
-
-        items = items_response.data or []
-
-
+        items = get_sale_items(sale_id)
 
         return {
-
             "success": True,
-
             "sale": sale,
-
             "items": items
-
         }
 
-
-
     except Exception as e:
-
-        log_error(
-            f"get_receipt error: {e}"
-        )
-
+        log_error(f"get_receipt error: {e}")
 
         return {
-
             "success": False,
-
             "message": str(e),
-
             "sale": None,
-
             "items": []
-
         }
