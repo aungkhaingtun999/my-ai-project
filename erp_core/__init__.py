@@ -1,35 +1,46 @@
 # ==============================================================================
 # erp_core/__init__.py
-# ERP ENTERPRISE CORE PACKAGE v30.12
-# CLEAN LAZY ARCHITECTURE
-# LOADERS + SERVICES + RPC SAFE EXPORT
+# ERP ENTERPRISE CORE PACKAGE v30.13
+# SAFE LAZY IMPORT ARCHITECTURE
 # ==============================================================================
 
 
 """
-ERP Core Package v30.12
+ERP CORE PACKAGE
 
-Safe import architecture.
+Architecture:
 
 Pages
  |
  └── erp_core
-       |
-       ├── loaders
-       ├── services
-       ├── rpc
-       └── repositories
+        |
+        ├── base_repo
+        ├── repositories
+        ├── services
+        ├── loaders
+        └── rpc
+              |
+              ├── checkout_rpc
+              ├── purchase_rpc
+              ├── refund_rpc
+              └── stock_rpc
+
 
 """
 
 
 
 # ==============================================================================
-# CORE IMPORTS
+# EXCEPTIONS
 # ==============================================================================
 
 from .exceptions import *
 
+
+
+# ==============================================================================
+# CONFIG
+# ==============================================================================
 
 from .config import (
 
@@ -45,6 +56,10 @@ from .config import (
 
 
 
+# ==============================================================================
+# CONTEXT
+# ==============================================================================
+
 from .context import (
 
     ERPContext,
@@ -58,6 +73,10 @@ from .context import (
 )
 
 
+
+# ==============================================================================
+# DATABASE
+# ==============================================================================
 
 from .base_repo import (
 
@@ -85,6 +104,10 @@ from .base_repo import (
 
 
 
+# ==============================================================================
+# REPOSITORIES
+# ==============================================================================
+
 from .repositories import (
 
     RepositoryCoordinator,
@@ -105,31 +128,37 @@ from .repositories import (
 
 
 
+# ==============================================================================
 # RPC ENGINE ONLY
+# ==============================================================================
+# IMPORTANT:
+# DO NOT IMPORT RPC FUNCTIONS HERE
+# ==============================================================================
 
 from .rpc.engine import RPCEngine
 
 
 
 
-
-ERP_CORE_VERSION = "30.12 SAFE LAZY RPC ARCHITECTURE"
+ERP_CORE_VERSION = "30.13 SAFE RPC LAZY ARCHITECTURE"
 
 
 
 
 
 # ==============================================================================
-# LAZY EXPORT MAP
+# EXPORT MAP
 # ==============================================================================
 
 
 _EXPORTS = {
 
 
-    # -------------------------
+
+    # ==========================================================
     # LOADERS
-    # -------------------------
+    # ==========================================================
+
 
     "get_setting":
         ("loaders", "get_setting"),
@@ -160,9 +189,11 @@ _EXPORTS = {
 
 
 
-    # -------------------------
+
+    # ==========================================================
     # SERVICES
-    # -------------------------
+    # ==========================================================
+
 
     "AccountingLedgerService":
         ("services", "AccountingLedgerService"),
@@ -197,37 +228,63 @@ _EXPORTS = {
 
 
 
-    # -------------------------
-    # RPC
-    # -------------------------
+
+    # ==========================================================
+    # RPC DIRECT MODULE
+    # ==========================================================
+
 
     "checkout_sale_rpc":
-        ("rpc", "checkout_sale_rpc"),
+        (
+            "rpc.checkout_rpc",
+            "checkout_sale_rpc"
+        ),
+
 
 
     "purchase_receive_rpc":
-        ("rpc", "purchase_receive_rpc"),
+        (
+            "rpc.purchase_rpc",
+            "purchase_receive_rpc"
+        ),
+
 
 
     "refund_sale_rpc":
-        ("rpc", "refund_sale_rpc"),
+        (
+            "rpc.refund_rpc",
+            "refund_sale_rpc"
+        ),
+
 
 
     "stock_adjustment_rpc":
-        ("rpc", "stock_adjustment_rpc"),
+        (
+            "rpc.stock_rpc",
+            "stock_adjustment_rpc"
+        ),
 
 
 
-    # -------------------------
+
+    # ==========================================================
     # HELPERS
-    # -------------------------
+    # ==========================================================
+
 
     "get_fifo_cogs":
-        ("services", "get_fifo_cogs"),
+        (
+            "services",
+            "get_fifo_cogs"
+        ),
+
 
 
     "create_audit_log":
-        ("services", "create_audit_log"),
+        (
+            "services",
+            "create_audit_log"
+        )
 
 }
 
@@ -236,8 +293,9 @@ _EXPORTS = {
 
 
 
+
 # ==============================================================================
-# SAFE LAZY LOADER
+# LAZY LOADER
 # ==============================================================================
 
 
@@ -247,7 +305,9 @@ def __getattr__(name):
     if name not in _EXPORTS:
 
         raise AttributeError(
+
             f"module 'erp_core' has no attribute '{name}'"
+
         )
 
 
@@ -256,46 +316,72 @@ def __getattr__(name):
 
 
 
+    # ----------------------------------------------------------
     # RPC DIRECT IMPORT
+    # ----------------------------------------------------------
 
-    if module_name == "rpc":
+    if module_name.startswith("rpc."):
+
 
         module = __import__(
+
             f"erp_core.{module_name}",
+
             fromlist=[object_name]
+
         )
 
 
         return getattr(
+
             module,
+
             object_name
+
         )
 
 
 
+
+    # ----------------------------------------------------------
     # SERVICES
+    # ----------------------------------------------------------
 
     if module_name == "services":
 
+
         from . import services
 
+
         return getattr(
+
             services,
+
             object_name
+
         )
 
 
 
+
+    # ----------------------------------------------------------
     # LOADERS
+    # ----------------------------------------------------------
 
     if module_name == "loaders":
 
+
         from . import loaders
 
+
         return getattr(
+
             loaders,
+
             object_name
+
         )
+
 
 
 
@@ -315,8 +401,12 @@ def __getattr__(name):
 __all__ = [
 
 
+
     "ERP_CORE_VERSION",
 
+
+
+    # DATABASE
 
     "db",
 
@@ -325,24 +415,38 @@ __all__ = [
     "get_connection",
 
 
+
+    # MONEY
+
     "money",
 
     "money_float",
 
+
+
+    # CONFIG
 
     "Tables",
 
     "TABLE_PRODUCT_VIEW",
 
 
+
+    # CONTEXT
+
     "ERPContext",
 
     "CacheManager",
 
 
+
+    # RPC ENGINE
+
     "RPCEngine",
 
 
+
+    # LOADERS
 
     "get_setting",
 
@@ -360,6 +464,8 @@ __all__ = [
 
 
 
+    # RPC
+
     "checkout_sale_rpc",
 
     "purchase_receive_rpc",
@@ -369,6 +475,8 @@ __all__ = [
     "stock_adjustment_rpc",
 
 
+
+    # SERVICES
 
     "AccountingLedgerService",
 
@@ -387,6 +495,9 @@ __all__ = [
     "AuditService",
 
 
+
+    # HELPERS
+
     "get_fifo_cogs",
 
     "create_audit_log"
@@ -395,6 +506,7 @@ __all__ = [
 
 
 
+
 print(
-    "ERP_CORE v30.12 SAFE LAZY RPC ARCHITECTURE LOADED"
+    "ERP_CORE v30.13 SAFE RPC LAZY ARCHITECTURE LOADED"
 )
