@@ -19,20 +19,34 @@ from ..base_repo import (
 
 def get_sale_items(
     sale_id:int
-)->List[Dict[str,Any]]:
-
+):
 
     try:
 
         response = (
+
             db()
             .table("sale_items")
-            .select("*")
+            .select(
+                """
+                id,
+                sale_id,
+                product_id,
+                quantity,
+                unit_price,
+                discount,
+                total,
+                products(
+                    name
+                )
+                """
+            )
             .eq(
                 "sale_id",
                 sale_id
             )
             .execute()
+
         )
 
 
