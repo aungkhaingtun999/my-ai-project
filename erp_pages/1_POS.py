@@ -271,12 +271,14 @@ def run():
                     
                     receipt_items = []
                     for item in st.session_state.cart:
+                        q = item.get("qty", item.get("quantity", 1))
+                        p = item.get("selling_price", item.get("unit_price", 0.0))
                         receipt_items.append({
-                            "name": item["name"],
-                            "product_id": item["id"],
-                            "quantity": item["qty"],
-                            "unit_price": item["selling_price"],
-                            "total": item["qty"] * item["selling_price"]
+                            "name": item.get("name", "Unknown Product"),
+                            "product_id": item.get("id", 0),
+                            "quantity": q,
+                            "unit_price": p,
+                            "total": q * p
                         })
 
                     st.session_state.sale_data = {
@@ -317,12 +319,12 @@ def run():
         
         receipt_df = pd.DataFrame([
             {
-                "Product": i["name"],
-                "Qty": i["quantity"],
-                "Price": f"{i['unit_price']:,.0f}",
-                "Amount": f"{i['total']:,.0f} MMK"
+                "Product": i.get("name", "Unknown"),
+                "Qty": i.get("quantity", i.get("qty", 1)),
+                "Price": f"{i.get('unit_price', i.get('selling_price', 0)):,.0f}",
+                "Amount": f"{i.get('total', i.get('qty', 1) * i.get('selling_price', 0)):,.0f} MMK"
             }
-            for i in data["items"]
+            for i in data.get("items", [])
         ])
         
         st.dataframe(receipt_df, use_container_width=True, hide_index=True)
