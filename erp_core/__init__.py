@@ -28,7 +28,9 @@ Pages
 
 """
 
-
+from .receipt_service import (
+    ReceiptService
+)
 
 # ==============================================================================
 # EXCEPTIONS
@@ -511,6 +513,7 @@ __all__ = [
     "DashboardService",
 
     "AuditService",
+    "ReceiptService",
 
 
 
