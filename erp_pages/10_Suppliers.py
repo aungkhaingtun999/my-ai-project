@@ -91,7 +91,153 @@ def run():
     
     # Show table using custom function
     Show_table(suppliers)
+    # ----------------------------------------------------------
+# EDIT / DELETE SUPPLIER
+# ----------------------------------------------------------
 
+st.divider()
+
+st.subheader("✏️ Edit / Delete Supplier")
+
+
+if suppliers:
+
+    supplier_options = {
+        f"{s.get('supplier_code')} - {s.get('company_name')}":
+            s
+        for s in suppliers
+    }
+
+
+    selected_key = st.selectbox(
+        "Select Supplier",
+        supplier_options.keys()
+    )
+
+
+    supplier = supplier_options[selected_key]
+
+
+    edit_company = st.text_input(
+        "Supplier Name",
+        value=supplier.get("company_name","")
+    )
+
+
+    edit_contact = st.text_input(
+        "Contact Person",
+        value=supplier.get("contact_name","")
+    )
+
+
+    edit_phone = st.text_input(
+        "Phone",
+        value=supplier.get("phone","")
+    )
+
+
+    edit_email = st.text_input(
+        "Email",
+        value=supplier.get("email","")
+    )
+
+
+    edit_address = st.text_area(
+        "Address",
+        value=supplier.get("address","")
+    )
+
+
+    col1, col2 = st.columns(2)
+
+
+    # UPDATE
+    with col1:
+
+        if st.button(
+            "💾 Update Supplier",
+            use_container_width=True
+        ):
+
+            try:
+
+                supabase.table(
+                    "suppliers"
+                ).update({
+
+                    "company_name":
+                        edit_company.strip(),
+
+                    "contact_name":
+                        edit_contact.strip(),
+
+                    "phone":
+                        edit_phone.strip(),
+
+                    "email":
+                        edit_email.strip(),
+
+                    "address":
+                        edit_address.strip()
+
+                }).eq(
+                    "id",
+                    supplier["id"]
+                ).execute()
+
+
+                st.success(
+                    "Supplier updated successfully"
+                )
+
+                time.sleep(1)
+                st.rerun()
+
+
+            except Exception as e:
+
+                st.error(
+                    f"Update failed: {e}"
+                )
+
+
+    # DELETE
+    with col2:
+
+        if st.button(
+            "🗑 Delete Supplier",
+            use_container_width=True
+        ):
+
+            try:
+
+                supabase.table(
+                    "suppliers"
+                ).delete().eq(
+                    "id",
+                    supplier["id"]
+                ).execute()
+
+
+                st.success(
+                    "Supplier deleted successfully"
+                )
+
+                time.sleep(1)
+                st.rerun()
+
+
+            except Exception as e:
+
+                st.error(
+                    f"Delete failed: {e}"
+                )
+
+else:
+
+    st.info(
+        "No supplier available"
+    )
     # Add Supplier Form
     st.divider()
     st.subheader("➕ Add Supplier")
