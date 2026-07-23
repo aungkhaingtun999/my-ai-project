@@ -35,7 +35,8 @@ from .inventory_loader import (
 )
 from .receipt_loader import (
     get_receipt,
-    get_sale_items
+    get_sale_items,
+    search_receipts
 )
 
 
