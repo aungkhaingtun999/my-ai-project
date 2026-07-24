@@ -313,6 +313,8 @@ def normalize_items(items):
 
         # PRODUCT NAME RESOLUTION
 
+# PRODUCT NAME RESOLUTION
+
 product = item.get("products")
 
 name = (
@@ -327,7 +329,6 @@ if not name and isinstance(product, dict):
 
 if not name:
     name = f"Product #{item.get('product_id','')}"
-
 
         quantity = num(
             item.get(
