@@ -99,24 +99,124 @@ def run():
                     except Exception as e:
                         st.error(f"Role update failed: {e}")
 
-            with c5:
-                delete_btn_label = "✅" if u.get("is_active") else "⛔"
-                if st.button(f"{delete_btn_label}", key=f"toggle_{u['id']}", help="Toggle Active Status"):
+                        with c5:
+
+                # Active / Disable Toggle
+                status_icon = "✅" if u.get("is_active") else "⛔"
+
+                if st.button(
+                    status_icon,
+                    key=f"toggle_{u['id']}",
+                    help="Toggle Active Status"
+                ):
+
                     try:
-                        supabase.table("users").update({"is_active": not u.get("is_active")}).eq("id", u["id"]).execute()
+
+                        supabase.table(
+                            "users"
+                        ).update(
+                            {
+                                "is_active": not u.get("is_active")
+                            }
+                        ).eq(
+                            "id",
+                            u["id"]
+                        ).execute()
+
                         st.rerun()
+
+
                     except Exception as e:
-                        st.error(f"Status update failed: {e}")
 
-    # Summary
-    st.divider()
-    st.subheader("📊 System Summary")
-    total = len(users)
-    active_count = len([u for u in users if u.get("is_active")])
-    c1, c2, c3 = st.columns(3)
-    c1.metric("👥 Total Users", total)
-    c2.metric("✅ Active", active_count)
-    c3.metric("⛔ Disabled", total - active_count)
+                        st.error(
+                            f"Status update failed: {e}"
+                        )
 
-if __name__ == "__main__":
-    run()
+
+                # ==========================================
+                # HARD DELETE USER
+                # ==========================================
+
+                if u.get("username") != "admin":
+
+                    if st.button(
+                        "🗑",
+                        key=f"delete_{u['id']}",
+                        help="Delete User Permanently"
+                    ):
+
+                        st.session_state[
+                            f"confirm_delete_{u['id']}"
+                        ] = True
+
+
+
+                    if st.session_state.get(
+                        f"confirm_delete_{u['id']}",
+                        False
+                    ):
+
+                        st.warning(
+                            f"Delete {u.get('username')} permanently?"
+                        )
+
+
+                        col_a, col_b = st.columns(2)
+
+
+                        with col_a:
+
+                            if st.button(
+                                "✅ Confirm",
+                                key=f"confirm_yes_{u['id']}"
+                            ):
+
+                                try:
+
+                                    supabase.table(
+                                        "users"
+                                    ).delete().eq(
+                                        "id",
+                                        u["id"]
+                                    ).execute()
+
+
+                                    st.success(
+                                        "User deleted successfully"
+                                    )
+
+
+                                    st.session_state[
+                                        f"confirm_delete_{u['id']}"
+                                    ] = False
+
+
+                                    st.rerun()
+
+
+                                except Exception as e:
+
+                                    st.error(
+                                        f"Delete failed: {e}"
+                                    )
+
+
+                        with col_b:
+
+                            if st.button(
+                                "❌ Cancel",
+                                key=f"confirm_no_{u['id']}"
+                            ):
+
+                                st.session_state[
+                                    f"confirm_delete_{u['id']}"
+                                ] = False
+
+                                st.rerun()
+
+
+                else:
+
+                    st.caption(
+                        "🔒 Protected"
+                    )
