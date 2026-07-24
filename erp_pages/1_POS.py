@@ -323,6 +323,7 @@ def run():
     # --------------------------------------------------------------------------
     if st.session_state.show_receipt:
         data = st.session_state.sale_data
+        st.json(data)
         if not data:
             st.error("Receipt data is missing.")
             st.stop()
