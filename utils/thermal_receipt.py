@@ -521,16 +521,15 @@ def build_receipt_data(
 
 
             clean_items.append(
-
-                {
-
-                    "name":
-                        name,
-
-                    "product_id":
-                        item.get(
-                            "product_id"
-                        ),
+{
+    "name": name,
+    "product_name": name,
+    "product_id": item.get("product_id"),
+    "quantity": int(quantity),
+    "unit_price": unit_price,
+    "total": total
+}
+            )
 
                     "quantity":
                         int(quantity),
