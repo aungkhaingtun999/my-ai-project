@@ -89,7 +89,12 @@ selected_supplier = st.selectbox(
     "Supplier",
     suppliers,
     index=supplier_index,
-    format_func=lambda x: x["name"],
+    format_func=lambda x: (
+        x.get("company_name")
+        or x.get("name")
+        or x.get("supplier_name")
+        or f"Supplier #{x.get('id')}"
+    ),
     disabled=cart_exists,
 )
 
