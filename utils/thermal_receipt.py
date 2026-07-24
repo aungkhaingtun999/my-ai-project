@@ -150,8 +150,8 @@ def get_printer():
             if vendor and product:
 
                 return Usb(
-                    int(vendor,16),
-                    int(product,16)
+                    int(vendor, 16),
+                    int(product, 16)
                 )
 
 
@@ -262,7 +262,7 @@ def line(
     return (
         left
         +
-        (" " * max(space,1))
+        (" " * max(space, 1))
         +
         right
     )
@@ -304,31 +304,24 @@ def normalize_items(items):
 
     for item in items or []:
 
-
         if not item:
 
             continue
 
-
-
         # PRODUCT NAME RESOLUTION
-
-# PRODUCT NAME RESOLUTION
-
         product = item.get("products")
 
-name = (
-    item.get("product_name")
-    or
-    item.get("name")
-)
+        name = (
+            item.get("product_name")
+            or
+            item.get("name")
+        )
 
-if not name and isinstance(product, dict):
-    name = product.get("name")
+        if not name and isinstance(product, dict):
+            name = product.get("name")
 
-
-if not name:
-    name = f"Product #{item.get('product_id','')}"
+        if not name:
+            name = f"Product #{item.get('product_id', '')}"
 
         quantity = num(
             item.get(
@@ -363,7 +356,6 @@ if not name:
         )
 
 
-
         # fallback calculation
 
         if total == 0:
@@ -373,7 +365,6 @@ if not name:
                 *
                 unit_price
             )
-
 
 
         result.append(
@@ -437,14 +428,11 @@ def build_receipt_data(
         clean_items = []
 
 
-
         for item in items:
-
 
             if not item:
 
                 continue
-
 
 
             quantity = num(
@@ -491,7 +479,6 @@ def build_receipt_data(
                 )
 
 
-
             product = item.get(
                 "products"
             )
@@ -515,35 +502,20 @@ def build_receipt_data(
                         "product_name"
                     )
                     or
-                    f"Product #{item.get('product_id','')}"
+                    f"Product #{item.get('product_id', '')}"
                 )
 
 
-
             clean_items.append(
-{
-    "name": name,
-    "product_name": name,
-    "product_id": item.get("product_id"),
-    "quantity": int(quantity),
-    "unit_price": unit_price,
-    "total": total
-}
-            )
-
-                    "quantity":
-                        int(quantity),
-
-                    "unit_price":
-                        unit_price,
-
-                    "total":
-                        total
-
+                {
+                    "name": name,
+                    "product_name": name,
+                    "product_id": item.get("product_id"),
+                    "quantity": int(quantity),
+                    "unit_price": unit_price,
+                    "total": total
                 }
-
             )
-
 
 
         receipt = {
@@ -638,9 +610,7 @@ def build_receipt_data(
         }
 
 
-
         return receipt
-
 
 
     except Exception as e:
@@ -661,7 +631,6 @@ def build_receipt_data(
 # ==============================================================================
 
 def create_receipt_text(data):
-
 
     shop = get_shop_info()
 
@@ -702,7 +671,6 @@ def create_receipt_text(data):
 
 
     text += "-" * 32 + "\n"
-
 
 
     text += (
@@ -747,9 +715,7 @@ def create_receipt_text(data):
     )
 
 
-
     text += "-" * 32 + "\n"
-
 
 
     text += (
@@ -763,18 +729,16 @@ def create_receipt_text(data):
     )
 
 
-
     for item in data.get(
         "items",
         []
     ):
 
-
         name = (
             item.get("name")
             or item.get("product_name")
             or item.get("product")
-            or f"Product #{item.get('product_id','')}"
+            or f"Product #{item.get('product_id', '')}"
         )
 
 
@@ -805,7 +769,6 @@ def create_receipt_text(data):
         )
 
 
-
         text += (
             str(name)[:32]
             +
@@ -824,9 +787,7 @@ def create_receipt_text(data):
         )
 
 
-
     text += "-" * 32 + "\n"
-
 
 
     text += (
@@ -884,9 +845,7 @@ def create_receipt_text(data):
     )
 
 
-
     text += "-" * 32 + "\n"
-
 
 
     text += (
@@ -897,7 +856,6 @@ def create_receipt_text(data):
         +
         "\n\n\n"
     )
-
 
 
     return text
@@ -922,7 +880,6 @@ def print_thermal(data):
             return False
 
 
-
         shop = get_shop_info()
 
         mode = shop.get(
@@ -940,13 +897,11 @@ def print_thermal(data):
         )
 
 
-
         # ==================================================
         # WINDOWS PRINT
         # ==================================================
 
         if mode == "windows":
-
 
             temp_path = None
 
@@ -977,9 +932,7 @@ def print_thermal(data):
                 temp_path = temp.name
 
 
-
                 if win32api:
-
 
                     win32api.ShellExecute(
 
@@ -1001,9 +954,7 @@ def print_thermal(data):
                     return True
 
 
-
                 else:
-
 
                     st.warning(
 
@@ -1015,14 +966,9 @@ def print_thermal(data):
                     return True
 
 
-
             finally:
 
-
                 pass
-
-
-
 
 
         # ==================================================
@@ -1032,9 +978,7 @@ def print_thermal(data):
         printer = get_printer()
 
 
-
         if printer:
-
 
             printer.text(
                 receipt_text
@@ -1051,11 +995,7 @@ def print_thermal(data):
                 pass
 
 
-
             return True
-
-
-
 
 
         st.warning(
@@ -1068,11 +1008,7 @@ def print_thermal(data):
         return False
 
 
-
-
-
     except Exception as e:
-
 
         st.error(
 
@@ -1096,9 +1032,7 @@ def reprint_receipt(
     items
 ):
 
-
     try:
-
 
         receipt = build_receipt_data(
 
@@ -1116,9 +1050,7 @@ def reprint_receipt(
         )
 
 
-
     except Exception as e:
-
 
         st.error(
 
