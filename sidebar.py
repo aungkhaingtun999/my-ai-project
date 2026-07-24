@@ -1,11 +1,5 @@
 import streamlit as st
-from auth import (
-    is_authenticated,
-    logout,
-    ROLE_ADMIN,
-    ROLE_MANAGER,
-    ROLE_CASHIER
-)
+from auth import is_authenticated, logout, ROLE_ADMIN, ROLE_MANAGER, ROLE_CASHIER
 
 # ==========================================================
 # ERP MENU MASTER
@@ -56,7 +50,7 @@ MENU = {
 # ==========================================================
 def get_active_page():
     if "active_page" not in st.session_state:
-        user = st.session_state.user
+        user = st.session_state.get("user", {})
         if user.get("role_id") == ROLE_ADMIN:
             st.session_state.active_page = "3_Admin_Dashboard"
         else:
@@ -70,7 +64,7 @@ def show_sidebar():
     if not is_authenticated():
         return
 
-    user = st.session_state.user
+    user = st.session_state.get("user", {})
     role_display = user.get("role", "Unknown")
 
     with st.sidebar:
@@ -82,6 +76,12 @@ def show_sidebar():
         st.success(f"👤 {user.get('full_name', 'User')}")
         st.caption(f"Username : {user.get('username', '')}")
         st.caption(f"Role : {role_display}")
+        
+        # MY PROFILE BUTTON (Custom Router v30.12 Integration)
+        if st.button("👤 My Profile", use_container_width=True):
+            st.session_state.active_page = "13_Profile"
+            st.rerun()
+            
         st.divider()
 
         # LANGUAGE
