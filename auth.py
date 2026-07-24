@@ -713,3 +713,85 @@ def auth_sidebar():
             ):
 
                 logout()
+                # ==========================================================
+# PERMISSION CHECK ENGINE
+# ERP ENTERPRISE RBAC
+# ==========================================================
+
+from database import get_supabase
+
+
+def get_current_user():
+
+    return st.session_state.get("user")
+
+
+def get_current_role_id():
+
+    user = st.session_state.get("user")
+
+    if not user:
+        return None
+
+    return user.get("role_id")
+
+
+
+def has_permission(permission_key):
+
+    try:
+
+        supabase = get_supabase()
+
+        role_id = get_current_role_id()
+
+        if not role_id:
+            return False
+
+
+        response = (
+            supabase
+            .table("role_permissions")
+            .select(
+                """
+                permissions(
+                    permission_key
+                )
+                """
+            )
+            .eq(
+                "role_id",
+                role_id
+            )
+            .execute()
+        )
+
+
+        permissions = response.data or []
+
+
+        for item in permissions:
+
+            permission = item.get(
+                "permissions"
+            )
+
+            if permission:
+
+                if permission.get(
+                    "permission_key"
+                ) == permission_key:
+
+                    return True
+
+
+        return False
+
+
+    except Exception as e:
+
+        st.error(
+            f"Permission check error: {e}"
+        )
+
+        return False
