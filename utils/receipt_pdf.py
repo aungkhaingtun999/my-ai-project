@@ -202,19 +202,22 @@ def generate_pdf(receipt_data):
             # PRODUCT NAME
             # ------------------------------
 
-            product = item.get("products")
+            # PRODUCT NAME RESOLUTION
+
+product = item.get("products")
+
+name = (
+    item.get("product_name")
+    or
+    item.get("name")
+)
+
+if not name and isinstance(product, dict):
+    name = product.get("name")
 
 
-            if isinstance(product, dict):
-
-                name = (
-                    product.get("name")
-                    or f"Product #{item.get('product_id')}"
-                )
-
-            else:
-
-                name = f"Product #{item.get('product_id','')}"
+if not name:
+    name = f"Product #{item.get('product_id','')}""
 
 
             # ------------------------------
