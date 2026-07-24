@@ -102,7 +102,8 @@ def run():
                         with c5:
 
                 # Active / Disable Toggle
-                status_icon = "✅" if u.get("is_active") else "⛔"
+                status_icon = "✅" 
+                if u.get("is_active") else "⛔"
 
                 if st.button(
                     status_icon,
