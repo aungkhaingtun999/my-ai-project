@@ -89,8 +89,11 @@ def run():
                             "is_active": active
                         }).execute()
                         
-                        st.success("User created successfully")
-                        st.rerun()
+                        notify_success(
+    f"✅ User '{username}' created successfully."
+)
+
+    st.rerun()
                     except Exception as e:
                         st.error(f"Create user failed: {e}")
 
@@ -130,7 +133,10 @@ def run():
                         supabase.table("users").update({
                             "role_id": role_map[new_role]
                         }).eq("id", u["id"]).execute()
-                        st.success("Role updated")
+                        notify_success(
+    f"✅ {u['username']} role updated."
+)
+
                         st.rerun()
                     except Exception as e:
                         st.error(f"Role update failed: {e}")
@@ -154,7 +160,10 @@ def run():
                                     f"Disabled user {u['username']}"
                                 )
                                 
-                                st.success("User disabled")
+                                notify_success(
+    f"✅ {u['username']} restored."
+)
+
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Disable failed: {e}")
@@ -170,7 +179,10 @@ def run():
                                     f"Restored user {u['username']}"
                                 )
                                 
-                                st.success("User restored")
+                                notify_success(
+    f"✅ {u['username']} restored."
+)
+
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Restore failed: {e}")
