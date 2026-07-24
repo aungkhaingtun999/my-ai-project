@@ -401,8 +401,5 @@ def auth_sidebar():
 
             st.caption(f"Role: {user['role']}")
 
-            if st.button("👤 My Profile"):
-                st.switch_page("erp_pages/13_Profile.py")
-
             if st.button("🚪 Logout"):
                 logout()
