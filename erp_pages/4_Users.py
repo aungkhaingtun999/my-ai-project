@@ -8,14 +8,11 @@ from utils.notification import (
     notify_error,
     show_notification
 )
-def run():
 
+def run():
+    # 1) Notification ပြသရန်
     show_notification()
 
-    require_admin()
-
-    st.title("👥 User Management")
-def run():
     # 2) Admin Security Guard
     require_admin()
 
@@ -89,11 +86,8 @@ def run():
                             "is_active": active
                         }).execute()
                         
-                        notify_success(
-    f"✅ User '{username}' created successfully."
-)
-
-    st.rerun()
+                        notify_success(f"✅ User '{username}' created successfully.")
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Create user failed: {e}")
 
@@ -133,10 +127,8 @@ def run():
                         supabase.table("users").update({
                             "role_id": role_map[new_role]
                         }).eq("id", u["id"]).execute()
-                        notify_success(
-    f"✅ {u['username']} role updated."
-)
-
+                        
+                        notify_success(f"✅ {u['username']} role updated.")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Role update failed: {e}")
@@ -160,10 +152,7 @@ def run():
                                     f"Disabled user {u['username']}"
                                 )
                                 
-                                notify_success(
-    f"✅ {u['username']} restored."
-)
-
+                                notify_success(f"✅ {u['username']} disabled.")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Disable failed: {e}")
@@ -179,10 +168,7 @@ def run():
                                     f"Restored user {u['username']}"
                                 )
                                 
-                                notify_success(
-    f"✅ {u['username']} restored."
-)
-
+                                notify_success(f"✅ {u['username']} restored.")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Restore failed: {e}")
@@ -209,7 +195,7 @@ def run():
                                     f"Reset password for {u['username']}"
                                 )
                                 
-                                st.success("Password reset successfully")
+                                notify_success("Password reset successfully")
                                 st.session_state[f"reset_user_{u['id']}"] = False
                                 st.rerun()
                             except Exception as e:
