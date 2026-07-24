@@ -397,21 +397,21 @@ def require_role(role_id):
     return user
 
 def has_permission(permission_key):
-    """
-    လက်ရှိ login ဝင်ထားသော user ၏ role ပေါ်မူတည်၍ 
-    ပေးထားသော permission ကို အသုံးပြုခွင့် ရှိ/မရှိ စစ်ဆေးပေးသည့် function
-    """
+def has_permission(permission_key):
+
     try:
+
         role_id = get_current_role_id()
+
         if not role_id:
             return False
+
 
         response = (
             supabase
             .table("role_permissions")
             .select(
                 """
-                allowed,
                 permissions(
                     permission_key
                 )
@@ -424,24 +424,34 @@ def has_permission(permission_key):
             .execute()
         )
 
+
         permissions = response.data or []
 
+
         for item in permissions:
+
             permission = item.get(
                 "permissions"
             )
+
             if permission:
+
                 if permission.get(
                     "permission_key"
                 ) == permission_key:
-                    return item.get("allowed", False)
+
+                    return True
+
 
         return False
 
+
     except Exception as e:
+
         st.error(
             f"Permission check error: {e}"
         )
+
         return False
 
 # ==================================================
