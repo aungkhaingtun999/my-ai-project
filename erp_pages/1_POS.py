@@ -252,7 +252,15 @@ def run():
         if st.button("✅ Confirm Sale", disabled=st.session_state.processing, use_container_width=True):
             st.session_state.processing = True
             try:
-                cart_payload = [{"id": item["id"], "qty": int(item["qty"]), "selling_price": float(item["selling_price"])} for item in st.session_state.cart]
+                cart_payload = [
+                    {
+                        "id": item["id"],
+                        "name": item["name"],
+                        "qty": int(item["qty"]),
+                        "selling_price": float(item["selling_price"])
+                    }
+                    for item in st.session_state.cart
+                ]
                 
                 result = checkout_sale_rpc(
                     cart=cart_payload,
