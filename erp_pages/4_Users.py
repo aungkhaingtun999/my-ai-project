@@ -3,7 +3,18 @@ from database import get_supabase
 from auth import require_admin  # Admin Security Guard ထည့်သွင်းခြင်း
 import hashlib
 from utils.ui import show_table
+from utils.notification import (
+    notify_success,
+    notify_error,
+    show_notification
+)
+def run():
 
+    show_notification()
+
+    require_admin()
+
+    st.title("👥 User Management")
 def run():
     # 2) Admin Security Guard
     require_admin()
