@@ -204,11 +204,10 @@ def generate_pdf(receipt_data):
 
             # PRODUCT NAME RESOLUTION
 
-product = item.get("products")
 
-# PRODUCT NAME RESOLUTION
 
-product = item.get("products")
+
+           product = item.get("products")
 
 name = (
     item.get("product_name")
