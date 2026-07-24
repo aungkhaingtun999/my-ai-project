@@ -28,13 +28,11 @@ def get_sale_items(sale_id:int):
                 id,
                 sale_id,
                 product_id,
+                product_name,
                 quantity,
                 unit_price,
                 discount,
-                total,
-                products(
-                    name
-                )
+                total
             """)
             .eq(
                 "sale_id",
@@ -46,30 +44,16 @@ def get_sale_items(sale_id:int):
 
         items = response.data or []
 
-
         for item in items:
-
-            product = item.get("products")
-
-
-            if isinstance(product, dict):
-
-                item["product_name"] = (
-                    product.get("name")
-                    or
-                    f"Product #{item.get('product_id')}"
-                )
-
-            else:
-
-                item["product_name"] = (
-                    f"Product #{item.get('product_id')}"
-                )
-
+            item["name"] = item.get("product_name", "")
 
             # receipt compatibility
 
-            item["name"] = item["product_name"]
+            item["product_name"] = (
+                item.get("product_name")
+                or
+                f"Product #{item.get('product_id')}"
+            )
 
             item["qty"] = item.get(
                 "quantity",
