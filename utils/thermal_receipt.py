@@ -315,7 +315,7 @@ def normalize_items(items):
 
 # PRODUCT NAME RESOLUTION
 
-product = item.get("products")
+        product = item.get("products")
 
 name = (
     item.get("product_name")
