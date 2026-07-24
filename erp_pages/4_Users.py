@@ -108,71 +108,33 @@ def run():
                         st.error(f"Role update failed: {e}")
 
             with c5:
-                # Active / Disable Toggle
-                status_icon = "✅" if u.get("is_active") else "⛔"
-
-                if st.button(
-                    status_icon,
-                    key=f"toggle_{u['id']}",
-                    help="Toggle Active Status"
-                ):
-                    try:
-                        supabase.table("users").update(
-                            {
-                                "is_active": not u.get("is_active")
-                            }
-                        ).eq(
-                            "id",
-                            u["id"]
-                        ).execute()
-
-                        st.rerun()
-
-                    except Exception as e:
-                        st.error(f"Status update failed: {e}")
-
-                # ==========================================
-                # HARD DELETE USER
-                # ==========================================
+                # Active / Disable / Restore Toggle (Production ERP Best Practice)
+                is_active = u.get("is_active", True)
+                status_icon = "⛔" if is_active else "✅"
+                action_label = "Disable User" if is_active else "Restore User"
 
                 if u.get("username") != "admin":
                     if st.button(
-                        "🗑",
-                        key=f"delete_{u['id']}",
-                        help="Delete User Permanently"
+                        status_icon,
+                        key=f"toggle_status_{u['id']}",
+                        help=action_label
                     ):
-                        st.session_state[f"confirm_delete_{u['id']}"] = True
+                        try:
+                            supabase.table("users").update(
+                                {
+                                    "is_active": not is_active
+                                }
+                            ).eq(
+                                "id",
+                                u["id"]
+                            ).execute()
 
-                    if st.session_state.get(f"confirm_delete_{u['id']}", False):
-                        st.warning(f"Delete {u.get('username')} permanently?")
+                            success_msg = "User disabled successfully" if is_active else "User restored successfully"
+                            st.success(success_msg)
+                            st.rerun()
 
-                        col_a, col_b = st.columns(2)
-
-                        with col_a:
-                            if st.button(
-                                "✅ Confirm",
-                                key=f"confirm_yes_{u['id']}"
-                            ):
-                                try:
-                                    supabase.table("users").delete().eq(
-                                        "id",
-                                        u["id"]
-                                    ).execute()
-
-                                    st.success("User deleted successfully")
-                                    st.session_state[f"confirm_delete_{u['id']}"] = False
-                                    st.rerun()
-
-                                except Exception as e:
-                                    st.error(f"Delete failed: {e}")
-
-                        with col_b:
-                            if st.button(
-                                "❌ Cancel",
-                                key=f"confirm_no_{u['id']}"
-                            ):
-                                st.session_state[f"confirm_delete_{u['id']}"] = False
-                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Status update failed: {e}")
                 else:
                     st.caption("🔒 Protected")
 
