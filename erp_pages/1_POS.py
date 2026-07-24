@@ -136,7 +136,7 @@ def run():
             selected = st.selectbox(
                 "Select Product",
                 matches,
-                format_func=lambda x: f"{x.get('sku','')} | {x.get('name')} | Stock: {x.get('available_qty', x.get('stock', 0))}"
+                format_func=lambda x: f"{x.get('sku', '')} | {x.get('name')} | Stock: {x.get('available_qty', x.get('stock', 0))}"
             )
 
             qty = st.number_input("Quantity", min_value=1, value=1, step=1)
@@ -266,7 +266,8 @@ def run():
                 
                 if result.get("success", False):
                     data = result.get("data", {})
-                    if isinstance(data, list): data = data[0] if data else {}
+                    if isinstance(data, list):
+                        data = data[0] if data else {}
                     invoice_no = data.get("invoice_no") or data.get("sale_no") or "INV-" + datetime.now().strftime("%Y%m%d%H%M%S")
                     
                     receipt_items = []
@@ -274,11 +275,16 @@ def run():
                         q = item.get("qty", item.get("quantity", 1))
                         p = item.get("selling_price", item.get("unit_price", 0.0))
                         receipt_items.append({
-                            "name": item.get("name", "Unknown Product"),
-                            "product_id": item.get("id", 0),
-                            "quantity": q,
-                            "unit_price": p,
-                            "total": q * p
+                            "name": (
+                                item.get("name")
+                                or item.get("product_name")
+                                or f"Product #{item.get('id')}"
+                            ),
+                            "product_name": item.get("name"),
+                            "product_id": item.get("id"),
+                            "quantity": int(q),
+                            "unit_price": float(p),
+                            "total": float(q * p)
                         })
 
                     st.session_state.sale_data = {
@@ -318,14 +324,14 @@ def run():
         st.info(f"Invoice No: {data['invoice_no']}\nDate: {data['date']}\nCashier: {data['cashier']}")
         
         receipt_df = pd.DataFrame([
-{
-    "Product": i["name"],
-    "Qty": i["quantity"],
-    "Price": f"{i['unit_price']:,.0f}",
-    "Amount": f"{i['total']:,.0f} MMK"
-}
-for i in data["items"]
-])
+            {
+                "Product": i["name"],
+                "Qty": i["quantity"],
+                "Price": f"{i['unit_price']:,.0f}",
+                "Amount": f"{i['total']:,.0f} MMK"
+            }
+            for i in data["items"]
+        ])
         
         st.dataframe(receipt_df, use_container_width=True, hide_index=True)
         
