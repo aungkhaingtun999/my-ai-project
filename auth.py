@@ -482,7 +482,7 @@ def current_user():
 
 
 # ==================================================
-# AUTH GUARDS
+# AUTH GUARDS & PERMISSIONS
 # ==================================================
 
 def is_authenticated():
@@ -580,6 +580,37 @@ def require_role(role_id):
 
 
     return user
+
+
+def has_permission(permission):
+    """
+    လက်ရှိ login ဝင်ထားသော user ၏ role ပေါ်မူတည်၍ 
+    ပေးထားသော permission ကို အသုံးပြုခွင့် ရှိ/မရှိ စစ်ဆေးပေးသည့် function
+    """
+    user_role_id = st.session_state.get("role_id")
+
+    if not user_role_id:
+        return False
+
+    try:
+        # Supabase မှ role_permissions ဇယားကို စစ်ဆေးခြင်း
+        result = (
+            supabase
+            .table("role_permissions")
+            .select("allowed, permissions(permission_key)")
+            .eq("role_id", user_role_id)
+            .execute()
+        )
+
+        for row in result.data:
+            # nested structure မှ permission_key ကို စစ်ဆေးခြင်း
+            if row.get("permissions") and row["permissions"].get("permission_key") == permission:
+                return row["allowed"]
+
+    except Exception:
+        pass
+
+    return False
 
 
 
