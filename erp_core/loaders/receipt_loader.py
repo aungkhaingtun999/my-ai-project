@@ -17,10 +17,10 @@ from ..base_repo import (
 # SALE ITEMS
 # ==============================================================================
 
-def get_sale_items(
-def get_sale_items(sale_id: int):
+def get_sale_items(sale_id:int):
 
     try:
+
         response = (
             db()
             .table("sale_items")
@@ -28,28 +28,64 @@ def get_sale_items(sale_id: int):
                 id,
                 sale_id,
                 product_id,
-                product_name,
                 quantity,
                 unit_price,
                 discount,
-                total
+                total,
+                products(
+                    name
+                )
             """)
-            .eq("sale_id", sale_id)
+            .eq(
+                "sale_id",
+                sale_id
+            )
             .execute()
         )
 
+
         items = response.data or []
 
-        # Legacy compatibility
+
         for item in items:
-            item["name"] = item.get("product_name", "")
-            item["qty"] = item.get("quantity", 0)
-            item["selling_price"] = float(item.get("unit_price") or 0)
+
+            product = item.get("products")
+
+
+            if isinstance(product, dict):
+
+                item["product_name"] = (
+                    product.get("name")
+                    or
+                    f"Product #{item.get('product_id')}"
+                )
+
+            else:
+
+                item["product_name"] = (
+                    f"Product #{item.get('product_id')}"
+                )
+
+
+            # receipt compatibility
+
+            item["name"] = item["product_name"]
+
+            item["qty"] = item.get(
+                "quantity",
+                0
+            )
+
 
         return items
 
+
     except Exception as e:
-        log_error(f"get_sale_items error : {e}")
+
+        log_error(
+            f"get_sale_items error : {e}"
+        )
+
         return []
 
 # ==============================================================================
