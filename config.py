@@ -1,6 +1,7 @@
 # ==========================================
 # config.py
 # Production Ready Configuration
+# Multi-Tenant Extended
 # ==========================================
 
 from pathlib import Path
@@ -40,26 +41,16 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY", "your-supabase-anon-key-here")
 # ==========================================
 
 TIMEZONE_OPTIONS = {
-
     "Myanmar 🇲🇲": "Asia/Yangon",
-
     "Thailand 🇹🇭": "Asia/Bangkok",
-
     "Mongolia 🇲🇳": "Asia/Ulaanbaatar",
-
     "Japan 🇯🇵": "Asia/Tokyo",
-
     "Singapore 🇸🇬": "Asia/Singapore",
-
     "China 🇨🇳": "Asia/Shanghai",
-
     "UTC 🌐": "UTC"
-
 }
 
-
 DEFAULT_TIMEZONE = "Asia/Yangon"
-
 
 # Auto browser/device timezone
 AUTO_TIMEZONE = True
@@ -97,9 +88,7 @@ for folder in [
 # ==========================================
 
 ROLE_ADMIN = "Admin"
-
 ROLE_MANAGER = "Manager"
-
 ROLE_CASHIER = "Cashier"
 
 ROLES = [
@@ -109,11 +98,33 @@ ROLES = [
 ]
 
 # ==========================================
+# MULTI-TENANT SETTINGS
+# ==========================================
+
+MULTI_TENANT_ENABLED = True
+
+TENANT_ROLES = [
+    "staff",
+    "manager",
+    "admin",
+    "owner"
+]
+
+DEFAULT_TENANT_ROLE = "staff"
+
+TENANT_SESSION_KEYS = [
+    "shop_id",
+    "branch_id",
+    "tenant_role",
+    "shop_name",
+    "branch_name"
+]
+
+# ==========================================
 # LANGUAGES
 # ==========================================
 
 LANG_MY = "မြန်မာ"
-
 LANG_EN = "English"
 
 LANGUAGES = [
@@ -177,31 +188,29 @@ CHART_HEIGHT = 350
 # ==========================================
 
 SESSION_DEFAULTS = {
-
     "user": None,
-
     "role": ROLE_CASHIER,
-
     "language": DEFAULT_LANGUAGE,
-
     "cart": [],
-
     "receipt": None,
-
     "receipt_items": [],
-
     "sale_id": None,
-
     "logged_in": False,
-
     "theme": "light",
-
     "company": COMPANY_NAME,
     
     # Integrity Check Session States
     "integrity_results": None,
     "last_integrity_run": None,
-    "active_page": "1_POS"
+    "active_page": "1_POS",
+    
+    # Multi-Tenant Session States
+    "tenant_context": None,
+    "shop_id": None,
+    "branch_id": None,
+    "tenant_role": DEFAULT_TENANT_ROLE,
+    "shop_name": None,
+    "branch_name": None
 }
 
 # ==========================================
@@ -209,17 +218,12 @@ SESSION_DEFAULTS = {
 # ==========================================
 
 def init_session():
-
     for key, value in SESSION_DEFAULTS.items():
-
         if key not in st.session_state:
-
             if isinstance(value, list):
                 st.session_state[key] = value.copy()
-
             elif isinstance(value, dict):
                 st.session_state[key] = value.copy()
-
             else:
                 st.session_state[key] = value
 
@@ -228,16 +232,15 @@ def init_session():
 # ==========================================
 
 def reset_session():
-
     keep_language = st.session_state.get(
         "language",
         DEFAULT_LANGUAGE
     )
-
+    
     st.session_state.clear()
-
+    
     init_session()
-
+    
     st.session_state.language = keep_language
 
 # ==========================================
@@ -245,13 +248,9 @@ def reset_session():
 # ==========================================
 
 PAGE_CONFIG = {
-
     "page_title": APP_NAME,
-
     "page_icon": "🛒",
-
     "layout": "wide",
-
     "initial_sidebar_state": "expanded"
 }
 
@@ -260,49 +259,29 @@ PAGE_CONFIG = {
 # ==========================================
 
 ADMIN_MENU = [
-
     "Dashboard",
-
     "POS",
-
     "Inventory",
-
     "Receipt",
-
     "Reports",
-
     "Users",
-
     "Refund",
-
-    "Integrity Check"  # NEW
-
+    "Integrity Check"
 ]
 
 MANAGER_MENU = [
-
     "Dashboard",
-
     "POS",
-
     "Inventory",
-
     "Reports",
-
-    "Integrity Check"  # NEW
-
+    "Integrity Check"
 ]
 
 CASHIER_MENU = [
-
     "POS",
-
     "Receipt",
-
     "Refund",
-
-    "Integrity Check"  # NEW
-
+    "Integrity Check"
 ]
 
 # ==========================================
@@ -357,6 +336,46 @@ def validate_config():
     return errors
 
 # ==========================================
+# MULTI-TENANT HELPERS
+# ==========================================
+
+def get_tenant_context():
+    """Get current tenant context from session"""
+    if not MULTI_TENANT_ENABLED:
+        return None
+    
+    return {
+        "shop_id": st.session_state.get("shop_id"),
+        "branch_id": st.session_state.get("branch_id"),
+        "tenant_role": st.session_state.get("tenant_role", DEFAULT_TENANT_ROLE),
+        "shop_name": st.session_state.get("shop_name"),
+        "branch_name": st.session_state.get("branch_name")
+    }
+
+def set_tenant_context(shop_id, branch_id, tenant_role, shop_name=None, branch_name=None):
+    """Set current tenant context in session"""
+    st.session_state.shop_id = shop_id
+    st.session_state.branch_id = branch_id
+    st.session_state.tenant_role = tenant_role
+    st.session_state.shop_name = shop_name
+    st.session_state.branch_name = branch_name
+    
+    st.session_state.tenant_context = {
+        "shop_id": shop_id,
+        "branch_id": branch_id,
+        "tenant_role": tenant_role,
+        "shop_name": shop_name,
+        "branch_name": branch_name
+    }
+
+def clear_tenant_context():
+    """Clear tenant context from session"""
+    for key in TENANT_SESSION_KEYS:
+        st.session_state.pop(key, None)
+    
+    st.session_state.tenant_context = None
+
+# ==========================================
 # PRINT CONFIG (Debug only)
 # ==========================================
 
@@ -367,5 +386,6 @@ if DEBUG:
     print(f"✅ APP_NAME: {APP_NAME}")
     print(f"✅ SUPABASE_URL: {SUPABASE_URL[:30]}..." if SUPABASE_URL else "❌ SUPABASE_URL: Not Set")
     print(f"✅ SUPABASE_KEY: {SUPABASE_KEY[:15]}..." if SUPABASE_KEY else "❌ SUPABASE_KEY: Not Set")
+    print(f"✅ MULTI_TENANT_ENABLED: {MULTI_TENANT_ENABLED}")
     print(f"✅ DEBUG: {DEBUG}")
     print("=" * 50)
