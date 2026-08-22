@@ -15,6 +15,7 @@
 # - Product batch settings
 # - FEFO issue planning
 # - Stock adjustment request
+# - Stock adjustment approval
 # - Stock adjustment history
 # - FIFO COGS compatibility helper
 #
@@ -955,6 +956,112 @@ class InventoryService:
 
             return {
                 "success": False,
+                "message": str(e),
+            }
+
+    # ==========================================================================
+    # STOCK ADJUSTMENT APPROVAL
+    # ==========================================================================
+    #
+    # Maker-Checker:
+    #   PENDING -> APPROVED -> POSTED
+    #
+    # PostgreSQL owns:
+    #   - approval validation
+    #   - maker/checker enforcement
+    #   - FIFO application
+    #   - stock update
+    #   - cost layer update
+    #   - inventory ledger
+    #
+    # Python does NOT perform inventory calculations.
+    # ==========================================================================
+
+    def approve_stock_adjustment(
+        self,
+        adjustment_id: int,
+        manager_id: Any = None,
+    ) -> Dict[str, Any]:
+        """
+        Approve a pending stock adjustment via database RPC.
+
+        IMPORTANT:
+        All approval validation and inventory calculations are performed
+        by PostgreSQL / Supabase. Python only delegates the request.
+
+        Args:
+            adjustment_id: Stock adjustment record ID.
+            manager_id: Checker/manager identifier required by maker-checker.
+
+        Returns:
+            Dict containing success status and RPC result or error details.
+        """
+
+        try:
+
+            if manager_id is None:
+
+                return {
+                    "success": False,
+                    "status": "VALIDATION_ERROR",
+                    "message":
+                        "Checker ID is required.",
+                }
+
+            response = (
+                self.client
+                .rpc(
+                    "approve_stock_adjustment_rpc",
+                    {
+                        "p_adjustment_id":
+                            int(adjustment_id),
+
+                        "p_checker_id":
+                            str(manager_id),
+                    },
+                )
+                .execute()
+            )
+
+            result = _normalize_rpc_data(
+                response.data
+            )
+
+            if isinstance(result, list):
+
+                if not result:
+
+                    return {
+                        "success": False,
+                        "status": "EMPTY_RESPONSE",
+                        "message":
+                            "Empty approval RPC response.",
+                    }
+
+                result = result[0]
+
+            if not isinstance(result, dict):
+
+                return {
+                    "success": False,
+                    "status": "INVALID_RESPONSE",
+                    "message":
+                        "Invalid approval RPC response.",
+                }
+
+            return result
+
+        except Exception as e:
+
+            log_error(
+                message=
+                    "Stock adjustment approval failed.",
+                exception=e,
+            )
+
+            return {
+                "success": False,
+                "status": "ERROR",
                 "message": str(e),
             }
 
