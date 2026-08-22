@@ -1,19 +1,41 @@
 # ==============================================================================
 # models/user.py
-# USER MODEL + MULTI-TENANT EXTENSION
+# USER MODEL + MULTI-TENANT FILTER + BADGE
 # ==============================================================================
 
 import hashlib
 import pandas as pd
 import streamlit as st
 
-from auth import require_admin, get_current_shop_id, is_shop_owner, get_current_user
-from database import get_supabase, get_current_tenant_id, get_current_branch_id, get_current_tenant_role
+from auth import (
+    require_admin,
+    get_current_shop_id,
+    is_shop_owner,
+    get_current_user,
+    get_current_tenant_role,
+)
+from database import get_supabase
 from utils.notification import (
     notify_error,
     notify_success,
     show_notification,
 )
+
+
+# ==============================================================================
+# TENANT ROLE BADGES
+# ==============================================================================
+
+TENANT_ROLE_BADGES = {
+    "owner": "👑 Owner",
+    "admin": "🛡 Admin",
+    "manager": "📊 Manager",
+    "staff": "👤 Staff",
+}
+
+
+def get_tenant_role_badge(tenant_role):
+    return TENANT_ROLE_BADGES.get(tenant_role, tenant_role)
 
 
 # ==============================================================================
@@ -32,7 +54,7 @@ def run():
     st.caption("Control users, roles and access rights")
 
     supabase = get_supabase()
-    
+
     # Get current user and shop info
     current_user = get_current_user()
     current_shop_id = get_current_shop_id()
@@ -90,12 +112,11 @@ def run():
     # --------------------------------------------------------------------------
 
     try:
-        # Owner can see all shops, others only their own
         if is_owner:
             shops_resp = supabase.table("shops").select("id,name,code").execute()
         else:
             shops_resp = supabase.table("shops").select("id,name,code").eq("id", current_shop_id).execute()
-        
+
         shops = shops_resp.data or []
     except Exception:
         shops = []
@@ -112,7 +133,7 @@ def run():
             branches_resp = supabase.table("branches").select("id,name,shop_id,code").execute()
         else:
             branches_resp = supabase.table("branches").select("id,name,shop_id,code").eq("shop_id", current_shop_id).execute()
-        
+
         branches = branches_resp.data or []
     except Exception:
         branches = []
@@ -125,16 +146,86 @@ def run():
         query = supabase.table("users").select(
             "id, username, full_name, role_id, is_active, shop_id, branch_id, tenant_role"
         )
-        
+
         # Owner can see all users, others only their shop
         if not is_owner and current_shop_id:
             query = query.eq("shop_id", current_shop_id)
-        
+
         users_resp = query.execute()
         users = users_resp.data or []
     except Exception as e:
         st.error(f"User loading failed: {e}")
         return
+
+    # --------------------------------------------------------------------------
+    # MULTI-TENANT FILTERS
+    # --------------------------------------------------------------------------
+
+    st.divider()
+
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
+
+    with filter_col1:
+        # Shop Filter
+        if is_owner and len(shops) > 1:
+            filter_shop_options = ["All Shops"] + shop_names
+            selected_filter_shop = st.selectbox(
+                "🏪 Filter by Shop",
+                filter_shop_options,
+            )
+        else:
+            selected_filter_shop = shops[0]["name"] if shops else "All Shops"
+
+    with filter_col2:
+        # Branch Filter (depends on selected shop)
+        if selected_filter_shop != "All Shops":
+            filter_shop_id = shop_map.get(selected_filter_shop)
+            filter_branch_options = [
+                b for b in branches
+                if b.get("shop_id") == filter_shop_id
+            ]
+        else:
+            filter_branch_options = branches
+
+        branch_filter_names = ["All Branches"] + [b["name"] for b in filter_branch_options]
+        selected_filter_branch = st.selectbox(
+            "📍 Filter by Branch",
+            branch_filter_names,
+        )
+
+    with filter_col3:
+        # Tenant Role Filter
+        tenant_role_filter_options = ["All Roles", "👑 Owner", "🛡 Admin", "📊 Manager", "👤 Staff"]
+        selected_filter_tenant_role = st.selectbox(
+            "🛡 Filter by Tenant Role",
+            tenant_role_filter_options,
+        )
+
+    # Apply filters
+    filtered_users = users.copy()
+
+    if selected_filter_shop != "All Shops":
+        filter_shop_id = shop_map.get(selected_filter_shop)
+        filtered_users = [
+            u for u in filtered_users
+            if u.get("shop_id") == filter_shop_id
+        ]
+
+    if selected_filter_branch != "All Branches":
+        filtered_users = [
+            u for u in filtered_users
+            if u.get("branch_id") in [
+                b["id"] for b in filter_branch_options
+                if b["name"] == selected_filter_branch
+            ]
+        ]
+
+    if selected_filter_tenant_role != "All Roles":
+        role_key = selected_filter_tenant_role.split(" ")[-1].lower()
+        filtered_users = [
+            u for u in filtered_users
+            if u.get("tenant_role", "staff") == role_key
+        ]
 
     # --------------------------------------------------------------------------
     # SEARCH
@@ -144,12 +235,14 @@ def run():
 
     if search:
         search = search.lower()
-        users = [
+        filtered_users = [
             u
-            for u in users
+            for u in filtered_users
             if search in str(u.get("username", "")).lower()
             or search in str(u.get("full_name", "")).lower()
         ]
+
+    st.divider()
 
     # --------------------------------------------------------------------------
     # CREATE USER (Multi-Tenant with Duplicate Check)
@@ -177,11 +270,9 @@ def run():
                 branch_options = [b for b in branches if b.get("shop_id") == selected_shop_id]
             else:
                 branch_options = []
-            
+
             branch_names = [b["name"] for b in branch_options] if branch_options else ["No Branch"]
             selected_branch = st.selectbox("Branch", branch_names)
-            
-            # Fix branch selection index
             selected_branch_index = branch_names.index(selected_branch)
             selected_branch_id = branch_options[selected_branch_index]["id"] if branch_options and selected_branch != "No Branch" else None
 
@@ -205,7 +296,7 @@ def run():
                     try:
                         # CHECK: Username already exists?
                         existing = supabase.table("users").select("id").eq("username", username).execute()
-                        
+
                         if existing.data and len(existing.data) > 0:
                             notify_error(f"❌ Username '{username}' already exists. Please choose a different username.")
                         else:
@@ -228,8 +319,7 @@ def run():
 
                     except Exception as e:
                         error_msg = str(e)
-                        
-                        # Check for duplicate error
+
                         if "duplicate key value violates unique constraint" in error_msg:
                             notify_error(f"❌ Username '{username}' already exists. Please choose a different username.")
                         else:
@@ -238,17 +328,23 @@ def run():
     st.divider()
 
     # ==============================================================================
-    # USER TABLE (Multi-Tenant)
+    # USER TABLE (Multi-Tenant with Badges)
     # ==============================================================================
 
     st.subheader("📋 Users")
 
-    if not users:
-        st.info("No users found")
+    # Show current filter status
+    if is_owner:
+        st.caption(
+            f"Showing: {selected_filter_shop} → {selected_filter_branch} → {selected_filter_tenant_role}"
+        )
+
+    if not filtered_users:
+        st.info("No users found with current filters")
     else:
         table_rows = []
 
-        for u in users:
+        for u in filtered_users:
             role_name = next(
                 (
                     r["name"]
@@ -257,15 +353,25 @@ def run():
                 ),
                 "Unknown",
             )
-            
+
             shop_name = next(
                 (s["name"] for s in shops if s["id"] == u.get("shop_id")),
                 "N/A",
             )
-            
+
             branch_name = next(
                 (b["name"] for b in branches if b["id"] == u.get("branch_id")),
                 "N/A",
+            )
+
+            tenant_role = u.get("tenant_role", "staff")
+            tenant_role_badge = get_tenant_role_badge(tenant_role)
+
+            # Cross-shop warning indicator
+            is_cross_shop = (
+                is_owner
+                and u.get("shop_id")
+                and u.get("shop_id") != current_shop_id
             )
 
             table_rows.append(
@@ -274,12 +380,17 @@ def run():
                     "Full Name": u.get("full_name"),
                     "Shop": shop_name,
                     "Branch": branch_name,
-                    "Tenant Role": u.get("tenant_role", "staff"),
+                    "Tenant Role": tenant_role_badge,
                     "Role": role_name,
                     "Status": (
                         "🟢 Active"
                         if u.get("is_active")
                         else "🔴 Disabled"
+                    ),
+                    "Scope": (
+                        "⚠️ Other Shop"
+                        if is_cross_shop
+                        else "✅ Current Shop"
                     ),
                 }
             )
@@ -302,7 +413,7 @@ def run():
 
         user_options = {
             str(u["id"]): f"{u['username']} - {u['full_name']}"
-            for u in users
+            for u in filtered_users
         }
 
         selected_user_id = st.selectbox(
@@ -314,13 +425,32 @@ def run():
         selected_user = next(
             (
                 u
-                for u in users
+                for u in filtered_users
                 if str(u["id"]) == selected_user_id
             ),
             None,
         )
 
         if selected_user:
+            # Show current assignment info
+            selected_shop_name = next(
+                (s["name"] for s in shops if s["id"] == selected_user.get("shop_id")),
+                "N/A",
+            )
+            selected_branch_name = next(
+                (b["name"] for b in branches if b["id"] == selected_user.get("branch_id")),
+                "N/A",
+            )
+
+            info_col1, info_col2, info_col3 = st.columns(3)
+            info_col1.info(f"🏪 Shop: {selected_shop_name}")
+            info_col2.info(f"📍 Branch: {selected_branch_name}")
+            info_col3.info(f"🛡 Tenant Role: {get_tenant_role_badge(selected_user.get('tenant_role', 'staff'))}")
+
+            # Cross-shop warning
+            if is_owner and selected_user.get("shop_id") != current_shop_id:
+                st.warning("⚠️ This user belongs to another shop. Changes will affect that shop only.")
+
             current_role_name = next(
                 (
                     r["name"]
@@ -340,7 +470,7 @@ def run():
                 role_names,
                 index=role_names.index(current_role_name),
             )
-            
+
             # Shop selection (only if owner)
             if is_owner and len(shops) > 1:
                 current_shop_name = next(
@@ -355,19 +485,19 @@ def run():
                 new_shop_id = shop_map[new_shop]
             else:
                 new_shop_id = selected_user.get("shop_id") or current_shop_id
-                
+
             # Filter branches by selected shop
             if new_shop_id:
                 branch_options = [b for b in branches if b.get("shop_id") == new_shop_id]
             else:
                 branch_options = []
-                
+
             branch_names = [b["name"] for b in branch_options] if branch_options else ["No Branch"]
             current_branch_name = next(
                 (b["name"] for b in branches if b["id"] == selected_user.get("branch_id")),
                 branch_names[0] if branch_names else "No Branch"
             )
-            
+
             if branch_names:
                 new_branch = st.selectbox(
                     "Branch",
@@ -406,7 +536,7 @@ def run():
                             "tenant_role": new_tenant_role,
                             "is_active": new_active,
                         }
-                        
+
                         supabase.table("users").update(update_data).eq("id", selected_user_id).execute()
 
                         create_activity_log(
@@ -482,14 +612,14 @@ def run():
     # SUMMARY
     # ==============================================================================
 
-    total = len(users)
+    total = len(filtered_users)
     active_count = sum(
-        1 for u in users if u.get("is_active", False)
+        1 for u in filtered_users if u.get("is_active", False)
     )
-    
+
     # Count by shop
     shop_counts = {}
-    for u in users:
+    for u in filtered_users:
         shop_id = u.get("shop_id")
         if shop_id:
             shop_name = next((s["name"] for s in shops if s["id"] == shop_id), "Unknown")
@@ -504,7 +634,7 @@ def run():
     c2.metric("🟢 Active", active_count)
     c3.metric("🔴 Disabled", total - active_count)
     c4.metric("🛡 Roles", len(roles))
-    
+
     # Shop distribution
     if shop_counts:
         st.divider()
