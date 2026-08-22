@@ -1,9 +1,14 @@
+# ==============================================================================
+# models/user.py
+# USER MODEL + MULTI-TENANT EXTENSION
+# ==============================================================================
+
 import hashlib
 import pandas as pd
 import streamlit as st
 
 from auth import require_admin, get_current_shop_id, is_shop_owner, get_current_user
-from database import get_supabase
+from database import get_supabase, get_current_tenant_id, get_current_branch_id, get_current_tenant_role
 from utils.notification import (
     notify_error,
     notify_success,
@@ -47,9 +52,7 @@ def run():
     # --------------------------------------------------------------------------
 
     def create_activity_log(user_id, action, description):
-
         try:
-
             supabase.table("user_activity_logs").insert(
                 {
                     "user_id": user_id,
@@ -57,7 +60,6 @@ def run():
                     "description": description,
                 }
             ).execute()
-
         except Exception:
             pass
 
@@ -66,22 +68,17 @@ def run():
     # --------------------------------------------------------------------------
 
     try:
-
         roles_resp = (
             supabase.table("roles")
             .select("id,name")
             .execute()
         )
-
         roles = roles_resp.data or []
-
     except Exception as e:
-
         st.error(f"Role loading failed: {e}")
         return
 
     if not roles:
-
         st.warning("Roles table is empty. Please create roles first.")
         return
 
@@ -93,7 +90,7 @@ def run():
     # --------------------------------------------------------------------------
 
     try:
-        # Owner/Admin can see all shops, others only their own
+        # Owner can see all shops, others only their own
         if is_owner:
             shops_resp = supabase.table("shops").select("id,name,code").execute()
         else:
@@ -112,9 +109,9 @@ def run():
 
     try:
         if is_owner:
-            branches_resp = supabase.table("branches").select("id,name,shop_id").execute()
+            branches_resp = supabase.table("branches").select("id,name,shop_id,code").execute()
         else:
-            branches_resp = supabase.table("branches").select("id,name,shop_id").eq("shop_id", current_shop_id).execute()
+            branches_resp = supabase.table("branches").select("id,name,shop_id,code").eq("shop_id", current_shop_id).execute()
         
         branches = branches_resp.data or []
     except Exception:
@@ -129,13 +126,12 @@ def run():
             "id, username, full_name, role_id, is_active, shop_id, branch_id, tenant_role"
         )
         
-        # Owner/Admin can see all users, others only their shop
+        # Owner can see all users, others only their shop
         if not is_owner and current_shop_id:
             query = query.eq("shop_id", current_shop_id)
         
         users_resp = query.execute()
         users = users_resp.data or []
-
     except Exception as e:
         st.error(f"User loading failed: {e}")
         return
@@ -147,9 +143,7 @@ def run():
     search = st.text_input("🔍 Search User")
 
     if search:
-
         search = search.lower()
-
         users = [
             u
             for u in users
@@ -186,7 +180,10 @@ def run():
             
             branch_names = [b["name"] for b in branch_options] if branch_options else ["No Branch"]
             selected_branch = st.selectbox("Branch", branch_names)
-            selected_branch_id = branch_options[0]["id"] if branch_options and selected_branch != "No Branch" else None
+            
+            # Fix branch selection index
+            selected_branch_index = branch_names.index(selected_branch)
+            selected_branch_id = branch_options[selected_branch_index]["id"] if branch_options and selected_branch != "No Branch" else None
 
             # Tenant Role
             tenant_role = st.selectbox(
@@ -203,21 +200,16 @@ def run():
             if submit:
 
                 if not username or not password:
-
                     notify_error("Username and password required")
-
                 else:
-
                     try:
-
-                        # ✅ CHECK: Username already exists?
+                        # CHECK: Username already exists?
                         existing = supabase.table("users").select("id").eq("username", username).execute()
                         
                         if existing.data and len(existing.data) > 0:
                             notify_error(f"❌ Username '{username}' already exists. Please choose a different username.")
-                        
                         else:
-                            # ✅ Create user
+                            # Create user
                             supabase.table("users").insert(
                                 {
                                     "username": username,
@@ -235,10 +227,9 @@ def run():
                             st.rerun()
 
                     except Exception as e:
-                        
                         error_msg = str(e)
                         
-                        # ✅ Check for duplicate error
+                        # Check for duplicate error
                         if "duplicate key value violates unique constraint" in error_msg:
                             notify_error(f"❌ Username '{username}' already exists. Please choose a different username.")
                         else:
@@ -253,15 +244,11 @@ def run():
     st.subheader("📋 Users")
 
     if not users:
-
         st.info("No users found")
-
     else:
-
         table_rows = []
 
         for u in users:
-
             role_name = next(
                 (
                     r["name"]
@@ -334,7 +321,6 @@ def run():
         )
 
         if selected_user:
-
             current_role_name = next(
                 (
                     r["name"]
@@ -355,13 +341,17 @@ def run():
                 index=role_names.index(current_role_name),
             )
             
-            # Shop selection (only if owner/admin)
+            # Shop selection (only if owner)
             if is_owner and len(shops) > 1:
                 current_shop_name = next(
                     (s["name"] for s in shops if s["id"] == selected_user.get("shop_id")),
                     shop_names[0] if shop_names else ""
                 )
-                new_shop = st.selectbox("Shop", shop_names, index=shop_names.index(current_shop_name) if current_shop_name in shop_names else 0)
+                new_shop = st.selectbox(
+                    "Shop",
+                    shop_names,
+                    index=shop_names.index(current_shop_name) if current_shop_name in shop_names else 0
+                )
                 new_shop_id = shop_map[new_shop]
             else:
                 new_shop_id = selected_user.get("shop_id") or current_shop_id
@@ -379,8 +369,13 @@ def run():
             )
             
             if branch_names:
-                new_branch = st.selectbox("Branch", branch_names, index=branch_names.index(current_branch_name) if current_branch_name in branch_names else 0)
-                new_branch_id = branch_options[branch_names.index(new_branch)]["id"] if branch_options else None
+                new_branch = st.selectbox(
+                    "Branch",
+                    branch_names,
+                    index=branch_names.index(current_branch_name) if current_branch_name in branch_names else 0
+                )
+                new_branch_index = branch_names.index(new_branch)
+                new_branch_id = branch_options[new_branch_index]["id"] if branch_options else None
             else:
                 new_branch_id = None
                 st.info("No branches available")
@@ -401,11 +396,8 @@ def run():
 
             # UPDATE
             with col1:
-
                 if st.button("💾 Update User", use_container_width=True):
-
                     try:
-
                         update_data = {
                             "full_name": new_full_name,
                             "role_id": role_map[new_role],
@@ -427,22 +419,15 @@ def run():
                         st.rerun()
 
                     except Exception as e:
-
                         notify_error(f"❌ Update failed: {e}")
 
             # DELETE
             with col2:
-
                 if selected_user.get("username") == "admin":
-
                     st.info("⚠️ System admin cannot be deleted")
-
                 else:
-
                     if st.button("🗑 Delete User", use_container_width=True):
-
                         try:
-
                             supabase.table("users").delete().eq("id", selected_user_id).execute()
 
                             create_activity_log(
@@ -455,7 +440,6 @@ def run():
                             st.rerun()
 
                         except Exception as e:
-
                             notify_error(f"❌ Delete failed: {e}")
 
             st.divider()
@@ -472,15 +456,10 @@ def run():
             )
 
             if st.button("💾 Save Password", use_container_width=True):
-
                 if not new_password:
-
                     notify_error("❌ Password required")
-
                 else:
-
                     try:
-
                         supabase.table("users").update(
                             {
                                 "password_hash": hash_password(new_password)
@@ -497,7 +476,6 @@ def run():
                         st.rerun()
 
                     except Exception as e:
-
                         notify_error(f"❌ Reset failed: {e}")
 
     # ==============================================================================
@@ -541,9 +519,7 @@ def run():
     st.divider()
 
     with st.expander("📝 User Activity Log", expanded=False):
-
         try:
-
             logs = (
                 supabase.table("user_activity_logs")
                 .select("action, description, created_at")
@@ -555,19 +531,15 @@ def run():
             activity_logs = logs.data or []
 
             if activity_logs:
-
                 st.dataframe(
                     activity_logs,
                     use_container_width=True,
                     hide_index=True,
                 )
-
             else:
-
                 st.info("No activity logs found")
 
         except Exception as e:
-
             st.error(f"Activity log loading failed: {e}")
 
     # ==============================================================================
@@ -578,80 +550,48 @@ def run():
     st.subheader("👑 Permission Matrix")
 
     try:
-
         permissions = (
-            supabase.table("permissions")
-            .select("*")
+            supabase.table("role_permissions")
+            .select(
+                """
+                allowed,
+                permissions(
+                    permission_key
+                ),
+                roles(
+                    name
+                )
+                """
+            )
             .execute()
-            .data
-            or []
         )
 
-        if permissions:
+        permission_data = permissions.data or []
 
-            for role in roles:
+        if permission_data:
+            matrix_rows = []
 
-                st.markdown(f"### 🛡 {role['name']}")
+            for p in permission_data:
+                permission = p.get("permissions")
+                role = p.get("roles")
 
-                for perm in permissions:
+                matrix_rows.append(
+                    {
+                        "Role": role.get("name") if role else "Unknown",
+                        "Permission": permission.get("permission_key") if permission else "Unknown",
+                        "Allowed": "✅" if p.get("allowed") else "❌",
+                    }
+                )
 
-                    # ✅ Fix: Use 'name' column instead of 'permission_name'
-                    perm_name = perm.get("name") or perm.get("permission_name") or str(perm.get("id"))
-                    
-                    current = (
-                        supabase.table("role_permissions")
-                        .select("allowed")
-                        .eq("role_id", role["id"])
-                        .eq("permission_id", perm["id"])
-                        .execute()
-                    )
+            df_permissions = pd.DataFrame(matrix_rows)
 
-                    allowed = False
-
-                    if current.data:
-                        allowed = current.data[0]["allowed"]
-
-                    new_value = st.checkbox(
-                        str(perm_name),
-                        value=allowed,
-                        key=f"{role['id']}_{perm['id']}",
-                    )
-
-                    if new_value != allowed:
-
-                        if current.data:
-
-                            supabase.table("role_permissions").update(
-                                {"allowed": new_value}
-                            ).eq("role_id", role["id"]).eq(
-                                "permission_id",
-                                perm["id"],
-                            ).execute()
-
-                        else:
-
-                            supabase.table("role_permissions").insert(
-                                {
-                                    "role_id": role["id"],
-                                    "permission_id": perm["id"],
-                                    "allowed": new_value,
-                                }
-                            ).execute()
-
-                        st.rerun()
-
+            st.dataframe(
+                df_permissions,
+                use_container_width=True,
+                hide_index=True,
+            )
         else:
-
-            st.info("No permissions found in database.")
+            st.info("No permissions found")
 
     except Exception as e:
-
-        st.error(f"Permission Matrix Error: {e}")
-
-
-# ==============================================================================
-# ENTRY
-# ==============================================================================
-
-if __name__ == "__main__":
-    run()
+        st.error(f"Permission matrix loading failed: {e}")
