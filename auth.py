@@ -1,7 +1,7 @@
 # ==============================================================================
 # auth.py
 # ERP ENTERPRISE AUTHENTICATION SYSTEM V30
-# SECURITY + ROLE + SESSION MANAGEMENT
+# SECURITY + ROLE + SESSION MANAGEMENT + MULTI-TENANT
 # ==============================================================================
 
 import hashlib
@@ -40,9 +40,32 @@ ROLE_MAP = {
 }
 
 # ==================================================
-# AUDIT LOGGING
+# TENANT ROLE CONSTANTS
 # ==================================================
 
+TENANT_ROLE_STAFF = "staff"
+TENANT_ROLE_MANAGER = "manager"
+TENANT_ROLE_ADMIN = "admin"
+TENANT_ROLE_OWNER = "owner"
+
+TENANT_ROLE_MAP = {
+    TENANT_ROLE_STAFF: "Staff",
+    TENANT_ROLE_MANAGER: "Manager",
+    TENANT_ROLE_ADMIN: "Admin",
+    TENANT_ROLE_OWNER: "Owner",
+}
+
+# Tenant role hierarchy (higher number = more access)
+TENANT_ROLE_HIERARCHY = {
+    TENANT_ROLE_STAFF: 1,
+    TENANT_ROLE_MANAGER: 2,
+    TENANT_ROLE_ADMIN: 3,
+    TENANT_ROLE_OWNER: 4,
+}
+
+# ==================================================
+# AUDIT LOGGING
+# ==================================================
 
 def log_auth_event(user_id, event_type, status="success"):
     try:
@@ -61,7 +84,6 @@ def log_auth_event(user_id, event_type, status="success"):
 # ==================================================
 # PASSWORD ENGINE
 # ==================================================
-
 
 def verify_password(user, password):
     stored = user.get("password_hash")
@@ -114,7 +136,6 @@ def upgrade_password(user_id, password):
 # USER QUERY
 # ==================================================
 
-
 def get_user(username):
     try:
         result = (
@@ -134,9 +155,66 @@ def get_user(username):
 
 
 # ==================================================
-# LOGIN ENGINE
+# TENANT CONTEXT BUILDER
 # ==================================================
 
+def build_tenant_context(user):
+    """
+    Build tenant context from user record.
+    Returns dict with shop_id, branch_id, tenant_role, shop_name, branch_name.
+    """
+    shop_id = user.get("shop_id")
+    branch_id = user.get("branch_id")
+    tenant_role = user.get("tenant_role", TENANT_ROLE_STAFF)
+    
+    context = {
+        "shop_id": shop_id,
+        "branch_id": branch_id,
+        "tenant_role": tenant_role,
+        "shop_name": None,
+        "branch_name": None,
+    }
+    
+    # Load shop name if shop_id exists
+    if shop_id:
+        try:
+            shop_resp = (
+                supabase.table("shops")
+                .select("name, code")
+                .eq("id", shop_id)
+                .limit(1)
+                .execute()
+            )
+            
+            if shop_resp.data:
+                context["shop_name"] = shop_resp.data[0].get("name")
+                context["shop_code"] = shop_resp.data[0].get("code")
+        except Exception:
+            pass
+    
+    # Load branch name if branch_id exists
+    if branch_id:
+        try:
+            branch_resp = (
+                supabase.table("branches")
+                .select("name, code")
+                .eq("id", branch_id)
+                .limit(1)
+                .execute()
+            )
+            
+            if branch_resp.data:
+                context["branch_name"] = branch_resp.data[0].get("name")
+                context["branch_code"] = branch_resp.data[0].get("code")
+        except Exception:
+            pass
+    
+    return context
+
+
+# ==================================================
+# LOGIN ENGINE
+# ==================================================
 
 def login_user(username, password):
     user = get_user(username)
@@ -187,9 +265,7 @@ def login_user(username, password):
 # SESSION BUILDER
 # ==================================================
 
-
 def build_session(user):
-
     role_id = int(
         user.get(
             "role_id",
@@ -197,9 +273,7 @@ def build_session(user):
         )
     )
 
-
     user_id = user.get("id")
-
 
     username = (
         user.get("username")
@@ -209,60 +283,46 @@ def build_session(user):
         "Unknown"
     )
 
+    # Build tenant context
+    tenant_context = build_tenant_context(user)
 
     st.session_state.user = {
-
         "id": user_id,
-
         "username": username,
-
-        "full_name":
-            user.get(
-                "full_name",
-                username
-            ),
-
-        "role_id":
-            role_id,
-
-        "role":
-            ROLE_MAP.get(
-                role_id,
-                "Cashier"
-            ),
-
-        "is_active":
-            bool(
-                user.get(
-                    "is_active",
-                    True
-                )
-            ),
-
-        "last_activity":
-            time.time(),
-
+        "full_name": user.get("full_name", username),
+        "role_id": role_id,
+        "role": ROLE_MAP.get(role_id, "Cashier"),
+        "is_active": bool(user.get("is_active", True)),
+        "last_activity": time.time(),
+        
+        # Multi-Tenant fields
+        "shop_id": tenant_context.get("shop_id"),
+        "branch_id": tenant_context.get("branch_id"),
+        "tenant_role": tenant_context.get("tenant_role"),
+        "shop_name": tenant_context.get("shop_name"),
+        "branch_name": tenant_context.get("branch_name"),
     }
 
-
-    # =================================================
     # IMPORTANT UUID SESSION
-    # =================================================
-
     st.session_state["user_id"] = user_id
-
     st.session_state["username"] = username
-
     st.session_state["role_id"] = role_id
 
+    # Multi-Tenant session keys
+    st.session_state["shop_id"] = tenant_context.get("shop_id")
+    st.session_state["branch_id"] = tenant_context.get("branch_id")
+    st.session_state["tenant_role"] = tenant_context.get("tenant_role")
+    st.session_state["shop_name"] = tenant_context.get("shop_name")
+    st.session_state["branch_name"] = tenant_context.get("branch_name")
+    st.session_state["tenant_context"] = tenant_context
 
     # backup id
     st.session_state["id"] = user_id
 
+
 # ==================================================
 # CURRENT USER & ROLE HELPERS
 # ==================================================
-
 
 def get_current_user():
     return st.session_state.get("user") or {}
@@ -279,10 +339,64 @@ def get_current_role_id():
     return user.get("role_id")
 
 
+def get_current_shop_id():
+    """
+    Get current user's shop_id from session.
+    Returns None if not set.
+    """
+    return st.session_state.get("shop_id")
+
+
+def get_current_branch_id():
+    """
+    Get current user's branch_id from session.
+    Returns None if not set.
+    """
+    return st.session_state.get("branch_id")
+
+
+def get_current_tenant_role():
+    """
+    Get current user's tenant_role from session.
+    Returns 'staff' if not set.
+    """
+    return st.session_state.get("tenant_role", TENANT_ROLE_STAFF)
+
+
+def get_current_tenant_context():
+    """
+    Get full tenant context from session.
+    Returns dict or None.
+    """
+    return st.session_state.get("tenant_context")
+
+
+def is_shop_owner():
+    """
+    Check if current user is shop owner.
+    """
+    return get_current_tenant_role() == TENANT_ROLE_OWNER
+
+
+def is_shop_admin():
+    """
+    Check if current user is shop admin or owner.
+    """
+    tenant_role = get_current_tenant_role()
+    return tenant_role in [TENANT_ROLE_ADMIN, TENANT_ROLE_OWNER]
+
+
+def is_shop_manager():
+    """
+    Check if current user is shop manager or higher.
+    """
+    tenant_role = get_current_tenant_role()
+    return tenant_role in [TENANT_ROLE_MANAGER, TENANT_ROLE_ADMIN, TENANT_ROLE_OWNER]
+
+
 # ==================================================
 # AUTH GUARDS & PERMISSIONS
 # ==================================================
-
 
 def is_authenticated():
     user = st.session_state.get("user")
@@ -328,6 +442,27 @@ def require_role(role_id):
     return user
 
 
+def require_tenant_role(min_tenant_role):
+    """
+    Require minimum tenant role.
+    
+    Example:
+        require_tenant_role(TENANT_ROLE_MANAGER)
+    """
+    user = require_login()
+    
+    current_tenant_role = user.get("tenant_role", TENANT_ROLE_STAFF)
+    
+    current_level = TENANT_ROLE_HIERARCHY.get(current_tenant_role, 0)
+    required_level = TENANT_ROLE_HIERARCHY.get(min_tenant_role, 0)
+    
+    if current_level < required_level:
+        st.error(f"⛔ Requires {TENANT_ROLE_MAP.get(min_tenant_role)} or higher.")
+        st.stop()
+    
+    return user
+
+
 def has_permission(permission_key):
     try:
         role_id = get_current_role_id()
@@ -369,7 +504,6 @@ def has_permission(permission_key):
 # LOGIN UI
 # ==================================================
 
-
 def login_page():
     st.title("🔐 ERP Enterprise Login")
 
@@ -389,7 +523,6 @@ def login_page():
 # ==================================================
 # PASSWORD MANAGEMENT
 # ==================================================
-
 
 def change_password(user_id, old_password, new_password):
     try:
@@ -432,7 +565,6 @@ def change_password(user_id, old_password, new_password):
 # LOGOUT
 # ==================================================
 
-
 def logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -444,7 +576,6 @@ def logout():
 # SIDEBAR USER PANEL
 # ==================================================
 
-
 def auth_sidebar():
     if is_authenticated():
         user = current_user()
@@ -453,6 +584,20 @@ def auth_sidebar():
             st.success(f"👤 {user['full_name']}")
 
             st.caption(f"Role: {user['role']}")
+
+            # Show tenant info if exists
+            tenant_role = user.get("tenant_role")
+            shop_name = user.get("shop_name")
+            branch_name = user.get("branch_name")
+
+            if tenant_role:
+                st.caption(f"Tenant Role: {TENANT_ROLE_MAP.get(tenant_role, tenant_role)}")
+
+            if shop_name:
+                st.caption(f"🏪 {shop_name}")
+
+            if branch_name:
+                st.caption(f"📍 {branch_name}")
 
             if st.button("🚪 Logout"):
                 logout()
