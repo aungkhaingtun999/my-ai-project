@@ -139,7 +139,7 @@ def run():
         branches = []
 
     # --------------------------------------------------------------------------
-    # LOAD USERS (Multi-Tenant)
+    # LOAD USERS (Multi-Tenant with Isolation)
     # --------------------------------------------------------------------------
 
     try:
@@ -147,12 +147,16 @@ def run():
             "id, username, full_name, role_id, is_active, shop_id, branch_id, tenant_role"
         )
 
-        # Owner can see all users, others only their shop
-        if not is_owner and current_shop_id:
+        # System Admin (role_id=1) can see all users
+        # Others can only see users in their own shop
+        current_role_id = current_user.get("role_id")
+
+        if current_role_id != 1 and current_shop_id:
             query = query.eq("shop_id", current_shop_id)
 
         users_resp = query.execute()
         users = users_resp.data or []
+
     except Exception as e:
         st.error(f"User loading failed: {e}")
         return
