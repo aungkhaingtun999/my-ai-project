@@ -3,13 +3,17 @@ import sys
 import os
 
 # Add parent directory to Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import auth module directly
+# Import auth module
 import auth
 
+# Direct reference to change_password
+change_password = auth.change_password
+require_login = auth.require_login
+
 def run():
-    user = auth.require_login()
+    user = require_login()
 
     st.title("👤 My Profile")
 
@@ -19,37 +23,19 @@ def run():
 
     st.subheader("🔐 Change Password")
 
-    old_password = st.text_input(
-        "Current Password",
-        type="password"
-    )
+    old_password = st.text_input("Current Password", type="password")
+    new_password = st.text_input("New Password", type="password")
+    confirm_password = st.text_input("Confirm New Password", type="password")
 
-    new_password = st.text_input(
-        "New Password",
-        type="password"
-    )
-
-    confirm_password = st.text_input(
-        "Confirm New Password",
-        type="password"
-    )
-
-    if st.button(
-        "💾 Change Password",
-        use_container_width=True
-    ):
+    if st.button("💾 Change Password", use_container_width=True):
         if not old_password or not new_password:
             st.error("Please fill all fields")
-
         elif new_password != confirm_password:
             st.error("Password confirmation does not match")
-
         elif len(new_password) < 6:
             st.error("Password must be at least 6 characters")
-
         else:
-            # Use auth.change_password directly
-            success, message = auth.change_password(
+            success, message = change_password(
                 user["id"],
                 old_password,
                 new_password
