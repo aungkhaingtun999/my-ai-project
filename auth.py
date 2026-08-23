@@ -102,57 +102,43 @@ def log_auth_event(
 
 
 # ==============================================================================
-# PASSWORD HASH
+# PASSWORD ENGINE
 # ==============================================================================
 
 def hash_password(password):
-
+    """Hash password using bcrypt."""
     return bcrypt.hashpw(
         password.encode("utf-8"),
         bcrypt.gensalt()
     ).decode("utf-8")
 
 
-# ==============================================================================
-# PASSWORD VERIFY
-# ==============================================================================
+def verify_password(user, password):
+    """Verify password against stored hash."""
 
-def verify_password(
-    user,
-    password
-):
-
-    stored = user.get(
-        "password_hash"
-    )
+    stored = user.get("password_hash")
 
     if not stored:
         return False
 
-    stored = str(
-        stored
-    ).strip()
+    stored = str(stored).strip()
 
-    # ------------------------------------------------------------------
-    # BCRYPT
-    # ------------------------------------------------------------------
+    # --------------------------------------------------
+    # bcrypt
+    # --------------------------------------------------
 
     if stored.startswith("$2"):
-
         try:
-
             return bcrypt.checkpw(
                 password.encode("utf-8"),
                 stored.encode("utf-8")
             )
-
         except Exception:
-
             return False
 
-    # ------------------------------------------------------------------
-    # LEGACY SHA256
-    # ------------------------------------------------------------------
+    # --------------------------------------------------
+    # Legacy SHA256 / plain password
+    # --------------------------------------------------
 
     sha256_hash = hashlib.sha256(
         password.encode("utf-8")
@@ -161,20 +147,7 @@ def verify_password(
     if hmac.compare_digest(
         stored,
         sha256_hash
-    ):
-
-        upgrade_password(
-            user["id"],
-            password
-        )
-
-        return True
-
-    # ------------------------------------------------------------------
-    # LEGACY PLAIN TEXT
-    # ------------------------------------------------------------------
-
-    if hmac.compare_digest(
+    ) or hmac.compare_digest(
         stored,
         password
     ):
@@ -189,33 +162,20 @@ def verify_password(
     return False
 
 
-# ==============================================================================
-# UPGRADE PASSWORD
-# ==============================================================================
-
-def upgrade_password(
-    user_id,
-    password
-):
+def upgrade_password(user_id, password):
+    """Upgrade legacy password to bcrypt."""
 
     try:
 
-        new_hash = hash_password(
-            password
-        )
+        new_hash = hash_password(password)
 
         (
             supabase
             .table("users")
-            .update(
-                {
-                    "password_hash": new_hash
-                }
-            )
-            .eq(
-                "id",
-                user_id
-            )
+            .update({
+                "password_hash": new_hash
+            })
+            .eq("id", user_id)
             .execute()
         )
 
@@ -223,124 +183,110 @@ def upgrade_password(
         pass
 
 
-# ==============================================================================
-# CHANGE PASSWORD
-# ==============================================================================
-
 def change_password(
     user_id,
     old_password,
     new_password
 ):
     """
-    Change password for the currently authenticated user.
+    Change the authenticated user's password.
 
-    IMPORTANT:
-    This function intentionally lives in auth.py because
-    Profile page calls auth.change_password().
+    Returns:
+        (True, success_message)
+        (False, error_message)
     """
 
     try:
 
-        if not user_id:
+        # --------------------------------------------------
+        # Basic validation
+        # --------------------------------------------------
 
-            return (
-                False,
-                "Invalid user."
-            )
+        if not user_id:
+            return False, "User ID is required."
 
         if not old_password:
-
-            return (
-                False,
-                "Current password is required."
-            )
+            return False, "Current password is required."
 
         if not new_password:
-
-            return (
-                False,
-                "New password is required."
-            )
+            return False, "New password is required."
 
         if len(new_password) < 6:
+            return False, "New password must be at least 6 characters."
 
-            return (
-                False,
-                "New password must be at least 6 characters."
-            )
+        if old_password == new_password:
+            return False, "New password must be different from current password."
+
+        # --------------------------------------------------
+        # Load current user
+        # --------------------------------------------------
 
         result = (
             supabase
             .table("users")
             .select(
-                "id, password_hash, is_active"
+                "id, username, password_hash, is_active"
             )
-            .eq(
-                "id",
-                user_id
-            )
+            .eq("id", user_id)
+            .eq("is_active", True)
             .limit(1)
             .execute()
         )
 
-        users = result.data or []
+        if not result.data:
+            return False, "User not found or inactive."
 
-        if not users:
+        user = result.data[0]
 
-            return (
-                False,
-                "User not found."
-            )
-
-        user = users[0]
-
-        if not user.get(
-            "is_active",
-            True
-        ):
-
-            return (
-                False,
-                "Account is inactive."
-            )
+        # --------------------------------------------------
+        # Verify current password
+        # --------------------------------------------------
 
         if not verify_password(
             user,
             old_password
         ):
-
             log_auth_event(
                 user_id,
                 "password_change",
                 "failed"
             )
 
-            return (
-                False,
-                "Current password is incorrect."
-            )
+            return False, "Current password is incorrect."
+
+        # --------------------------------------------------
+        # Hash new password
+        # --------------------------------------------------
 
         new_hash = hash_password(
             new_password
         )
 
-        (
+        # --------------------------------------------------
+        # Update password
+        # --------------------------------------------------
+
+        update_result = (
             supabase
             .table("users")
-            .update(
-                {
-                    "password_hash": new_hash,
-                    "failed_attempts": 0,
-                    "locked_until": None,
-                }
-            )
-            .eq(
-                "id",
-                user_id
-            )
+            .update({
+                "password_hash": new_hash,
+                "failed_attempts": 0,
+                "locked_until": None,
+                "updated_at": datetime.now(
+                    timezone.utc
+                ).isoformat()
+            })
+            .eq("id", user_id)
             .execute()
         )
+
+        if not update_result.data:
+            return False, "Password update failed."
+
+        # --------------------------------------------------
+        # Audit
+        # --------------------------------------------------
 
         log_auth_event(
             user_id,
@@ -348,10 +294,7 @@ def change_password(
             "success"
         )
 
-        return (
-            True,
-            "Password changed successfully."
-        )
+        return True, "Password changed successfully."
 
     except Exception as e:
 
@@ -361,10 +304,7 @@ def change_password(
             "failed"
         )
 
-        return (
-            False,
-            f"Password change error: {e}"
-        )
+        return False, f"Password change error: {str(e)}"
 
 
 # ==============================================================================
