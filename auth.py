@@ -132,6 +132,67 @@ def upgrade_password(user_id, password):
         pass
 
 
+def change_password(user_id, old_password, new_password):
+    """
+    Change user password after verifying old password.
+    
+    Args:
+        user_id: User ID
+        old_password: Current password for verification
+        new_password: New password to set
+        
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    try:
+        # Validate inputs
+        if not old_password or not new_password:
+            return False, "Old and new passwords are required"
+        
+        if len(new_password) < 6:
+            return False, "New password must be at least 6 characters"
+        
+        # Current user load
+        result = (
+            supabase.table("users")
+            .select("*")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+        )
+
+        if not result.data:
+            return False, "User not found"
+
+        user = result.data[0]
+
+        # Verify old password
+        if not verify_password(user, old_password):
+            return False, "Old password is incorrect"
+
+        # Hash new password with bcrypt
+        new_hash = bcrypt.hashpw(
+            new_password.encode("utf-8"), bcrypt.gensalt()
+        ).decode()
+
+        # Update password
+        update_result = (
+            supabase.table("users")
+            .update({"password_hash": new_hash})
+            .eq("id", user_id)
+            .execute()
+        )
+
+        # Log password change event
+        log_auth_event(user_id, "password_change", "success")
+
+        return True, "Password changed successfully"
+
+    except Exception as e:
+        log_auth_event(user_id, "password_change", "failed")
+        return False, f"Password change error: {str(e)}"
+
+
 # ==================================================
 # USER QUERY
 # ==================================================
@@ -518,47 +579,6 @@ def login_page():
             st.rerun()
         else:
             st.error(msg)
-
-
-# ==================================================
-# PASSWORD MANAGEMENT
-# ==================================================
-
-def change_password(user_id, old_password, new_password):
-    try:
-        # Current user load
-        result = (
-            supabase.table("users")
-            .select("*")
-            .eq("id", user_id)
-            .single()
-            .execute()
-        )
-
-        user = result.data
-
-        if not user:
-            return False, "User not found"
-
-        # Verify old password
-        if not verify_password(user, old_password):
-            return False, "Old password is incorrect"
-
-        # Hash new password
-        new_hash = hashlib.sha256(new_password.encode("utf-8")).hexdigest()
-
-        # Update
-        (
-            supabase.table("users")
-            .update({"password_hash": new_hash})
-            .eq("id", user_id)
-            .execute()
-        )
-
-        return True, "Password changed successfully"
-
-    except Exception as e:
-        return False, str(e)
 
 
 # ==================================================
