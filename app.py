@@ -200,9 +200,6 @@ def load_page(
 # ==============================================================================
 # ROUTER
 # ==============================================================================
-# ==============================================================================
-# ROUTER
-# ==============================================================================
 
 def page_router():
 
@@ -216,15 +213,16 @@ def page_router():
     )
 
     # ------------------------------------------------------------------
-    # LEGACY PROFILE REDIRECT
+    # LEGACY PROFILE ROUTE
     # ------------------------------------------------------------------
     # Old session may still contain "13_Profile".
-    # Never load erp_pages/13_Profile.py anymore.
+    # Never load 13_Profile.py.
+    # Redirect it to the new direct profile route.
     # ------------------------------------------------------------------
 
     if page_id == "13_Profile":
 
-        st.session_state.active_page = "__PROFILE__"
+        st.session_state["active_page"] = "__PROFILE__"
 
         from sidebar import show_profile_page
 
