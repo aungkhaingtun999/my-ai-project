@@ -1,16 +1,22 @@
 import streamlit as st
 import sys
 import os
+import importlib
 
-# Add parent directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add parent directory to path
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 # Import auth module
 import auth
 
-# Direct reference to change_password
-change_password = auth.change_password
+# Force reload to get latest version
+importlib.reload(auth)
+
+# Get functions directly from module
 require_login = auth.require_login
+change_password = auth.change_password
 
 def run():
     user = require_login()
