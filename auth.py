@@ -43,7 +43,6 @@ ROLE_MAP = {
 # AUDIT LOGGING
 # ==================================================
 
-
 def log_auth_event(user_id, event_type, status="success"):
     try:
         supabase.table("auth_logs").insert(
@@ -57,11 +56,9 @@ def log_auth_event(user_id, event_type, status="success"):
     except Exception:
         pass
 
-
 # ==================================================
 # PASSWORD ENGINE
 # ==================================================
-
 
 def verify_password(user, password):
     stored = user.get("password_hash")
@@ -95,7 +92,6 @@ def verify_password(user, password):
 
     return False
 
-
 def upgrade_password(user_id, password):
     try:
         new_hash = bcrypt.hashpw(
@@ -109,11 +105,9 @@ def upgrade_password(user_id, password):
     except Exception:
         pass
 
-
 # ==================================================
 # USER QUERY
 # ==================================================
-
 
 def get_user(username):
     try:
@@ -132,11 +126,9 @@ def get_user(username):
         st.error("Authentication Database Error")
         return None
 
-
 # ==================================================
 # LOGIN ENGINE
 # ==================================================
-
 
 def login_user(username, password):
     user = get_user(username)
@@ -182,95 +174,81 @@ def login_user(username, password):
 
         return False, "Invalid password."
 
-
 # ==================================================
 # SESSION BUILDER
 # ==================================================
 
-
 def build_session(user):
-
-    role_id = int(
-        user.get(
-            "role_id",
-            ROLE_CASHIER
-        )
-    )
-
-
+    """Build session with user and shop context"""
+    
+    role_id = int(user.get("role_id", ROLE_CASHIER))
     user_id = user.get("id")
-
-
-    username = (
-        user.get("username")
-        or
-        user.get("email")
-        or
-        "Unknown"
-    )
-
-
+    username = user.get("username") or user.get("email") or "Unknown"
+    
+    # Extract shop context
+    shop_id = user.get("shop_id")
+    branch_id = user.get("branch_id")
+    tenant_role = user.get("tenant_role", "staff")
+    
     st.session_state.user = {
-
         "id": user_id,
-
         "username": username,
-
-        "full_name":
-            user.get(
-                "full_name",
-                username
-            ),
-
-        "role_id":
-            role_id,
-
-        "role":
-            ROLE_MAP.get(
-                role_id,
-                "Cashier"
-            ),
-
-        "is_active":
-            bool(
-                user.get(
-                    "is_active",
-                    True
-                )
-            ),
-
-        "last_activity":
-            time.time(),
-
+        "full_name": user.get("full_name", username),
+        "role_id": role_id,
+        "role": ROLE_MAP.get(role_id, "Cashier"),
+        "is_active": bool(user.get("is_active", True)),
+        "last_activity": time.time(),
+        # Multi-tenant fields
+        "shop_id": shop_id,
+        "branch_id": branch_id,
+        "tenant_role": tenant_role,
+        "is_owner": tenant_role in ["owner", "admin"] or role_id == ROLE_ADMIN,
+        "is_manager": tenant_role in ["manager", "admin", "owner"] or role_id in [ROLE_ADMIN, ROLE_MANAGER],
     }
-
-
-    # =================================================
-    # IMPORTANT UUID SESSION
-    # =================================================
-
+    
+    # Session state for backward compatibility
     st.session_state["user_id"] = user_id
-
     st.session_state["username"] = username
-
     st.session_state["role_id"] = role_id
-
-
-    # backup id
     st.session_state["id"] = user_id
+    
+    # Shop context in session
+    if shop_id:
+        st.session_state["shop_id"] = shop_id
+        st.session_state["store_id"] = shop_id
+    
+    if branch_id:
+        st.session_state["branch_id"] = branch_id
+    
+    if tenant_role:
+        st.session_state["tenant_role"] = tenant_role
+    
+    st.session_state["is_owner"] = (
+        tenant_role in ["owner", "admin"] or role_id == ROLE_ADMIN
+    )
+    st.session_state["is_manager"] = (
+        tenant_role in ["manager", "admin", "owner"] 
+        or role_id in [ROLE_ADMIN, ROLE_MANAGER]
+    )
 
 # ==================================================
 # CURRENT USER & ROLE HELPERS
 # ==================================================
 
-
 def get_current_user():
-    return st.session_state.get("user") or {}
-
+    """Get current user with enhanced context"""
+    user = st.session_state.get("user") or {}
+    
+    # Ensure shop context is available
+    if user and not user.get("shop_id"):
+        shop_id = st.session_state.get("shop_id")
+        if shop_id:
+            user["shop_id"] = shop_id
+    
+    return user
 
 def current_user():
     return get_current_user()
-
 
 def get_current_role_id():
     user = get_current_user()
@@ -278,11 +256,121 @@ def get_current_role_id():
         return None
     return user.get("role_id")
 
+# ==================================================
+# SHOP/STORE CONTEXT HELPERS (MULTI-TENANT)
+# ==================================================
+
+def get_current_shop_id():
+    """Get the current shop/store ID from session state"""
+    # Check multiple possible session keys for shop ID
+    shop_id = (
+        st.session_state.get("shop_id") 
+        or st.session_state.get("store_id")
+        or st.session_state.get("current_shop_id")
+    )
+    
+    # If no shop ID in session, try to get from user data
+    if not shop_id:
+        user = get_current_user()
+        if user:
+            shop_id = user.get("shop_id")
+            if shop_id:
+                st.session_state["shop_id"] = shop_id
+    
+    return shop_id
+
+def set_current_shop_id(shop_id):
+    """Set the current shop/store ID in session state"""
+    st.session_state["shop_id"] = shop_id
+    st.session_state["store_id"] = shop_id  # For backward compatibility
+
+def get_current_shop():
+    """Get the current shop details from database"""
+    shop_id = get_current_shop_id()
+    if not shop_id:
+        return None
+    
+    try:
+        result = (
+            supabase.table("shops")
+            .select("*")
+            .eq("id", shop_id)
+            .limit(1)
+            .execute()
+        )
+        return result.data[0] if result.data else None
+    except Exception:
+        return None
+
+def is_shop_owner():
+    """Check if current user is a shop owner or system admin"""
+    user = get_current_user()
+    
+    if not user:
+        return False
+    
+    # System admin (role_id 1) has full access
+    if user.get("role_id") == ROLE_ADMIN:
+        return True
+    
+    # Check tenant_role for owner
+    tenant_role = user.get("tenant_role", "").lower()
+    if tenant_role in ["owner", "admin"]:
+        return True
+    
+    # Check if user has owner role in session
+    return st.session_state.get("is_owner", False)
+
+def is_shop_manager():
+    """Check if current user is a shop manager or higher"""
+    user = get_current_user()
+    
+    if not user:
+        return False
+    
+    # System admin or owner
+    if is_shop_owner():
+        return True
+    
+    # Check tenant_role for manager
+    tenant_role = user.get("tenant_role", "").lower()
+    if tenant_role in ["manager", "admin", "owner"]:
+        return True
+    
+    return False
+
+def get_user_shops():
+    """Get all shops accessible to current user"""
+    user = get_current_user()
+    
+    if not user:
+        return []
+    
+    try:
+        if is_shop_owner():
+            # Owner/admin can access all shops
+            result = supabase.table("shops").select("*").execute()
+        else:
+            # Regular users can only access their shop
+            shop_id = get_current_shop_id()
+            if not shop_id:
+                return []
+            
+            result = (
+                supabase.table("shops")
+                .select("*")
+                .eq("id", shop_id)
+                .execute()
+            )
+        
+        return result.data or []
+    
+    except Exception:
+        return []
 
 # ==================================================
 # AUTH GUARDS & PERMISSIONS
 # ==================================================
-
 
 def is_authenticated():
     user = st.session_state.get("user")
@@ -300,13 +388,11 @@ def is_authenticated():
     user["last_activity"] = time.time()
     return True
 
-
 def require_login():
     if not is_authenticated():
         login_page()
         st.stop()
     return current_user()
-
 
 def require_admin():
     user = require_login()
@@ -317,7 +403,6 @@ def require_admin():
 
     return user
 
-
 def require_role(role_id):
     user = require_login()
 
@@ -326,7 +411,6 @@ def require_role(role_id):
         st.stop()
 
     return user
-
 
 def has_permission(permission_key):
     try:
@@ -364,11 +448,9 @@ def has_permission(permission_key):
         st.error(f"Permission check error: {e}")
         return False
 
-
 # ==================================================
 # LOGIN UI
 # ==================================================
-
 
 def login_page():
     st.title("🔐 ERP Enterprise Login")
@@ -385,11 +467,9 @@ def login_page():
         else:
             st.error(msg)
 
-
 # ==================================================
 # PASSWORD MANAGEMENT
 # ==================================================
-
 
 def change_password(user_id, old_password, new_password):
     try:
@@ -427,11 +507,9 @@ def change_password(user_id, old_password, new_password):
     except Exception as e:
         return False, str(e)
 
-
 # ==================================================
 # LOGOUT
 # ==================================================
-
 
 def logout():
     for key in list(st.session_state.keys()):
@@ -439,11 +517,9 @@ def logout():
 
     st.rerun()
 
-
 # ==================================================
 # SIDEBAR USER PANEL
 # ==================================================
-
 
 def auth_sidebar():
     if is_authenticated():
@@ -453,6 +529,13 @@ def auth_sidebar():
             st.success(f"👤 {user['full_name']}")
 
             st.caption(f"Role: {user['role']}")
+            
+            # Show shop info if available
+            shop_id = get_current_shop_id()
+            if shop_id:
+                shop = get_current_shop()
+                if shop:
+                    st.caption(f"🏪 Shop: {shop.get('name', 'N/A')}")
 
             if st.button("🚪 Logout"):
                 logout()
