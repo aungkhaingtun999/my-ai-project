@@ -3,16 +3,17 @@
 # USER MODEL + MULTI-TENANT FILTER + BADGE
 # ==============================================================================
 
-import hashlib
 import pandas as pd
 import streamlit as st
 
+# Import hash_password directly from auth to keep bcrypt standard consistent
 from auth import (
     require_admin,
     get_current_shop_id,
     is_shop_owner,
     get_current_user,
     get_current_tenant_role,
+    hash_password,
 )
 from database import get_supabase
 from utils.notification import (
@@ -59,15 +60,6 @@ def run():
     current_user = get_current_user()
     current_shop_id = get_current_shop_id()
     is_owner = is_shop_owner()
-
-    # --------------------------------------------------------------------------
-    # PASSWORD HASH
-    # --------------------------------------------------------------------------
-
-    def hash_password(password: str) -> str:
-        return hashlib.sha256(
-            password.encode("utf-8")
-        ).hexdigest()
 
     # --------------------------------------------------------------------------
     # ACTIVITY LOG
@@ -147,26 +139,15 @@ def run():
             "id, username, full_name, role_id, is_active, shop_id, branch_id, tenant_role"
         )
 
-        current_role_id = current_user.get("role_id")
         is_system_admin = bool(current_user.get("is_system_admin", False))
 
-        # ----------------------------------------------------------
-        # USER VISIBILITY
-        # ----------------------------------------------------------
-        # Only a REAL system administrator can see all shops.
-        # Tenant owners/admins/managers/staff remain shop-scoped.
-        # ----------------------------------------------------------
-
         if not is_system_admin:
-
             if current_shop_id:
                 query = query.eq(
                     "shop_id",
                     current_shop_id
                 )
-
             else:
-                # No tenant context = show nothing
                 query = query.eq(
                     "id",
                     "00000000-0000-0000-0000-000000000000"
@@ -188,7 +169,6 @@ def run():
     filter_col1, filter_col2, filter_col3 = st.columns(3)
 
     with filter_col1:
-        # Shop Filter
         if is_owner and len(shops) > 1:
             filter_shop_options = ["All Shops"] + shop_names
             selected_filter_shop = st.selectbox(
@@ -199,7 +179,6 @@ def run():
             selected_filter_shop = shops[0]["name"] if shops else "All Shops"
 
     with filter_col2:
-        # Branch Filter (depends on selected shop)
         if selected_filter_shop != "All Shops":
             filter_shop_id = shop_map.get(selected_filter_shop)
             filter_branch_options = [
@@ -216,14 +195,12 @@ def run():
         )
 
     with filter_col3:
-        # Tenant Role Filter
         tenant_role_filter_options = ["All Roles", "👑 Owner", "🛡 Admin", "📊 Manager", "👤 Staff"]
         selected_filter_tenant_role = st.selectbox(
             "🛡 Filter by Tenant Role",
             tenant_role_filter_options,
         )
 
-    # Apply filters
     filtered_users = users.copy()
 
     if selected_filter_shop != "All Shops":
@@ -278,7 +255,6 @@ def run():
             full_name = st.text_input("Full Name")
             password = st.text_input("Password", type="password")
 
-            # Shop selection
             if len(shops) > 1 and is_owner:
                 selected_shop = st.selectbox("Shop", shop_names)
                 selected_shop_id = shop_map[selected_shop]
@@ -287,7 +263,6 @@ def run():
                 if shops:
                     st.info(f"🏪 Shop: {shops[0]['name']}")
 
-            # Branch selection (filter by selected shop)
             if selected_shop_id:
                 branch_options = [b for b in branches if b.get("shop_id") == selected_shop_id]
             else:
@@ -298,7 +273,6 @@ def run():
             selected_branch_index = branch_names.index(selected_branch)
             selected_branch_id = branch_options[selected_branch_index]["id"] if branch_options and selected_branch != "No Branch" else None
 
-            # Tenant Role
             tenant_role = st.selectbox(
                 "Tenant Role",
                 ["staff", "manager", "admin", "owner"],
@@ -316,13 +290,12 @@ def run():
                     notify_error("Username and password required")
                 else:
                     try:
-                        # CHECK: Username already exists?
                         existing = supabase.table("users").select("id").eq("username", username).execute()
 
                         if existing.data and len(existing.data) > 0:
                             notify_error(f"❌ Username '{username}' already exists. Please choose a different username.")
                         else:
-                            # Create user
+                            # Use auth.hash_password (bcrypt) instead of sha256
                             supabase.table("users").insert(
                                 {
                                     "username": username,
@@ -341,7 +314,6 @@ def run():
 
                     except Exception as e:
                         error_msg = str(e)
-
                         if "duplicate key value violates unique constraint" in error_msg:
                             notify_error(f"❌ Username '{username}' already exists. Please choose a different username.")
                         else:
@@ -355,7 +327,6 @@ def run():
 
     st.subheader("📋 Users")
 
-    # Show current filter status
     if is_owner:
         st.caption(
             f"Showing: {selected_filter_shop} → {selected_filter_branch} → {selected_filter_tenant_role}"
@@ -389,7 +360,6 @@ def run():
             tenant_role = u.get("tenant_role", "staff")
             tenant_role_badge = get_tenant_role_badge(tenant_role)
 
-            # Cross-shop warning indicator
             is_cross_shop = (
                 is_owner
                 and u.get("shop_id")
@@ -454,7 +424,6 @@ def run():
         )
 
         if selected_user:
-            # Show current assignment info
             selected_shop_name = next(
                 (s["name"] for s in shops if s["id"] == selected_user.get("shop_id")),
                 "N/A",
@@ -469,7 +438,6 @@ def run():
             info_col2.info(f"📍 Branch: {selected_branch_name}")
             info_col3.info(f"🛡 Tenant Role: {get_tenant_role_badge(selected_user.get('tenant_role', 'staff'))}")
 
-            # Cross-shop warning
             if is_owner and selected_user.get("shop_id") != current_shop_id:
                 st.warning("⚠️ This user belongs to another shop. Changes will affect that shop only.")
 
@@ -493,7 +461,6 @@ def run():
                 index=role_names.index(current_role_name),
             )
 
-            # Shop selection (only if owner)
             if is_owner and len(shops) > 1:
                 current_shop_name = next(
                     (s["name"] for s in shops if s["id"] == selected_user.get("shop_id")),
@@ -508,7 +475,6 @@ def run():
             else:
                 new_shop_id = selected_user.get("shop_id") or current_shop_id
 
-            # Filter branches by selected shop
             if new_shop_id:
                 branch_options = [b for b in branches if b.get("shop_id") == new_shop_id]
             else:
@@ -532,7 +498,6 @@ def run():
                 new_branch_id = None
                 st.info("No branches available")
 
-            # Tenant Role
             current_tenant_role = selected_user.get("tenant_role", "staff")
             tenant_role_options = ["staff", "manager", "admin", "owner"]
             new_tenant_role = st.selectbox(
@@ -546,7 +511,6 @@ def run():
 
             col1, col2 = st.columns(2)
 
-            # UPDATE
             with col1:
                 if st.button("💾 Update User", use_container_width=True):
                     try:
@@ -573,11 +537,9 @@ def run():
                     except Exception as e:
                         notify_error(f"❌ Update user failed: {e}")
 
-            # DELETE
             with col2:
                 if st.button("🗑 Delete User", use_container_width=True):
                     try:
-                        # Prevent self-deletion
                         if str(selected_user_id) == str(st.session_state.get("user_id")):
                             notify_error("❌ You cannot delete your own account")
                         else:
