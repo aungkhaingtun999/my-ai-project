@@ -203,14 +203,8 @@ def load_page(
 
 def page_router():
 
-    if not st.session_state.get(
-        "user"
-    ):
-
-        st.warning(
-            "Please login first."
-        )
-
+    if not st.session_state.get("user"):
+        st.warning("Please login first.")
         return
 
     page_id = st.session_state.get(
@@ -218,10 +212,23 @@ def page_router():
         "1_POS"
     )
 
-    load_page(
-        page_id
-    )
+    # --------------------------------------------------
+    # MY PROFILE
+    # Directly rendered from sidebar.py
+    # --------------------------------------------------
 
+    if page_id == "__PROFILE__":
+
+        from sidebar import show_profile_page
+
+        show_profile_page()
+        return
+
+    # --------------------------------------------------
+    # NORMAL ERP PAGE
+    # --------------------------------------------------
+
+    load_page(page_id)
 
 # ==============================================================================
 # MAIN
