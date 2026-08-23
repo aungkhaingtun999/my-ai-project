@@ -46,7 +46,17 @@ from auth import (
     login_page,
     is_authenticated
 )
+import auth
 
+st.write("AUTH DEBUG PATH:", getattr(auth, "__file__", "NO FILE"))
+st.write(
+    "AUTH DEBUG CHANGE_PASSWORD:",
+    hasattr(auth, "change_password")
+)
+st.write(
+    "AUTH DEBUG NAMES:",
+    [x for x in dir(auth) if "password" in x.lower()]
+)
 from sidebar import (
     show_sidebar
 )
