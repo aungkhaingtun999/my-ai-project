@@ -104,8 +104,34 @@ def load_page(page_id):
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
 
+        # --------------------------------------------------
+        # DEBUG: Show file path and first 300 characters
+        # --------------------------------------------------
+        st.write("PROFILE FILE:", page_file)
+        
+        with open(page_file, "r", encoding="utf-8") as f:
+            st.code(f.read()[:300])
+
         spec.loader.exec_module(module)
 
+        # --------------------------------------------------
+        # ONE ENTRY ONLY
+        # --------------------------------------------------
+        if hasattr(module, "run"):
+            module.run()
+        elif hasattr(module, "main"):
+            module.main()
+        else:
+            st.warning(
+                f"{page_id}.py has no run() or main()"
+            )
+
+    except Exception as e:
+        st.error(
+            f"Page Load Error : {e}"
+        )
+        with st.expander("Debug Trace"):
+            st.exception(e)
         # --------------------------------------------------
         # ONE ENTRY ONLY
         # --------------------------------------------------
