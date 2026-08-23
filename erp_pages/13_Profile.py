@@ -1,20 +1,8 @@
 import streamlit as st
-import bcrypt
-import hashlib
-import hmac
-import sys
-import os
-
-# Add parent directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from database import get_supabase
+from auth import get_current_user, change_password
 
 def run():
-    supabase = get_supabase()
-    
-    # Get current user from session securely
-    user = st.session_state.get("user")
+    user = get_current_user()
     
     if not user:
         st.error("Please login first")
@@ -39,49 +27,14 @@ def run():
             st.error("Please fill all fields")
         elif new_password != confirm_password:
             st.error("Password confirmation does not match")
-        elif len(new_password) < 6:
-            st.error("Password must be at least 6 characters")
         else:
-            try:
-                # Fetch user directly from Supabase to verify password
-                result = supabase.table("users").select("*").eq("id", user["id"]).limit(1).execute()
-                
-                if not result.data:
-                    st.error("User not found")
-                else:
-                    user_data = result.data[0]
-                    stored_hash = str(user_data.get("password_hash", "")).strip()
-                    
-                    password_verified = False
-                    
-                    if stored_hash.startswith("$2"):
-                        try:
-                            password_verified = bcrypt.checkpw(
-                                old_password.encode("utf-8"),
-                                stored_hash.encode("utf-8")
-                            )
-                        except:
-                            password_verified = False
-                    else:
-                        sha256_hash = hashlib.sha256(old_password.encode("utf-8")).hexdigest()
-                        password_verified = hmac.compare_digest(stored_hash, sha256_hash) or hmac.compare_digest(stored_hash, old_password)
-                    
-                    if not password_verified:
-                        st.error("Current password is incorrect")
-                    else:
-                        # Hash new password with bcrypt
-                        new_hash = bcrypt.hashpw(
-                            new_password.encode("utf-8"),
-                            bcrypt.gensalt()
-                        ).decode()
-                        
-                        # Update database
-                        supabase.table("users").update({"password_hash": new_hash}).eq("id", user["id"]).execute()
-                        
-                        st.success("Password changed successfully")
-                        
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+            # Call the change_password function directly from auth.py
+            success, message = change_password(user["id"], old_password, new_password)
+            
+            if success:
+                st.success(message)
+            else:
+                st.error(message)
 
 if __name__ == "__main__":
     run()
