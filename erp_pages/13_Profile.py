@@ -1,25 +1,16 @@
 import streamlit as st
 import sys
 import os
-import importlib
 
-# Add parent directory to path
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
+# Add parent directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import auth module
+# Import auth module - DO NOT use from auth import
 import auth
 
-# Force reload to get latest version
-importlib.reload(auth)
-
-# Get functions directly from module
-require_login = auth.require_login
-change_password = auth.change_password
-
 def run():
-    user = require_login()
+    # Use auth.require_login() instead of require_login()
+    user = auth.require_login()
 
     st.title("👤 My Profile")
 
@@ -41,7 +32,8 @@ def run():
         elif len(new_password) < 6:
             st.error("Password must be at least 6 characters")
         else:
-            success, message = change_password(
+            # Use auth.change_password() directly
+            success, message = auth.change_password(
                 user["id"],
                 old_password,
                 new_password
