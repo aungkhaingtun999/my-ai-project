@@ -21,7 +21,7 @@ supabase = db()
 # SECURITY CONSTANTS
 # ==================================================
 
-SESSION_IDLE_TIMEOUT = 1800  # 30 Minutes
+SESSION_IDLE_TIMEOUT = 1800
 MAX_FAILED_ATTEMPTS = 5
 LOCK_DURATION_MINUTES = 15
 
@@ -98,7 +98,6 @@ def verify_password(user, password):
 
     stored = str(stored).strip()
 
-    # bcrypt check
     if stored.startswith("$2"):
         try:
             return bcrypt.checkpw(
@@ -107,7 +106,6 @@ def verify_password(user, password):
         except Exception:
             return False
 
-    # Legacy SHA256 / Plain Migration
     sha256_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
 
     if hmac.compare_digest(stored, sha256_hash) or hmac.compare_digest(
@@ -136,7 +134,6 @@ def change_password(user_id, old_password, new_password):
         if len(new_password) < 6:
             return False, "New password must be at least 6 characters"
         
-        # Get user
         result = (
             supabase.table("users")
             .select("*")
@@ -150,11 +147,9 @@ def change_password(user_id, old_password, new_password):
 
         user = result.data[0]
 
-        # Verify old password
         if not verify_password(user, old_password):
             return False, "Old password is incorrect"
 
-        # Hash and update new password
         new_hash = hash_password(new_password)
         
         supabase.table("users").update({"password_hash": new_hash}).eq(
@@ -391,7 +386,7 @@ def require_admin():
     user = require_login()
 
     if user["role_id"] != ROLE_ADMIN:
-        st.error("⛔ Admin privileges required.")
+        st.error("Admin privileges required.")
         st.stop()
 
     return user
@@ -400,7 +395,7 @@ def require_role(role_id):
     user = require_login()
 
     if user["role_id"] != role_id:
-        st.error(f"⛔ Requires {ROLE_MAP.get(role_id)}")
+        st.error(f"Requires {ROLE_MAP.get(role_id)}")
         st.stop()
 
     return user
@@ -413,7 +408,7 @@ def require_tenant_role(min_tenant_role):
     required_level = TENANT_ROLE_HIERARCHY.get(min_tenant_role, 0)
     
     if current_level < required_level:
-        st.error(f"⛔ Requires {TENANT_ROLE_MAP.get(min_tenant_role)} or higher.")
+        st.error(f"Requires {TENANT_ROLE_MAP.get(min_tenant_role)} or higher.")
         st.stop()
     
     return user
@@ -459,7 +454,7 @@ def has_permission(permission_key):
 # ==================================================
 
 def login_page():
-    st.title("🔐 ERP Enterprise Login")
+    st.title("ERP Enterprise Login")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
@@ -491,7 +486,7 @@ def auth_sidebar():
         user = current_user()
 
         with st.sidebar:
-            st.success(f"👤 {user['full_name']}")
+            st.success(f"User: {user['full_name']}")
             st.caption(f"Role: {user['role']}")
 
             tenant_role = user.get("tenant_role")
@@ -502,10 +497,45 @@ def auth_sidebar():
                 st.caption(f"Tenant Role: {TENANT_ROLE_MAP.get(tenant_role, tenant_role)}")
 
             if shop_name:
-                st.caption(f"🏪 {shop_name}")
+                st.caption(f"Shop: {shop_name}")
 
             if branch_name:
-                st.caption(f"📍 {branch_name}")
+                st.caption(f"Branch: {branch_name}")
 
-            if st.button("🚪 Logout"):
+            if st.button("Logout"):
                 logout()
+
+# ==================================================
+# EXPLICIT EXPORTS
+# ==================================================
+
+__all__ = [
+    'change_password',
+    'verify_password',
+    'upgrade_password',
+    'hash_password',
+    'login_user',
+    'logout',
+    'require_login',
+    'require_admin',
+    'require_role',
+    'require_tenant_role',
+    'get_current_user',
+    'current_user',
+    'get_current_role_id',
+    'get_current_shop_id',
+    'get_current_branch_id',
+    'get_current_tenant_role',
+    'get_current_tenant_context',
+    'is_shop_owner',
+    'is_shop_admin',
+    'is_shop_manager',
+    'has_permission',
+    'is_authenticated',
+    'build_session',
+    'build_tenant_context',
+    'get_user',
+    'log_auth_event',
+    'auth_sidebar',
+    'login_page'
+]
