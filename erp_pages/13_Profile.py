@@ -12,17 +12,9 @@ def run():
 
     st.title("👤 My Profile")
 
-    st.write(
-        f"Username : {user.get('username', '')}"
-    )
-
-    st.write(
-        f"Full Name : {user.get('full_name', '')}"
-    )
-
-    st.write(
-        f"Role : {user.get('role', '')}"
-    )
+    st.write(f"Username : {user.get('username', '')}")
+    st.write(f"Full Name : {user.get('full_name', '')}")
+    st.write(f"Role : {user.get('role', '')}")
 
     st.divider()
 
@@ -49,16 +41,10 @@ def run():
     ):
 
         if not old_password or not new_password:
-
-            st.error(
-                "Please fill all fields"
-            )
+            st.error("Please fill all fields")
 
         elif new_password != confirm_password:
-
-            st.error(
-                "Password confirmation does not match"
-            )
+            st.error("Password confirmation does not match")
 
         else:
 
@@ -69,11 +55,8 @@ def run():
             )
 
             if success:
-
                 st.success(message)
-
             else:
-
                 st.error(message)
 
 
