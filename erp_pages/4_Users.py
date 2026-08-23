@@ -147,12 +147,30 @@ def run():
             "id, username, full_name, role_id, is_active, shop_id, branch_id, tenant_role"
         )
 
-        # System Admin (role_id=1) can see all users
-        # Others can only see users in their own shop
         current_role_id = current_user.get("role_id")
+        is_system_admin = bool(current_user.get("is_system_admin", False))
 
-        if current_role_id != 1 and current_shop_id:
-            query = query.eq("shop_id", current_shop_id)
+        # ----------------------------------------------------------
+        # USER VISIBILITY
+        # ----------------------------------------------------------
+        # Only a REAL system administrator can see all shops.
+        # Tenant owners/admins/managers/staff remain shop-scoped.
+        # ----------------------------------------------------------
+
+        if not is_system_admin:
+
+            if current_shop_id:
+                query = query.eq(
+                    "shop_id",
+                    current_shop_id
+                )
+
+            else:
+                # No tenant context = show nothing
+                query = query.eq(
+                    "id",
+                    "00000000-0000-0000-0000-000000000000"
+                )
 
         users_resp = query.execute()
         users = users_resp.data or []
@@ -549,19 +567,20 @@ def run():
                             f"Updated user {selected_user['username']}",
                         )
 
-                        notify_success("✅ User updated successfully")
+                        notify_success(f"✅ User '{selected_user['username']}' updated successfully")
                         st.rerun()
 
                     except Exception as e:
-                        notify_error(f"❌ Update failed: {e}")
+                        notify_error(f"❌ Update user failed: {e}")
 
             # DELETE
             with col2:
-                if selected_user.get("username") == "admin":
-                    st.info("⚠️ System admin cannot be deleted")
-                else:
-                    if st.button("🗑 Delete User", use_container_width=True):
-                        try:
+                if st.button("🗑 Delete User", use_container_width=True):
+                    try:
+                        # Prevent self-deletion
+                        if str(selected_user_id) == str(st.session_state.get("user_id")):
+                            notify_error("❌ You cannot delete your own account")
+                        else:
                             supabase.table("users").delete().eq("id", selected_user_id).execute()
 
                             create_activity_log(
@@ -570,162 +589,8 @@ def run():
                                 f"Deleted user {selected_user['username']}",
                             )
 
-                            notify_success("✅ User deleted successfully")
+                            notify_success(f"✅ User '{selected_user['username']}' deleted successfully")
                             st.rerun()
 
-                        except Exception as e:
-                            notify_error(f"❌ Delete failed: {e}")
-
-            st.divider()
-
-            # ------------------------------------------------------------------
-            # RESET PASSWORD
-            # ------------------------------------------------------------------
-
-            st.subheader("🔐 Reset Password")
-
-            new_password = st.text_input(
-                "New Password",
-                type="password",
-            )
-
-            if st.button("💾 Save Password", use_container_width=True):
-                if not new_password:
-                    notify_error("❌ Password required")
-                else:
-                    try:
-                        supabase.table("users").update(
-                            {
-                                "password_hash": hash_password(new_password)
-                            }
-                        ).eq("id", selected_user_id).execute()
-
-                        create_activity_log(
-                            st.session_state.get("user_id"),
-                            "RESET_PASSWORD",
-                            f"Reset password for {selected_user['username']}",
-                        )
-
-                        notify_success("✅ Password reset successfully")
-                        st.rerun()
-
                     except Exception as e:
-                        notify_error(f"❌ Reset failed: {e}")
-
-    # ==============================================================================
-    # SUMMARY
-    # ==============================================================================
-
-    total = len(filtered_users)
-    active_count = sum(
-        1 for u in filtered_users if u.get("is_active", False)
-    )
-
-    # Count by shop
-    shop_counts = {}
-    for u in filtered_users:
-        shop_id = u.get("shop_id")
-        if shop_id:
-            shop_name = next((s["name"] for s in shops if s["id"] == shop_id), "Unknown")
-            shop_counts[shop_name] = shop_counts.get(shop_name, 0) + 1
-
-    st.divider()
-    st.subheader("📊 System Summary")
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    c1.metric("👥 Users", total)
-    c2.metric("🟢 Active", active_count)
-    c3.metric("🔴 Disabled", total - active_count)
-    c4.metric("🛡 Roles", len(roles))
-
-    # Shop distribution
-    if shop_counts:
-        st.divider()
-        st.subheader("🏪 Users by Shop")
-        for shop_name, count in shop_counts.items():
-            st.metric(shop_name, count)
-
-    # ==============================================================================
-    # ACTIVITY LOG
-    # ==============================================================================
-
-    st.divider()
-
-    with st.expander("📝 User Activity Log", expanded=False):
-        try:
-            logs = (
-                supabase.table("user_activity_logs")
-                .select("action, description, created_at")
-                .order("created_at", desc=True)
-                .limit(50)
-                .execute()
-            )
-
-            activity_logs = logs.data or []
-
-            if activity_logs:
-                st.dataframe(
-                    activity_logs,
-                    use_container_width=True,
-                    hide_index=True,
-                )
-            else:
-                st.info("No activity logs found")
-
-        except Exception as e:
-            st.error(f"Activity log loading failed: {e}")
-
-    # ==============================================================================
-    # PERMISSION MATRIX
-    # ==============================================================================
-
-    st.divider()
-    st.subheader("👑 Permission Matrix")
-
-    try:
-        permissions = (
-            supabase.table("role_permissions")
-            .select(
-                """
-                allowed,
-                permissions(
-                    permission_key
-                ),
-                roles(
-                    name
-                )
-                """
-            )
-            .execute()
-        )
-
-        permission_data = permissions.data or []
-
-        if permission_data:
-            matrix_rows = []
-
-            for p in permission_data:
-                permission = p.get("permissions")
-                role = p.get("roles")
-
-                matrix_rows.append(
-                    {
-                        "Role": role.get("name") if role else "Unknown",
-                        "Permission": permission.get("permission_key") if permission else "Unknown",
-                        "Allowed": "✅" if p.get("allowed") else "❌",
-                    }
-                )
-
-            df_permissions = pd.DataFrame(matrix_rows)
-
-            st.dataframe(
-                df_permissions,
-                use_container_width=True,
-                hide_index=True,
-            )
-        else:
-            st.info("No permissions found")
-
-    except Exception as e:
-        st.error(f"Permission matrix loading failed: {e}")
+                        notify_error(f"❌ Delete user failed: {e}")
