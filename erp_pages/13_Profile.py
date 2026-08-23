@@ -1,25 +1,23 @@
 import streamlit as st
+import sys
+import os
 
-from auth import (
-    require_login,
-    change_password
-)
+# Add parent directory to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Import auth module directly
+import auth
 
 def run():
-
-    user = require_login()
+    user = auth.require_login()
 
     st.title("👤 My Profile")
 
-    st.write(
-        f"Username : {user['username']}"
-    )
+    st.write(f"Username : {user['username']}")
 
     st.divider()
 
     st.subheader("🔐 Change Password")
-
 
     old_password = st.text_input(
         "Current Password",
@@ -36,41 +34,31 @@ def run():
         type="password"
     )
 
-
     if st.button(
         "💾 Change Password",
         use_container_width=True
     ):
-
         if not old_password or not new_password:
-            st.error(
-                "Please fill all fields"
-            )
+            st.error("Please fill all fields")
 
         elif new_password != confirm_password:
-            st.error(
-                "Password confirmation does not match"
-            )
+            st.error("Password confirmation does not match")
 
         elif len(new_password) < 6:
-            st.error(
-                "Password must be at least 6 characters"
-            )
+            st.error("Password must be at least 6 characters")
 
         else:
-
-            success, message = change_password(
+            # Use auth.change_password directly
+            success, message = auth.change_password(
                 user["id"],
                 old_password,
                 new_password
             )
 
-
             if success:
                 st.success(message)
             else:
                 st.error(message)
-
 
 if __name__ == "__main__":
     run()
