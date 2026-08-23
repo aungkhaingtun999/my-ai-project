@@ -55,7 +55,6 @@ TENANT_ROLE_MAP = {
     TENANT_ROLE_OWNER: "Owner",
 }
 
-# Tenant role hierarchy (higher number = more access)
 TENANT_ROLE_HIERARCHY = {
     TENANT_ROLE_STAFF: 1,
     TENANT_ROLE_MANAGER: 2,
@@ -80,10 +79,16 @@ def log_auth_event(user_id, event_type, status="success"):
     except Exception:
         pass
 
-
 # ==================================================
 # PASSWORD ENGINE
 # ==================================================
+
+def hash_password(password):
+    """Hash password using bcrypt"""
+    return bcrypt.hashpw(
+        password.encode("utf-8"), 
+        bcrypt.gensalt()
+    ).decode()
 
 def verify_password(user, password):
     stored = user.get("password_hash")
@@ -93,9 +98,7 @@ def verify_password(user, password):
 
     stored = str(stored).strip()
 
-    # ---------------------------------
-    # bcrypt
-    # ---------------------------------
+    # bcrypt check
     if stored.startswith("$2"):
         try:
             return bcrypt.checkpw(
@@ -104,9 +107,7 @@ def verify_password(user, password):
         except Exception:
             return False
 
-    # ---------------------------------
     # Legacy SHA256 / Plain Migration
-    # ---------------------------------
     sha256_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
 
     if hmac.compare_digest(stored, sha256_hash) or hmac.compare_digest(
@@ -117,42 +118,25 @@ def verify_password(user, password):
 
     return False
 
-
 def upgrade_password(user_id, password):
     try:
-        new_hash = bcrypt.hashpw(
-            password.encode("utf-8"), bcrypt.gensalt()
-        ).decode()
-
+        new_hash = hash_password(password)
         supabase.table("users").update({"password_hash": new_hash}).eq(
             "id", user_id
         ).execute()
-
     except Exception:
         pass
 
-
 def change_password(user_id, old_password, new_password):
-    """
-    Change user password after verifying old password.
-    
-    Args:
-        user_id: User ID
-        old_password: Current password for verification
-        new_password: New password to set
-        
-    Returns:
-        tuple: (success: bool, message: str)
-    """
+    """Change user password"""
     try:
-        # Validate inputs
         if not old_password or not new_password:
             return False, "Old and new passwords are required"
         
         if len(new_password) < 6:
             return False, "New password must be at least 6 characters"
         
-        # Current user load
+        # Get user
         result = (
             supabase.table("users")
             .select("*")
@@ -170,28 +154,19 @@ def change_password(user_id, old_password, new_password):
         if not verify_password(user, old_password):
             return False, "Old password is incorrect"
 
-        # Hash new password with bcrypt
-        new_hash = bcrypt.hashpw(
-            new_password.encode("utf-8"), bcrypt.gensalt()
-        ).decode()
+        # Hash and update new password
+        new_hash = hash_password(new_password)
+        
+        supabase.table("users").update({"password_hash": new_hash}).eq(
+            "id", user_id
+        ).execute()
 
-        # Update password
-        update_result = (
-            supabase.table("users")
-            .update({"password_hash": new_hash})
-            .eq("id", user_id)
-            .execute()
-        )
-
-        # Log password change event
         log_auth_event(user_id, "password_change", "success")
-
         return True, "Password changed successfully"
 
     except Exception as e:
         log_auth_event(user_id, "password_change", "failed")
         return False, f"Password change error: {str(e)}"
-
 
 # ==================================================
 # USER QUERY
@@ -214,16 +189,12 @@ def get_user(username):
         st.error("Authentication Database Error")
         return None
 
-
 # ==================================================
 # TENANT CONTEXT BUILDER
 # ==================================================
 
 def build_tenant_context(user):
-    """
-    Build tenant context from user record.
-    Returns dict with shop_id, branch_id, tenant_role, shop_name, branch_name.
-    """
+    """Build tenant context from user record"""
     shop_id = user.get("shop_id")
     branch_id = user.get("branch_id")
     tenant_role = user.get("tenant_role", TENANT_ROLE_STAFF)
@@ -236,7 +207,6 @@ def build_tenant_context(user):
         "branch_name": None,
     }
     
-    # Load shop name if shop_id exists
     if shop_id:
         try:
             shop_resp = (
@@ -253,7 +223,6 @@ def build_tenant_context(user):
         except Exception:
             pass
     
-    # Load branch name if branch_id exists
     if branch_id:
         try:
             branch_resp = (
@@ -271,7 +240,6 @@ def build_tenant_context(user):
             pass
     
     return context
-
 
 # ==================================================
 # LOGIN ENGINE
@@ -297,14 +265,11 @@ def login_user(username, password):
         ).eq("id", user["id"]).execute()
 
         build_session(user)
-
         log_auth_event(user["id"], "login")
-
         return True, "Success"
 
     else:
         attempts = user.get("failed_attempts", 0) + 1
-
         update_data = {"failed_attempts": attempts}
 
         if attempts >= MAX_FAILED_ATTEMPTS:
@@ -318,33 +283,17 @@ def login_user(username, password):
         ).execute()
 
         log_auth_event(user["id"], "login", "failed")
-
         return False, "Invalid password."
-
 
 # ==================================================
 # SESSION BUILDER
 # ==================================================
 
 def build_session(user):
-    role_id = int(
-        user.get(
-            "role_id",
-            ROLE_CASHIER
-        )
-    )
-
+    role_id = int(user.get("role_id", ROLE_CASHIER))
     user_id = user.get("id")
-
-    username = (
-        user.get("username")
-        or
-        user.get("email")
-        or
-        "Unknown"
-    )
-
-    # Build tenant context
+    username = user.get("username") or user.get("email") or "Unknown"
+    
     tenant_context = build_tenant_context(user)
 
     st.session_state.user = {
@@ -355,8 +304,6 @@ def build_session(user):
         "role": ROLE_MAP.get(role_id, "Cashier"),
         "is_active": bool(user.get("is_active", True)),
         "last_activity": time.time(),
-        
-        # Multi-Tenant fields
         "shop_id": tenant_context.get("shop_id"),
         "branch_id": tenant_context.get("branch_id"),
         "tenant_role": tenant_context.get("tenant_role"),
@@ -364,22 +311,16 @@ def build_session(user):
         "branch_name": tenant_context.get("branch_name"),
     }
 
-    # IMPORTANT UUID SESSION
     st.session_state["user_id"] = user_id
     st.session_state["username"] = username
     st.session_state["role_id"] = role_id
-
-    # Multi-Tenant session keys
     st.session_state["shop_id"] = tenant_context.get("shop_id")
     st.session_state["branch_id"] = tenant_context.get("branch_id")
     st.session_state["tenant_role"] = tenant_context.get("tenant_role")
     st.session_state["shop_name"] = tenant_context.get("shop_name")
     st.session_state["branch_name"] = tenant_context.get("branch_name")
     st.session_state["tenant_context"] = tenant_context
-
-    # backup id
     st.session_state["id"] = user_id
-
 
 # ==================================================
 # CURRENT USER & ROLE HELPERS
@@ -388,10 +329,8 @@ def build_session(user):
 def get_current_user():
     return st.session_state.get("user") or {}
 
-
 def current_user():
     return get_current_user()
-
 
 def get_current_role_id():
     user = get_current_user()
@@ -399,61 +338,28 @@ def get_current_role_id():
         return None
     return user.get("role_id")
 
-
 def get_current_shop_id():
-    """
-    Get current user's shop_id from session.
-    Returns None if not set.
-    """
     return st.session_state.get("shop_id")
 
-
 def get_current_branch_id():
-    """
-    Get current user's branch_id from session.
-    Returns None if not set.
-    """
     return st.session_state.get("branch_id")
 
-
 def get_current_tenant_role():
-    """
-    Get current user's tenant_role from session.
-    Returns 'staff' if not set.
-    """
     return st.session_state.get("tenant_role", TENANT_ROLE_STAFF)
 
-
 def get_current_tenant_context():
-    """
-    Get full tenant context from session.
-    Returns dict or None.
-    """
     return st.session_state.get("tenant_context")
 
-
 def is_shop_owner():
-    """
-    Check if current user is shop owner.
-    """
     return get_current_tenant_role() == TENANT_ROLE_OWNER
 
-
 def is_shop_admin():
-    """
-    Check if current user is shop admin or owner.
-    """
     tenant_role = get_current_tenant_role()
     return tenant_role in [TENANT_ROLE_ADMIN, TENANT_ROLE_OWNER]
 
-
 def is_shop_manager():
-    """
-    Check if current user is shop manager or higher.
-    """
     tenant_role = get_current_tenant_role()
     return tenant_role in [TENANT_ROLE_MANAGER, TENANT_ROLE_ADMIN, TENANT_ROLE_OWNER]
-
 
 # ==================================================
 # AUTH GUARDS & PERMISSIONS
@@ -475,13 +381,11 @@ def is_authenticated():
     user["last_activity"] = time.time()
     return True
 
-
 def require_login():
     if not is_authenticated():
         login_page()
         st.stop()
     return current_user()
-
 
 def require_admin():
     user = require_login()
@@ -492,7 +396,6 @@ def require_admin():
 
     return user
 
-
 def require_role(role_id):
     user = require_login()
 
@@ -502,18 +405,10 @@ def require_role(role_id):
 
     return user
 
-
 def require_tenant_role(min_tenant_role):
-    """
-    Require minimum tenant role.
-    
-    Example:
-        require_tenant_role(TENANT_ROLE_MANAGER)
-    """
     user = require_login()
     
     current_tenant_role = user.get("tenant_role", TENANT_ROLE_STAFF)
-    
     current_level = TENANT_ROLE_HIERARCHY.get(current_tenant_role, 0)
     required_level = TENANT_ROLE_HIERARCHY.get(min_tenant_role, 0)
     
@@ -522,7 +417,6 @@ def require_tenant_role(min_tenant_role):
         st.stop()
     
     return user
-
 
 def has_permission(permission_key):
     try:
@@ -560,7 +454,6 @@ def has_permission(permission_key):
         st.error(f"Permission check error: {e}")
         return False
 
-
 # ==================================================
 # LOGIN UI
 # ==================================================
@@ -569,7 +462,6 @@ def login_page():
     st.title("🔐 ERP Enterprise Login")
 
     username = st.text_input("Username")
-
     password = st.text_input("Password", type="password")
 
     if st.button("Login", use_container_width=True):
@@ -579,7 +471,6 @@ def login_page():
             st.rerun()
         else:
             st.error(msg)
-
 
 # ==================================================
 # LOGOUT
@@ -591,7 +482,6 @@ def logout():
 
     st.rerun()
 
-
 # ==================================================
 # SIDEBAR USER PANEL
 # ==================================================
@@ -602,10 +492,8 @@ def auth_sidebar():
 
         with st.sidebar:
             st.success(f"👤 {user['full_name']}")
-
             st.caption(f"Role: {user['role']}")
 
-            # Show tenant info if exists
             tenant_role = user.get("tenant_role")
             shop_name = user.get("shop_name")
             branch_name = user.get("branch_name")
