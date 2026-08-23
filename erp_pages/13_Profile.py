@@ -5,7 +5,7 @@ import os
 # Add parent directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import auth and change_password
+# Import the module as a whole to prevent import errors
 import auth
 
 def run():
@@ -18,7 +18,7 @@ def run():
 
     st.title("👤 My Profile")
 
-    st.write(f"Username : {user['username']}")
+    st.write(f"Username : {user.get('username', '')}")
     st.write(f"Full Name : {user.get('full_name', '')}")
     st.write(f"Role : {user.get('role', '')}")
 
@@ -36,7 +36,7 @@ def run():
         elif new_password != confirm_password:
             st.error("Password confirmation does not match")
         else:
-            # Use the centralized change_password function from auth.py
+            # Call change_password safely via the auth module
             success, message = auth.change_password(user["id"], old_password, new_password)
             
             if success:
