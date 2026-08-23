@@ -83,6 +83,8 @@ def log_auth_event(user_id, event_type, status="success"):
 # PASSWORD ENGINE
 # ==================================================
 
+print("AUTH MODULE START")
+
 def hash_password(password):
     """Hash password using bcrypt"""
     return bcrypt.hashpw(
@@ -162,6 +164,8 @@ def change_password(user_id, old_password, new_password):
     except Exception as e:
         log_auth_event(user_id, "password_change", "failed")
         return False, f"Password change error: {str(e)}"
+
+print("AUTH CHANGE_PASSWORD LOADED")
 
 # ==================================================
 # USER QUERY
@@ -539,3 +543,5 @@ __all__ = [
     'auth_sidebar',
     'login_page'
 ]
+
+print("AUTH MODULE READY")
