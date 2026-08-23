@@ -539,22 +539,3 @@ __all__ = [
     'auth_sidebar',
     'login_page'
 ]
-# ==================================================
-# QUICK FIX FOR CHANGE_PASSWORD IMPORT ERROR
-# ==================================================
-def change_password(user_id, old_password, new_password):
-    """
-    Fallback or direct handler for changing password
-    to resolve import errors.
-    """
-    try:
-        from database import get_supabase
-        import bcrypt
-        
-        supabase = get_supabase()
-        
-        # Update logic safely
-        return True, "Password updated successfully"
-    except Exception as e:
-        return False, str(e)
-        
